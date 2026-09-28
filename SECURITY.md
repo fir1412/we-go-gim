@@ -35,3 +35,24 @@ Reviewed 2026-09-28. Re-check this list whenever one of the triggers below becom
 ## Open follow-ups
 - Check that the Google Form's response spreadsheet is private (owner only).
 - If a custom domain is used for the Play Store listing (Digital Asset Links), enable "Enforce HTTPS" and re-run this review.
+
+## Launch and store checklist (reviewed 2026-09-28)
+| Item | Status |
+|---|---|
+| Privacy policy page | Done: privacy.html (linked in Settings; use this URL for the Play Store listing). |
+| Terms page | Done: terms.html (not medical advice, age 13+, no warranty, licences). |
+| Force HTTPS | Done by GitHub Pages (HSTS, http→https redirect). |
+| Secrets off the frontend | Checked: no API keys or tokens in the code. The feedback form address is public by design. |
+| Meta title/description, social preview, favicon | Done: sharing tags with a 1200×630 image (icons/og-image.png), SVG favicon plus a PNG fallback. |
+| Sitemap, robots.txt | Added. Note: crawlers read robots.txt only at the domain root (fir1412.github.io/robots.txt). Copy it there, or use a custom domain, for it to take effect. |
+| Custom 404 | Done: 404.html (GitHub Pages serves it for missing paths). |
+| Alt text | Checked: every image has alt text. The 3D model has an aria-label. |
+| Image compression | Done: app icons went from 740 KB to 55 KB. The 3D body models (2.5 MB each) load only when the atlas is opened; Draco compression is a possible later step. |
+| Spam protection | Done: feedback rate limits in the app plus form-side validation. |
+| One clear call to action | Welcome: "Build my plan". Today: the Start button. |
+| Cancel button / unsubscribe | Not applicable: no subscriptions, payments or emails. **Trigger:** paid plans or emails → a one-tap cancel and an unsubscribe link in every email. |
+| Delete account | Not applicable: no accounts. "Erase everything" deletes all data. **Trigger:** accounts → in-app account deletion plus a web deletion page (Play Store requirement). |
+| Age check | Not needed while nothing is collected; the policy and terms say 13+. **Trigger:** accounts, social features or ads → an age gate and the Play "target audience" declaration. |
+| Cookie consent banner | Not applicable: no cookies or trackers. **Trigger:** any analytics or ad script that sets cookies or identifiers. |
+| Analytics | Not added on purpose: the app and the privacy page promise "no analytics". **Trigger / decision:** if usage numbers are wanted, prefer a cookieless, privacy-friendly option (e.g. an opt-in, anonymous counter) and update privacy.html first. |
+| Colour contrast, mobile friendliness, form validation, page speed | Being tested by the QA agents on 2026-09-28; see D:\AI\claude-generated\wegogim\qa\. |
