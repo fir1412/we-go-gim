@@ -157,8 +157,11 @@ export function bodySVG({ female = false, fill, sel = null, region = null, level
   const view = (v, ox) => {
     let g = `<g transform="translate(${ox} 0)">`;
     // silhouette: head, then both halves of the body
-    // Hair: framing the face on the front view, a ponytail on the back view.
-    const hair = !female ? '' : v === 'f' ? '<path class="hair" d="M100,8 C82,8 78,24 80,40 C81,52 78,60 76,66 C84,64 88,56 88,46 C86,30 92,20 100,20 C108,20 114,30 112,46 C112,56 116,64 124,66 C122,60 119,52 120,40 C122,24 118,8 100,8 Z"/>' : '<path class="hair" d="M100,9 C84,9 81,22 82,34 C83,44 90,50 100,50 C110,50 117,44 118,34 C119,22 116,9 100,9 Z M96,46 C94,58 95,72 100,82 C105,72 106,58 104,46 Z"/>';
+    // Hair: framing the face on the front view.
+    const hair = !female ? '' : v === 'f' ? '<path class="hair" d="M100,8 C82,8 78,24 80,40 C81,52 78,60 76,66 C84,64 88,56 88,46 C86,30 92,20 100,20 C108,20 114,30 112,46 C112,56 116,64 124,66 C122,60 119,52 120,40 C122,24 118,8 100,8 Z"/>' : '';
+    // Back view: the whole head of hair falling past the nape (same outline as the front), drawn on top of the
+    // muscles at the end so the body outline doesn't hide it; taps go through to the muscles underneath.
+    const hairBack = female && v === 'b' ? '<g class="sil" pointer-events="none"><path class="hair" d="M100,8 C82,8 78,24 80,40 C81,52 78,60 76,66 C86,71 114,71 124,66 C122,60 119,52 120,40 C122,24 118,8 100,8 Z"/></g>' : '';
     g += `<g class="sil"><ellipse cx="100" cy="30" rx="${female ? 15 : 16}" ry="19"/>${hair}<path d="${shape(OUTLINE, female)}"/><path d="${shape(OUTLINE, female)}" transform="${mirror}"/></g>`;
     const groups = [...new Set(REGIONS.filter(r => r.view === v).map(r => r.group))];
     for (const m of groups) {
@@ -172,6 +175,7 @@ export function bodySVG({ female = false, fill, sel = null, region = null, level
       }
       g += '</g>';
     }
+    g += hairBack;
     for (const [m, [x, y, tv]] of Object.entries(TAGS)) {
       const L = level(m);
       if (tv !== v || !L) continue;
