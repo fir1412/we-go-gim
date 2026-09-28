@@ -1,4 +1,4 @@
-import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh } from '../state.js';
+import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
@@ -1017,10 +1017,10 @@ export const actions = {
   'st-missed': el => saveSettings({ missedReminders: el.checked }),
   'st-game': el => saveSettings({ gamify: el.checked }),
   'st-pause'(el) {
-    const t = todayIso(), list = (S.settings.streakPauses || []).filter(p => p && p.from).slice(-20);
+    const t = todayIso(), list = cleanPauses(S.settings.streakPauses || []);
     if (el.checked && !list.some(p => !p.to)) list.push({ from: t, to: null });
     if (!el.checked) for (const p of list) if (!p.to) p.to = t;
-    return saveSettings({ streakPauses: list });
+    return saveSettings({ streakPauses: cleanPauses(list) });
   },
   'st-text': el => saveSettings({ textSize: ['large', 'xl'].includes(el.dataset.v) ? el.dataset.v : 'normal' }),
   'st-daystart': el => saveSettings({ dayStart: +el.dataset.v || 0 }),

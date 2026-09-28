@@ -174,8 +174,10 @@ function helper(e, ex) {
     const bar = barFor(ex);
     const p = platesPerSide(w, bar, eq.plates);
     const U = getUnits(), wt = `${num(toDisp(w))} ${U}`;
-    if (!p.ok) return `<p class="helper">${w < bar ? `Below the ${num(toDisp(bar))} ${U} bar.` : `Can't make ${wt} exactly with your plates (${num(toDisp(p.rem), 2)} ${U}/side short).`}</p>`;
-    return `<p class="helper">${wt}: <b>${p.plates.length ? p.plates.join(' + ') + ' kg' : 'empty bar'}</b>${p.plates.length ? ' per side' : ''} on the ${num(toDisp(bar))} ${U} bar</p>`;
+    // In lb, a 20 kg bar is the 45 lb bar the plate maths uses (not 44 lb).
+    const barTxt = U === 'lb' ? String(Math.round(toDisp(bar) / 5) * 5) : num(toDisp(bar));
+    if (!p.ok) return `<p class="helper">${w < bar ? `Below the ${barTxt} ${U} bar.` : `Can't make ${wt} exactly with your plates (${num(toDisp(p.rem), 2)} ${U}/side short).`}</p>`;
+    return `<p class="helper">${wt}: <b>${p.plates.length ? p.plates.join(' + ') + ' ' + (p.unit || 'kg') : 'empty bar'}</b>${p.plates.length ? ' per side' : ''} on the ${barTxt} ${U} bar</p>`;
   }
   if (ex.unit === 'kg/DB' && eq.dumbbells?.length && !eq.dumbbells.includes(w)) {
     return `<p class="helper">No ${num(toDisp(w))} ${getUnits()} dumbbell in your list. Nearest: <b>${num(toDisp(nearestDumbbell(w, eq.dumbbells)))} ${getUnits()}</b></p>`;
