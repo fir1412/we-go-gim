@@ -224,8 +224,17 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.5.0';
 const WHATS_NEW = {
+  '1.5.0': [
+    'New app icon',
+    'Day colours: any colour from the full colour wheel, or type a hex code (More → Programme → tap a day → colour dot)',
+    'Import reads far more: Hevy and FitNotes in pounds, Jefit, MyFitnessPal, StrongLifts, Garmin, German GymBook, Excel dates, WhatsApp and Telegram chats, Notion, Evernote, Google Docs, RTF, email, and lift names in German, Spanish, French, Portuguese, Italian and Chinese',
+    'Photos, spreadsheets and zip files now say what to do instead of failing',
+    'Setup no longer asks your experience twice',
+    'Rest alerts offered at your first rest; one-tap "Back up now"; turn off missed-workout reminders in Settings',
+    'Measurements in inches when you use lb; save progress photos to your phone',
+  ],
   '1.4.0': [
     'History shows any month, with a recap card: days trained, sets, weight lifted, bests and your most improved lift',
     'Progress tab: Insights and Levels together, with strength standards on the big barbell lifts',

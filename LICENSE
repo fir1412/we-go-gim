@@ -21,8 +21,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ---------------------------------------------------------------------------
-Scope: this license covers the source code only. It does NOT cover:
-- the icon artwork in icons/ (the "we go gim" kitten meme; artwork by
-  rartcattos, used with credit, all rights remain with the artist), and
-- the third-party fonts and libraries listed in THIRD_PARTY_NOTICES.md,
-  which keep their own licenses.
+Scope: this license covers the source code and the app icon in icons/ (drawn
+for this project). It does NOT cover the third-party fonts and libraries listed
+in THIRD_PARTY_NOTICES.md, which keep their own licenses.

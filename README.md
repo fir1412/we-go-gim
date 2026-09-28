@@ -41,4 +41,4 @@ node --test tests/*.test.mjs
 | `js/views/*.js` | Today, Workout, Insights, Levels, History, More |
 | `sw.js` | Offline cache |
 
-Icon: "we go gim" kitten meme (watermark by rartcattos, cropped out for the icon).
+Icon: a 3D-shaded dumbbell drawn for this project (`icons/icon.svg`, full-bleed `icons/icon-maskable.svg`), MIT like the code.

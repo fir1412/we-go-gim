@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- we go gim app icon: a 3D-shaded dumbbell on warm orange. Full-bleed version for maskable and iOS icons. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFB870"/><stop offset=".55" stop-color="#FF7F32"/><stop offset="1" stop-color="#E24E16"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".3" cy=".22" r=".75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".42"/><stop offset=".55" stop-color="#FFFFFF" stop-opacity=".06"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FDFEFF"/><stop offset=".38" stop-color="#D5DAE3"/><stop offset=".52" stop-color="#8A92A3"/><stop offset=".7" stop-color="#C3C9D4"/><stop offset="1" stop-color="#EEF1F6"/>
+    </linearGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#555C6D"/><stop offset=".3" stop-color="#2B2F3A"/><stop offset=".7" stop-color="#16181F"/><stop offset="1" stop-color="#383D4A"/>
+    </linearGradient>
+    <radialGradient id="face" cx=".42" cy=".38" r=".7">
+      <stop offset="0" stop-color="#5E6679"/><stop offset=".6" stop-color="#2E3340"/><stop offset="1" stop-color="#1A1D25"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".55"/><stop offset=".25" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".12"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="22" stdDeviation="20" flood-color="#6E2200" flood-opacity=".5"/>
+    </filter>
+    <g id="plates">
+      <!-- big plate: cylinder side, then its outer face -->
+      <rect x="100" y="140" width="58" height="232" rx="24" fill="url(#side)"/>
+      <rect x="100" y="140" width="58" height="232" rx="24" fill="none" stroke="url(#rim)" stroke-width="3"/>
+      <ellipse cx="100" cy="256" rx="22" ry="116" fill="url(#face)"/>
+      <ellipse cx="100" cy="256" rx="22" ry="116" fill="none" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="3"/>
+      <ellipse cx="97" cy="256" rx="7" ry="26" fill="#0E1015" opacity=".7"/>
+      <!-- small plate -->
+      <rect x="70" y="178" width="36" height="156" rx="16" fill="url(#side)"/>
+      <ellipse cx="70" cy="256" rx="14" ry="78" fill="url(#face)"/>
+      <ellipse cx="70" cy="256" rx="14" ry="78" fill="none" stroke="#FFFFFF" stroke-opacity=".26" stroke-width="2.5"/>
+      <!-- end cap -->
+      <rect x="44" y="238" width="30" height="36" rx="9" fill="url(#metal)"/>
+      <!-- collar -->
+      <rect x="156" y="222" width="24" height="68" rx="9" fill="url(#metal)"/>
+    </g>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g transform="translate(256 262) scale(.8) rotate(-22) translate(-256 -256)" filter="url(#shadow)">
+    <!-- handle with knurling -->
+    <rect x="170" y="235" width="172" height="42" rx="21" fill="url(#metal)"/>
+    <g stroke="#7E8696" stroke-opacity=".45" stroke-width="2">
+      <path d="M204 240v32M216 240v32M228 240v32M240 240v32M252 240v32M264 240v32M276 240v32M288 240v32M300 240v32M312 240v32"/>
+    </g>
+    <rect x="170" y="238" width="172" height="10" rx="5" fill="#FFFFFF" opacity=".55"/>
+    <use href="#plates"/>
+    <use href="#plates" transform="translate(512 0) scale(-1 1)"/>
+  </g>
+</svg>

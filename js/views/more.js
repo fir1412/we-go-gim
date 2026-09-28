@@ -508,7 +508,7 @@ function settings() {
     <section class="box pad about"><p class="lbl">About and legal</p>
       <p><b>Not medical advice.</b> Suggestions are general training guidance from your own logs. Stop and see a doctor for chest pain, fainting, unusual breathlessness, palpitations, numbness, or sharp or radiating pain.</p>
       <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it. Only feedback you choose to send leaves the phone.</p>
-      <p><b>Credits.</b> App icon: "we go gim" kitten artwork by rartcattos, used with credit; not covered by the app's license. Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
+      <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
       <p class="links"><a href="https://github.com/fir1412/we-go-gim/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
     <p class="fine">we go gim ${APP_VERSION}. Heart-rate and weight sync with Health Connect needs the Android app wrapper; for now, log them here.</p>`;
   return { title: 'Settings', sub: 'Make it yours', back: 'more', html: h, color: 'rest' };
@@ -951,7 +951,7 @@ export const actions = {
   'ios-install'() {
     openSheet(`<h2 class="sh-title">Install on iPhone</h2>
       <ol class="steps"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
-      <p class="fine">It then opens full screen from the kitten icon, works offline and updates itself. Your data stays on this phone.</p>
+      <p class="fine">It then opens full screen from the dumbbell icon, works offline and updates itself. Your data stays on this phone.</p>
       <button class="btn" data-act="close-sheet">Got it</button>`, { label: 'Install on iPhone' });
   },
   'close-sheet': () => closeSheet(),
