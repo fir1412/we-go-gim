@@ -13,7 +13,7 @@ function appInfo(version) {
   const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : 'Other';
   const br = /EdgA?\//.test(ua) ? 'Edge' : /SamsungBrowser/.test(ua) ? 'Samsung' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : 'Other';
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'installed' : 'browser';
-  return `we go gim ${version} · ${os} · ${br} · ${installed} · ${location.hash || '#/today'}`;
+  return `we go gim ${version} · ${os} · ${br} · ${installed} · #/${location.hash.replace(/^#\/?/, '').split('/')[0] || 'today'}`;
 }
 
 async function post(item) {

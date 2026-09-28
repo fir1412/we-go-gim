@@ -2,6 +2,7 @@ import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from
 import { setUnits, setBwLabel } from './engine.js';
 import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
 import { setPlain } from './plain.js';
+import * as db from './db.js';
 import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i18n.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
@@ -44,6 +45,16 @@ export const go = path => { location.hash = '#/' + path; };
 let current = null, lastKey = '';
 
 function render() {
+  try { renderRoute(); } catch (e) { console.error(e); recovery(e); }
+}
+/** Shown instead of a blank or stuck screen when something can't be drawn (for example a damaged backup). */
+function recovery(e) {
+  const sc = document.getElementById('screen');
+  if (!sc) return;
+  sc.innerHTML = `<div class="empty"><b>Something went wrong showing this screen.</b><p>Your data is still on this phone. Try another tab, reload, or restore a backup.</p><p class="fine">${esc(String(e?.message || e).slice(0, 200))}</p>
+    <div class="row2"><a class="btn" href="#/today">Go to Today</a><a class="btn ghost" href="#/data">Backup and restore</a></div><button class="btn ghost" data-act="reload-app">Reload the app</button></div>`;
+}
+function renderRoute() {
   let route = parseRoute();
   // Home-screen shortcut: #/start opens today's workout in one tap.
   if (route.name === 'start') {
@@ -127,6 +138,7 @@ const GLOBAL = {
   },
   'cal-export': () => more.exportCalendar(),
   install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
+  'reload-app': () => location.reload(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
@@ -438,12 +450,21 @@ async function boot() {
   try {
     await load();
   } catch (e) {
-    $('#screen').innerHTML = `<div class="empty"><b>Couldn't open storage.</b><p>${esc(e.message)}</p></div>`;
+    // Storage or data couldn't load: offer a way out instead of a dead screen.
+    $('#screen').innerHTML = `<div class="empty"><b>Couldn't open your data.</b><p>${esc(e.message)}</p><p class="fine">If you just restored a backup, restore an older one. Otherwise close other tabs of the app and reload.</p><button class="btn" data-act="reload-app">Reload the app</button><a class="btn ghost" href="#/data">Backup and restore</a></div>`;
+    document.addEventListener('click', ev => { if (ev.target.closest('[data-act="reload-app"]')) location.reload(); });
     return;
   }
   await setLang(S.settings.lang || guessLang()).catch(() => setLang('en'));
   applyTheme();
   onChange(() => { applyTheme(); render(); });
+  // Another tab changed the data: reload it here too (after the workout in progress is saved, not in the middle of one).
+  db.onRemoteChange(async () => {
+    if (S.draft && parseRoute().name === 'workout') return toast('Changes were made in another tab. They will show after this workout.', 'flat');
+    await load(); applyTheme(); render();
+  });
+  db.onSaveFailed(() => toast(db.storageMode() === 'localstorage' ? "Couldn't save: this browser's storage is full. Save a backup now, then free space or use Chrome normally (not private mode)." : "Couldn't save that change. Save a backup and reload.", 'down'));
+  if (db.storageMode() === 'localstorage') setTimeout(() => toast('This browser limits storage (private mode?). Save backups often, or open the app normally.', 'flat'), 1500);
   window.addEventListener('hashchange', () => { if (sheetOpen()) closeSheet(); render(); });
   render();
   document.body.classList.add('ready');

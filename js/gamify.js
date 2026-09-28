@@ -8,6 +8,7 @@ import { addDays, exposures, score, workSets, muscleXP, MUSCLES, validIso } from
 export const gameOn = () => S.settings.gamify !== false;
 
 // Dates are checked here too, so a bad record (from an old backup or a bug) is skipped instead of crashing Today.
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const trainedDays = () => new Set(S.sessions.filter(s => !s.seed && validIso(s.date)).map(s => s.date));
 /** Training days a week in the plan: distinct weekdays with exercises (two workouts on one weekday count once,
  *  just as the streak counts workout days, not sessions). */
@@ -140,7 +141,7 @@ export function todayGame(t = todayIso()) {
     h += `<div class="box pad restcard"><b>Rest day: your streak is safe</b><p class="fine">Muscles grow while you recover. A walk or a stretch is a bonus, not a must.</p>${wk.planned ? `<p class="fine">This week: ${wk.done} of ${wk.planned} workouts</p>` : ''}<a class="btn ghost" href="#/cardio">Log a walk or stretch</a></div>`;
   } else {
     const n = q.filter(x => x.done).length;
-    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? `<p class="fine">${next ? `<span>All done.</span> <span>Next: ${next.name} · ${next.when}</span>` : 'All done. See you next training day.'}</p>` : ''}</div>`;
+    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? `<p class="fine">${next ? `<span>All done.</span> <span>Next: ${esc(next.name)} · ${next.when}</span>` : 'All done. See you next training day.'}</p>` : ''}</div>`;
   }
   if (st.shieldUsed && st.shieldUsed >= addDays(t, -2)) h += `<p class="fine shieldnote">🛡️ A streak shield covered a missed day. Earn more with perfect weeks.</p>`;
   return h;
