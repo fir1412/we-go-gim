@@ -169,7 +169,7 @@ function card(e, ei, grp, focusSi = -1) {
     <header><div><h2>${g}<a href="#/ex/${esc(ex.id)}">${esc(ex.name)}</a></h2>
       ${slot?.note ? `<p class="snote" data-raw>${esc(slot.note)}</p>` : ''}
       <p>${slot ? `${e.sg?.reps?.length || slot.sets}×${slot.lo}–${slot.hi} · ` : ''}${esc(lastTxt)}</p></div>
-      <span class="hdr-r">${tag}${allTicked(e) ? `<button class="iconbtn sm foldup" data-act="fold" data-uid="${e.uid}" aria-expanded="true" aria-label="${esc(ex.name)} done. Hide sets">${ICON.chev}</button>` : ''}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
+      <span class="hdr-r">${allTicked(e) ? '' : tag}${allTicked(e) ? `<button class="iconbtn sm foldup" data-act="fold" data-uid="${e.uid}" aria-expanded="true" aria-label="${esc(ex.name)} done. Hide sets">${ICON.chev}</button>` : ''}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
     ${whyOpen ? `<p class="whyp">${esc(e.sg.why)} Aim for ${esc(rirWords(e.sg.rir))} on each set.${e.sg.t === 'cal' ? helpTip('calibrate') : ''}</p>` : ''}
     ${startPick(e, ex, ei)}
     <div class="hlpw" id="hp-${e.uid}">${helper(e, ex)}</div>
@@ -211,7 +211,7 @@ function coach(done, total) {
   const msg = !done
     ? ['Your first sets are filled in', 'Do the set, then tap the tick. If you did a different weight or reps, change the numbers with − and + first. Tap the coloured tag for why this target.']
     : done < total
-      ? ['Nice, keep going', 'The rest timer runs along the bottom: +30s for more rest, Skip when you are ready. The next set is highlighted.']
+      ? ['Nice, keep going', 'The rest timer runs along the bottom: +30s for more rest, Skip when you are ready. The next set is highlighted. To skip an exercise, swipe its card left.']
       : ['All sets done', 'Tap Finish to see your summary and what to aim for next time.'];
   return `<div class="box coach"><b>${msg[0]}</b><p>${msg[1]}</p><button class="linkbtn" data-act="coach-ok">Got it, hide tips</button></div>`;
 }
@@ -386,25 +386,7 @@ export const actions = {
     commit();
   },
   // Typing never re-renders (that would close the phone keyboard); carried weights are patched in place.
-  set(el) {
-    const e = E(el), si = +el.dataset.s, s = e.sets[si], f = el.dataset.f;
-    let v = el.value === '' || !Number.isFinite(+el.value) ? null : Math.max(0, +el.value);
-    // A typo like 6000 instead of 60: cap it and say so, so charts and levels don't blow up.
-    const max = f === 'r' ? MAX_REPS : S.exById[E(el).exId]?.unit === 'L' ? 100 : +toDisp(MAX_KG);
-    if (v != null && v > max) { v = null; el.value = ''; toast(f === 'r' ? 'That many reps looks like a typo. Please check it.' : 'That weight looks like a typo. Please check it.', 'flat'); }
-    if (v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
-    if (f === 'w') {
-      const ex = S.exById[e.exId];
-      let kg = v == null ? null : conv(ex) ? kgFromDisp(v) : v;
-      // 22 lb typed is the 10 kg dumbbell on the rack: store the rack weight, not 9.98 kg.
-      const rackDb = kg != null && ex.unit === 'kg/DB' ? (S.settings.equip?.dumbbells || []).find(d => toDisp(d) === toDisp(kg)) : null;
-      if (rackDb != null) kg = rackDb;
-      const old = s.w; s.w = kg; carry(e, si, old, kg);
-      paintLater(e, ex, si);
-      paintHelper(e, ex);
-    } else s.r = v == null ? null : Math.round(v);
-    saveDraft();
-  },
+  set(el) { applySet(el, false); },
   done(el) {
     const e = E(el), si = +el.dataset.s, s = e.sets[si], ex = S.exById[e.exId];
     if (!s.done) {
@@ -425,7 +407,7 @@ export const actions = {
   why(el) { const u = el.dataset.uid; openWhy.has(u) ? openWhy.delete(u) : openWhy.add(u); refresh(); },
   unfold(el) { const u = el.dataset.uid; shutDone.delete(u); openDone.add(u); refresh(); },
   skip(el) { closeSheet(); skipEntry(E(el)); },
-  unskip(el) { delete E(el).skip; commit(); },
+  unskip(el) { delete E(el).skip; relabelRest(); commit(); },
   fold(el) { const u = el.dataset.uid; openDone.delete(u); shutDone.add(u); refresh(); },
   rir(el) { const e = E(el); e.rir = e.rir === el.dataset.v ? null : el.dataset.v; commit(); },
   pain(el) {
@@ -688,8 +670,14 @@ function skipEntry(e) {
   if (!e || e.skip) return;
   e.skip = true;
   openDone.delete(e.uid);
+  relabelRest();
   commit();
-  toast(`${S.exById[e.exId]?.name || 'Exercise'} skipped`, 'ink', { undo: () => { delete e.skip; commit(); } });
+  toast(`${S.exById[e.exId]?.name || 'Exercise'} skipped`, 'ink', { undo: () => { delete e.skip; relabelRest(); commit(); } });
+}
+/** A skip (or its undo) changes what's next: the running rest timer's "Next: …" follows. */
+function relabelRest() {
+  const t = S.draft?.timer, from = t?.from && S.draft.entries.find(x => x.uid === t.from);
+  if (from) t.label = restLabel(from);
 }
 
 // Swipe a card left to skip the exercise. Only a clearly sideways drag counts, so scrolling is never taken
@@ -738,6 +726,43 @@ if (typeof document !== 'undefined') {
   }, true);
 }
 
+/** A weight or reps field changed. `live` is a keystroke: saved shortly, nothing rewritten or warned about
+ *  mid-number (6, 60, 600…); leaving the field (`change`) tidies the number and catches typos. */
+function applySet(el, live) {
+  const e = S.draft?.entries[+el.dataset.e], si = +el.dataset.s, s = e?.sets[si], f = el.dataset.f;
+  if (!s) return;
+  const raw = el.value.replace(',', '.');
+  let v = raw === '' || !Number.isFinite(+raw) ? null : Math.max(0, +raw);
+  // A typo like 6000 instead of 60: cap it and say so, so charts and levels don't blow up.
+  const max = f === 'r' ? MAX_REPS : S.exById[e.exId]?.unit === 'L' ? 100 : +toDisp(MAX_KG);
+  if (v != null && v > max) {
+    if (live) return;
+    v = null; el.value = ''; toast(f === 'r' ? 'That many reps looks like a typo. Please check it.' : 'That weight looks like a typo. Please check it.', 'flat');
+  }
+  if (!live && v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
+  if (f === 'w') {
+    const ex = S.exById[e.exId];
+    let kg = v == null ? null : conv(ex) ? kgFromDisp(v) : v;
+    // 22 lb typed is the 10 kg dumbbell on the rack: store the rack weight, not 9.98 kg.
+    const rackDb = kg != null && ex.unit === 'kg/DB' ? (S.settings.equip?.dumbbells || []).find(d => toDisp(d) === toDisp(kg)) : null;
+    if (rackDb != null) kg = rackDb;
+    const old = s.w; s.w = kg; carry(e, si, old, kg);
+    paintLater(e, ex, si);
+    paintHelper(e, ex);
+  } else s.r = v == null ? null : Math.round(v);
+  if (live) saveSoon(); else saveDraft();
+}
+// Keystrokes are saved within a moment, and at once when the phone locks or the app is left,
+// so a number typed but not yet confirmed survives the app being closed.
+let saveT = null;
+const saveSoon = () => { clearTimeout(saveT); saveT = setTimeout(() => { saveT = null; saveDraft(); }, 400); };
+const saveNow = () => { if (saveT) { clearTimeout(saveT); saveT = null; saveDraft(); } };
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', ev => { if (ev.target.matches?.('[data-input="set"]') && S.draft) applySet(ev.target, true); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+  window.addEventListener('pagehide', saveNow);
+}
+
 function carry(e, si, old, now) {
   const s = e.sets[si];
   for (const n of e.sets.slice(si + 1)) if (!n.done && !!n.warm === !!s.warm && (n.w === old || n.w == null)) n.w = now;
@@ -747,11 +772,8 @@ function restAfter(e, ex, s) {
   if (S.draft.past) return; // no rest timer when logging a past day
   const nx = nextUp(e);
   const nex = nx && S.exById[nx.e.exId];
-  const ns = nx?.e.sets[nx.si];
-  // The timer bar says what's coming, so the lifter can load the bar while resting.
-  const label = !nx ? 'Last set done. Finish when ready.'
-    : `Next: ${nx.e === e ? (ns.warm ? 'warm-up' : `set ${nx.e.sets.slice(0, nx.si + 1).filter(x => !x.warm).length}`) : nex.name} · ${ns.w == null || ns.w === '' ? '?' : fmtLoad(nex, ns.w) + (unitShort(nex.unit) ? ' ' + unitShort(nex.unit) : '')} × ${ns.r ?? '?'}${platesShort(nex, ns.w)}`;
-  if (s.warm) return startTimer(45, label);
+  const label = restLabel(e);
+  if (s.warm) return rest(45);
   const g = e.slot?.group;
   if (g) {
     const same = S.draft.entries.filter(x => x.slot?.group === g);
@@ -760,9 +782,19 @@ function restAfter(e, ex, s) {
       toast(`Superset: now ${nex.name}`, 'upper');
       return;
     }
-    if (same.length > 1) return startTimer(Math.max(...same.map(x => S.exById[x.exId]?.rest || 60)), label);
+    if (same.length > 1) return rest(Math.max(...same.map(x => S.exById[x.exId]?.rest || 60)));
   }
-  startTimer(ex.rest || 90, label);
+  rest(ex.rest || 90);
+  function rest(sec) { startTimer(sec, label); if (S.draft.timer) S.draft.timer.from = e.uid; }
+}
+
+/** What the rest timer bar says is coming after a set of `e`, so the lifter can load the bar while resting. */
+function restLabel(e) {
+  const nx = nextUp(e);
+  const nex = nx && S.exById[nx.e.exId];
+  const ns = nx?.e.sets[nx.si];
+  return !nx ? 'Last set done. Finish when ready.'
+    : `Next: ${nx.e === e ? (ns.warm ? 'warm-up' : `set ${nx.e.sets.slice(0, nx.si + 1).filter(x => !x.warm).length}`) : nex.name} · ${ns.w == null || ns.w === '' ? '?' : fmtLoad(nex, ns.w) + (unitShort(nex.unit) ? ' ' + unitShort(nex.unit) : '')} × ${ns.r ?? '?'}${platesShort(nex, ns.w)}`;
 }
 
 /** After a tick, bring the next set into view if it's off screen. */
