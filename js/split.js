@@ -318,6 +318,10 @@ const WORKOUT_RE = /^(push|pull|legs?|lower|upper|full(?: ?body)?|chest(?: (?:an
 const TIMED_RE = /\b(e\d?mom|tabata|for time|every \d+ ?(?:min|minutes|sec)|amrap \d+ ?(?:min|minutes)|\d+ ?(?:min|minutes) amrap|intervals?|rounds? for)\b/i;
 const DIST_AFTER = /^\s*(m|km|k|meters?|metres?|yd|yards?|cal|kcal|calories|mins?|minutes|miles?|mi|ft|feet|steps)\b/i;
 const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
+// Section words in Chinese, Japanese and Malay ("可选：", "最后加练：", "仕上げ：", "Pilihan:", "Akhiri dengan:").
+const OPTIONAL_RE = /optional|可选|選做|选做|任意|オプション|pilihan/i;
+const FINISH_RE = /finish|最后|最後|收尾|加练|仕上げ|フィニッシャー|akhiri|penutup/i;
+const SECTION_WORD = /^(可选|选做|選做|最后加练|最後加練|最后|最後|收尾|加练|任意|オプション|仕上げ|フィニッシャー|pilihan|akhiri dengan|akhiri)\s*:\s*(.*)$/i;
 
 /**
  * Read a written split. Returns {days:[{dow, name, sub, color, items:[{name, sets, lo, hi, note, group}]}], skipped:[lines], notAdded:[lines]}.
@@ -367,6 +371,18 @@ export function parseSplitText(text) {
     let group = '', lm;
     if ((lm = body.match(/^([A-H])\s?([1-9])\s*[.):–—-]?\s+(?=\S)/i))) { group = lm[1].toUpperCase(); body = body.slice(lm[0].length); }
     else if ((lm = body.match(/^([A-H])[.)]\s+(?=\S)/))) body = body.slice(lm[0].length);
+    // A section word on its own line ("可选：", "最后加练：", "仕上げ：", "Pilihan:") labels what follows;
+    // in front of an exercise ("仕上げ：プランク 3セット×60秒") it labels just that one.
+    let own = '';
+    const sw = body.match(SECTION_WORD);
+    if (sw) {
+      if (!sw[2]) { section = sw[1]; continue; }
+      own = sw[1]; body = sw[2];
+    }
+    // Seconds ("60秒") are reps, noted as seconds; "力竭" / "限界まで" is to failure.
+    const secs = /\d\s*秒/.test(body);
+    body = body.replace(/(\d)\s*秒/g, '$1次').replace(/\s*(?:至|到)?力竭|\s*限界まで|\s*オールアウト/g, ' to failure')
+      .replace(/(\d+)\s*(?:组|組|セット)\s*[x×]?\s*(?=to failure)/, '$1 sets ');
     // Ranges written "8~10" / "8〜10", and "3*10" / "3＊10" for ×.
     body = body.replace(/(\d)\s*[~〜]\s*(?=\d)/g, '$1–').replace(/(\d)\s*[*✕]\s*(?=\d)/g, '$1 × ')
       // Chinese, Japanese and Malay: "4 组，每组 6–8 次", "4 セット × 6–8 回", "4 set, 6–8 ulangan", "3 set 10 rep" -> "4 × 6–8"
@@ -396,6 +412,7 @@ export function parseSplitText(text) {
       skipped.push(line); if (day.items.length || /\d/.test(line)) notAdded.push(line); continue;
     }
     let rest = (m[5] || '').trim();
+    if (secs) rest = ['seconds', rest].filter(Boolean).join(' ');
     // "Row 5 × 500m", "Bike 3 × 10 min": distance or time, not reps.
     if (!pct && m[3] && DIST_AFTER.test(rest)) { skipped.push(line); notAdded.push(line); continue; }
     const sets = Math.max(1, Math.min(10, +m[2]));
@@ -409,7 +426,8 @@ export function parseSplitText(text) {
     const inten = name.match(/\s*(@\s*\S.*|\bRPE\s*\d.*|\d+(?:\.\d+)?\s*%.*)$/i);
     if (inten && inten.index > 1) { rest = [inten[1].trim(), rest].filter(Boolean).join(' '); name = name.slice(0, inten.index).replace(/[\s–—:-]+$/, ''); }
     rest = rest.replace(/^[,;·-]\s*/, '').replace(/^amrap$/i, 'AMRAP').replace(/^max(?: reps)?$/i, 'AMRAP');
-    const note = [/optional/i.test(section) ? 'Optional' : /finish/i.test(section) ? 'Finisher' : '', rest].filter(Boolean).join(' · ');
+    const sec = own || section;
+    const note = [OPTIONAL_RE.test(sec) ? 'Optional' : FINISH_RE.test(sec) ? 'Finisher' : '', rest].filter(Boolean).join(' · ');
     day.items.push({ name, sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note, group });
   }
   // A superset label on its own ("A1" with no A2) is just numbering.
