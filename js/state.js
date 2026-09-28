@@ -229,8 +229,15 @@ export async function discardDraft() {
   await saveDraft();
 }
 
-export async function commitDraft() {
+let committing = null;
+/** Save the workout in progress. A second call while saving (double tap) gets the same result instead of saving twice. */
+export function commitDraft() {
+  if (!committing) committing = doCommit().finally(() => { committing = null; });
+  return committing;
+}
+async function doCommit() {
   const d = S.draft;
+  if (!d) throw new Error('No workout in progress');
   const sess = {
     id: d.id, date: d.date, name: d.name, color: d.color, gymId: d.gymId,
     // A backfilled past workout has no real clock: keep only the duration typed in, and drop tick times
@@ -242,7 +249,8 @@ export async function commitDraft() {
   };
   await saveSession(sess);
   // Cardio done in the workout also lands in the cardio log.
-  for (const c of d.cardio || []) await saveCardio({ id: uid('c'), date: d.date, type: c.type, min: c.min, intensity: c.intensity, ...(c.km ? { km: c.km } : {}), note: '', sessionId: sess.id });
+  // Ids come from the workout, so saving again can only overwrite, never duplicate.
+  for (const [i, c] of (d.cardio || []).entries()) await saveCardio({ id: `${sess.id}-c${i}`, date: d.date, type: c.type, min: c.min, intensity: c.intensity, ...(c.km ? { km: c.km } : {}), note: '', sessionId: sess.id });
   S.draft = null;
   await saveDraft();
   return sess;
@@ -260,6 +268,9 @@ export async function saveSession(sess) {
 export async function deleteSession(id) {
   S.sessions = S.sessions.filter(s => s.id !== id);
   await db.del('sessions', id);
+  // Cardio logged inside that workout goes with it.
+  for (const c of S.cardio.filter(c => c.sessionId === id)) await db.del('cardio', c.id);
+  S.cardio = S.cardio.filter(c => c.sessionId !== id);
   refresh();
 }
 export async function saveBody(rec) {
