@@ -1,9 +1,9 @@
 // Offline cache. Bump VERSION whenever app files change.
-const VERSION = 'wegogim-v30';
+const VERSION = 'wegogim-v31';
 const CORE = [
   './', './index.html', './privacy.html', './terms.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/db.js', './js/seed.js', './js/engine.js', './js/ui.js', './js/io.js',
-  './js/views/today.js', './js/views/workout.js', './js/views/history.js', './js/views/insights.js', './js/views/more.js', './js/views/levels.js', './js/views/setup.js', './js/views/daily.js', './js/split.js', './js/feedback.js', './js/anatomy.js', './js/plain.js', './js/i18n.js', './js/atlas-map.js', './js/streak.js', './js/calendar.js', './js/fx.js', './js/gamify.js', './js/views/atlas.js', './js/i18n/ms.js', './js/i18n/zh.js', './js/i18n/ja.js', './js/i18n/zh-Hant.js',
+  './js/views/today.js', './js/views/workout.js', './js/views/history.js', './js/views/insights.js', './js/views/more.js', './js/views/levels.js', './js/views/setup.js', './js/views/daily.js', './js/split.js', './js/feedback.js', './js/anatomy.js', './js/plain.js', './js/i18n.js', './js/atlas-map.js', './js/streak.js', './js/search.js', './js/calendar.js', './js/fx.js', './js/gamify.js', './js/views/atlas.js', './js/i18n/ms.js', './js/i18n/zh.js', './js/i18n/ja.js', './js/i18n/zh-Hant.js',
   './fonts/fonts.css', './fonts/barlow-condensed-500.woff2', './fonts/barlow-condensed-600.woff2', './fonts/barlow-condensed-700.woff2', './fonts/dm-sans-var.woff2',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
 ];

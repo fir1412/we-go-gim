@@ -4,7 +4,7 @@
 // Library exercise names, muscles and the built-in day names are translated too; anything the user typed stays
 // as typed. Text with no dictionary entry is left in English rather than guessed.
 import { EXERCISES, PROGRAM, TEMPLATES, setSearchLocal } from './seed.js';
-import { plainText } from './plain.js';
+import { plainText, setRawTexts } from './plain.js';
 
 export const LANGS = [['en', 'English'], ['ms', 'Bahasa Melayu'], ['zh', '简体中文'], ['zh-Hant', '繁體中文'], ['ja', '日本語']];
 // Chinese in either script: sentences join without spaces and lists use 、.
@@ -68,8 +68,10 @@ export function collapse(key, vals) {
  * The user's own day and exercise names. They stay as typed, but count as names, so a sentence around them
  * ("Next: Shoulders · tomorrow") still matches its entry. Words that are phrases in the dictionary are left out.
  */
+let lastUserList = [], extraNames = [];
 export function setUserNames(list) {
-  const clean = [...new Set(list.map(n => plainText(String(n || '')).trim()))].filter(n => n.length > 2);
+  lastUserList = list;
+  const clean = [...new Set([...list, ...extraNames].map(n => String(n || '')).filter(n => n.length <= 200).map(n => plainText(n).trim()))].filter(n => n.length > 2);
   const key = clean.join('\u0001');
   if (key !== userKey) { userKey = key; userNames = clean; nameRe = null; }
 }
@@ -93,12 +95,16 @@ function parts(core, re, joiner) {
   if (ps.length < 2) return null;
   // Pieces with no entry (a user's own note or exercise name) stay as they are; the rest are translated.
   const tr = ps.map(p => one(p));
-  return tr.some(x => x != null) ? tr.map((x, i) => x ?? ps[i]).join(joiner) : null;
+  if (!tr.some(x => x != null)) return null;
+  // Chinese and Japanese sentences join with nothing between them (each already ends in 。), but a piece left in
+  // English keeps its space on both sides, so it never runs into the next sentence.
+  return tr.reduce((out, x, i) => out + (i ? (joiner || (x != null && tr[i - 1] != null) ? joiner : ' ') : '') + (x ?? ps[i]), '');
 }
 
 /** One piece of on-screen text in the current language (unchanged in English or when there's no entry). */
 export function translate(s, ctx = null) {
-  if (!dict || !s || !/[A-Za-z]/.test(s)) return s;
+  // Very long text (a pasted log, a huge typed name) is never a dictionary entry: left as it is, cheaply.
+  if (!dict || !s || s.length > 2000 || !/[A-Za-z]/.test(s)) return s;
   const m = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
   const core = m[2].replace(/\s+/g, ' ');
   // A word with two meanings ("Back" the button, "Back" the muscle) has its own entry per context: "nav:Back".
@@ -109,6 +115,31 @@ export function translate(s, ctx = null) {
   return t == null ? s : m[1] + t + m[3];
 }
 
+let knownSet = null, rawKey = null;
+/**
+ * Names the user typed (days, exercises, workouts) that aren't library names: shown exactly as typed, with no
+ * plain-English rewrite and no translation ("Abs lift up" stays "Abs lift up"). Library names are still translated.
+ */
+export function setRawNames(list) {
+  if (!knownSet) {
+    const days = [...PROGRAM.days, ...TEMPLATES.flatMap(t => t.program.days)].map(d => d.name);
+    knownSet = new Set([...EXERCISES.map(e => e.name), ...MUSCLE_NAMES, ...days].flatMap(n => [n, plainText(n)]));
+  }
+  const raw = [...new Set(list.map(n => String(n ?? '').trim()))].filter(n => n && n.length <= 200 && !knownSet.has(n)).sort();
+  const key = raw.join('');
+  if (key === rawKey) return;
+  rawKey = key;
+  setRawTexts(raw);
+}
+/** The state's own names: day names, exercise names and workout names. Cheap to call on every render. */
+export function syncRawNames(S) {
+  if (!S) return;
+  const sess = [...new Set((S.sessions || []).map(x => x.name))];
+  setRawNames([...(S.program?.days || []).map(d => d.name), ...(S.exercises || []).map(x => x.name), ...sess]);
+  // Workout names ("Push 1") also count as names inside sentences ("Delete Push 1 on 2 Mar?").
+  if (lang !== 'en' && sess.join('') !== extraNames.join('')) { extraNames = sess; setUserNames(lastUserList); }
+}
+
 /** Load a language ('en' clears it). Returns once the dictionary is ready. */
 export async function setLang(want) {
   lang = LANGS.some(([k]) => k === want) ? want : 'en';
@@ -116,6 +147,8 @@ export async function setLang(want) {
   if (lang === 'en') { dict = null; return; }
   const mod = await import(`./i18n/${lang}.js`);
   dict = mod.default;
+  // The browser tab and app switcher show the title in the chosen language too.
+  if (typeof document !== 'undefined' && document.title) document.title = translate(document.title);
   setSearchLocal(x => [x.name, ...(x.muscles || [])].map(n => translate(plainText(n))).join(' '));
 }
 export const getLang = () => lang;

@@ -3,12 +3,14 @@ import { suggest, weekStart, addDays, daysBetween, deloadCheck, fmtLoad, unitSho
 import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, dowName, dowLetter, num, T, helpTip, expertWording } from '../ui.js';
 import { dailyCard } from './daily.js';
 import { go } from '../app.js';
+import { syncRawNames } from '../i18n.js';
 import { todayGame, gameOn } from '../gamify.js';
 
 const open = new Set();
 let openDate = null;
 
 export function render(route) {
+  syncRawNames(S);
   const t = todayIso();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(route.args[0] || '') ? route.args[0] : t;
   if (openDate !== date) { open.clear(); openDate = date; }

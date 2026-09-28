@@ -1,18 +1,20 @@
 import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay } from '../engine.js';
-import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
-import { LANGS, getLang } from '../i18n.js';
+import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
+import { LANGS, getLang, syncRawNames } from '../i18n.js';
 import { trainingIcs, googleCalendarUrl } from '../calendar.js';
 import { translate } from '../i18n.js';
 import { plainText } from '../plain.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
+import { filterList } from '../search.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
 import { parseSplitText, weeklyVolume } from '../split.js';
 
 export function render(route) {
+  syncRawNames(S);
   switch (route.name) {
     case 'program': return program();
     case 'paste': return pasteSplit();
@@ -106,9 +108,9 @@ function program() {
     h += `<section class="box pday2" style="${kstyle(d.color)}">
       <button class="pdh" data-act="p-open" data-dow="${dow}" aria-expanded="${open}"><b class="dlab">${dowName(dow)}</b><span class="grow"><b>${esc(d.name)}</b><small>${d.slots.length ? `${d.slots.length} exercises · ${nSets} sets${d.sub ? ' · ' + esc(d.sub) : ''}` : esc(d.sub || 'Rest day')}</small></span>${ICON.chev}</button>`;
     if (open) {
-      h += `<div class="pdb"><div class="pdn"><input class="inp" id="pn-${di}" value="${esc(d.name)}" data-input="p-day" data-d="${di}" data-f="name" aria-label="${dowName(dow, true)} name" enterkeyhint="done">
-        <button class="sw big" data-act="p-color" data-d="${di}" style="${kstyle(d.color)}" aria-label="Colour for ${dowName(dow, true)}: ${esc(d.color)}"></button></div>
-        <input class="inp" id="ps-${di}" value="${esc(d.sub || '')}" placeholder="Subtitle, e.g. Chest emphasis" data-input="p-day" data-d="${di}" data-f="sub" aria-label="${dowName(dow, true)} subtitle" enterkeyhint="done">`;
+      h += `<div class="pdb"><div class="pdn"><input class="inp" id="pn-${di}" value="${esc(d.name)}" data-input="p-day" data-d="${di}" data-f="name" aria-label="Name for ${dowName(dow, true)}" enterkeyhint="done">
+        <button class="sw big" data-act="p-color" data-d="${di}" style="${kstyle(d.color)}" aria-label="Change colour for ${dowName(dow, true)}"></button></div>
+        <input class="inp" id="ps-${di}" value="${esc(d.sub || '')}" placeholder="Subtitle, e.g. Chest emphasis" data-input="p-day" data-d="${di}" data-f="sub" aria-label="Subtitle for ${dowName(dow, true)}" enterkeyhint="done">`;
       h += d.slots.length ? `<ul class="pslots">${d.slots.map((s, si) => `<li><button class="pslot2" data-act="p-slot" data-d="${di}" data-s="${si}">${s.group ? `<i class="grp">${esc(s.group)}</i>` : `<i class="grp n">${si + 1}</i>`}<span class="grow">${esc(S.exById[s.exId]?.name || 'Missing exercise')}${s.note ? `<small>${esc(s.note)}</small>` : ''}</span><b class="num">${range(s)}</b></button></li>`).join('')}</ul>`
         : `<p class="fine">Rest day. Add an exercise to make it a training day.</p>`;
       h += `<div class="pdacts"><button class="mini addx" data-act="p-add" data-d="${di}">${ICON.plus} Add exercise</button>
@@ -151,17 +153,18 @@ function slotSheet(di, si) {
   else openSheet(html, { label: `Edit ${ex?.name || 'exercise'}` });
 }
 
-/** Filter a list as you type: every word must match the name, muscles or another name for it ("bicep curl" finds DB curl).
- *  Cardio words ("treadmill", "walk") show a pointer to the cardio log instead. */
+/** Filter a list as you type: every word must match the name, muscles or another name for it ("bicep curl" finds DB curl),
+ *  best matches first. Cardio words ("treadmill", "walk") show a pointer to the cardio log instead. */
 function searchList(root, raw, sel) {
-  const q = raw.trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean);
-  let shown = 0;
-  for (const li of root.querySelectorAll(sel)) { li.hidden = !!q && !words.every(w => li.dataset.name.includes(w)); if (!li.hidden) shown++; }
+  const q = raw.trim().toLowerCase();
+  const shown = filterList(root, raw, sel);
+  const none = root.querySelector('.searchnone');
+  if (none) none.hidden = !q || shown > 0;
   const hint = root.querySelector('.cardiohint');
   if (hint) hint.hidden = !CARDIO_WORDS.test(q);
   return shown;
 }
-const cardioHint = `<p class="cardiohint fine" hidden>Walking, running, bikes and other cardio are logged under <a href="#/cardio">Insights → Cardio</a>, not as an exercise.</p>`;
+const cardioHint = `<p class="searchnone fine" hidden>No exercise matches. Try fewer words, or add it with New exercise.</p><p class="cardiohint fine" hidden>Walking, running, bikes and other cardio are logged under <a href="#/cardio">Insights → Cardio</a>, not as an exercise.</p>`;
 
 // "New exercise" from a programme picker: after saving, come back and use it there (add to the day, or swap).
 let pendingPick = null;
@@ -347,7 +350,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
 }
 const gk = e => e.exName + (e.unit === 'L' ? '|L' : '');
 const unitClass = u => (u === 'L' ? 'L' : 'w'); // cable levels vs weights (bodyweight counts as a weight)
-const setTxt = e => e.sets.map(x => `${x.w ?? '?'}×${x.r ?? '?'}`).join(' ');
+const setTxt = e => e.sets.map(x => `${x.w ?? '?'}×${x.r ?? '?'}`).join(' · ');
 const exNameOf = id => S.exercises.find(x => x.id === id)?.name || id;
 const targetTxt = t => (t === 'skip' ? 'Not imported' : t ? exNameOf(t) : 'New exercise');
 
@@ -403,7 +406,7 @@ function importer() {
     shown.forEach(({ g, i }, k) => {
       const t = targetTxt(g.target);
       h += `<li data-q="${esc((g.variants.join(' ') + ' ' + t).toLowerCase())}" ${k >= imp.show ? 'hidden data-more' : ''}><button data-act="imp-pickg" data-g="${i}" class="${g.target === 'skip' ? 'skip' : g.target ? 'ok' : 'new'}">
-        <span class="t"><b>${esc(g.label)}</b>${!g.target && g.meta ? `<small class="newmeta">New: ${esc(metaTxt(g.meta))}</small>` : ''}<small>${g.sess} session${g.sess === 1 ? '' : 's'} · ${plural(g.sets, 'set')}${g.variants.length > 1 ? ` · ${g.variants.length} spellings` : ''}${!g.target && g.twin ? ` · logged in ${g.unit === 'L' ? 'levels' : 'kg'}; ${esc(g.twin)} uses ${g.unit === 'L' ? 'kg' : 'levels'}` : g.unit === 'L' && !/\(levels\)$/.test(g.label) ? ' · levels' : ''}</small></span>
+        <span class="t"><b>${esc(g.label)}</b>${!g.target && g.meta ? `<small class="newmeta">New · ${esc(metaTxt(g.meta))}</small>` : ''}<small>${g.sess} session${g.sess === 1 ? '' : 's'} · ${plural(g.sets, 'set')}${g.variants.length > 1 ? ` · ${g.variants.length} spellings` : ''}${!g.target && g.twin ? ` · logged in ${g.unit === 'L' ? 'levels' : 'kg'}; ${esc(g.twin)} uses ${g.unit === 'L' ? 'kg' : 'levels'}` : g.unit === 'L' && !/\(levels\)$/.test(g.label) ? ' · levels' : ''}</small></span>
         <span class="to">${g.target && g.target !== 'skip' ? '→ ' : ''}${esc(t)}${prog.has(g.target) ? ' ★' : ''}</span></button></li>`;
     });
     if (!shown.length) h += `<li class="fine impnone">Nothing here.</li>`;
@@ -445,8 +448,14 @@ const impOpt = { lb: null, order: 'auto' };
 const impLb = () => (impOpt.lb ?? getUnits() === 'lb');
 function impOptions() {
   return `<div class="box pad stack impopts"><div class="rrow"><span>Weights in the logs</span><div class="seg" role="group" aria-label="Weights in the logs">${[['kg', 'kg'], ['lb', 'lb']].map(([v, l]) => `<button data-act="imp-opt" data-f="lb" data-v="${v}" aria-pressed="${(v === 'lb') === impLb()}">${l}</button>`).join('')}</div></div>
-    <div class="rrow"><span>Dates like 3/4</span><div class="seg" role="group" aria-label="Date order">${[['auto', 'Auto'], ['dmy', '3 Apr'], ['mdy', 'Mar 4']].map(([v, l]) => `<button data-act="imp-opt" data-f="order" data-v="${v}" aria-pressed="${impOpt.order === v}">${l}</button>`).join('')}</div></div>
+    <div class="rrow"><span>Dates like 3/4</span><div class="seg" role="group" aria-label="Date order">${[['auto', 'Auto'], ['dmy', orderLabel('dmy')], ['mdy', orderLabel('mdy')]].map(([v, l]) => `<button data-act="imp-opt" data-f="order" data-v="${v}" aria-pressed="${impOpt.order === v}">${l}</button>`).join('')}</div></div>
     <p class="fine">Pounds are converted to kg. "lb" or "kg" written in the log always wins. Auto reads dates day first unless the file can only be month first (like 9/21/2026).</p></div>`;
+}
+/** The two readings of "3/4" as dates in the app's language: 3 April (day first) and March 4 (month first). */
+function orderLabel(order) {
+  const cjk = /^(zh|ja)/.test(getLang());
+  if (order === 'dmy') return fmtDate('2026-04-03') + (cjk ? '（日/月）' : '');
+  return cjk ? fmtDate('2026-03-04') + '（月/日）' : `${MONTHS[2]} 4`;
 }
 const EQ_LABEL = { db: 'Dumbbells', barbell: 'Barbell', smith: 'Smith', machine: 'Machine', cable: 'Cable', bw: 'Bodyweight' };
 /** One line for a new exercise's guessed set-up: "Barbell · kg total · Glutes". */
@@ -844,9 +853,19 @@ export const actions = {
   async 'csv-in'(el) {
     const f = el.files?.[0]; el.value = '';
     if (!f) return;
-    const text = await readFile(f);
+    // Same size cap and decoding as Import logs: Excel in Japan and China saves CSVs as Shift-JIS or GBK, and
+    // "Unicode text" is UTF-16.
+    if (f.size > 25 * 1024 * 1024) return toast(`${f.name} is too big to import (${Math.round(f.size / 1048576)} MB). Split it into smaller files.`, 'down');
+    let text;
+    try { text = decodeBytes(new Uint8Array(await f.arrayBuffer())); } catch { return toast(`Could not read ${f.name}.`, 'down'); }
     if (/^\s*\{/.test(text)) return toast('That looks like a backup file. Use "Restore from backup" above.', 'flat');
-    prepImport({ sessions: sessionsFromCSV(text, { lb: impLb(), dateOrder: impOpt.order }), skipped: 0 }, f.name);
+    // Chinese, Japanese and Malay lift names are matched once their dictionaries are in (loaded on first import).
+    await (await import('../io.js')).loadForeignNames();
+    let sessions;
+    try { sessions = sessionsFromCSV(text, { lb: impLb(), dateOrder: impOpt.order, lang: S.settings.lang, today: todayIso() }); }
+    catch (e) { return toast(e.message, 'down'); }
+    // Rows dated after tomorrow are left out and counted with the skipped lines.
+    prepImport({ sessions, skipped: sessions.future || 0 }, f.name);
     go('import');
   },
   'rm-seed': async () => {
@@ -1087,7 +1106,7 @@ function pasteSplit() {
   if (!pst) pst = { text: '', days: null, map: {} };
   if (!pst.days) {
     const h = `<p class="fine">Paste your plan as text: one line per day like <b>Monday – Chest</b>, then one line per exercise like <b>Bench Press – 4 × 6–8</b>. Numbering, "Finish with:", "Optional:" and cardio lines are fine.</p>
-      <textarea class="inp mono" id="split-text" rows="14" placeholder="Monday – Chest&#10;1. Bench Press – 4 × 6–8&#10;2. Incline Dumbbell Press – 3 × 8–10&#10;15 min incline walk&#10;&#10;Tuesday – Back&#10;1. Lat Pulldown – 3 × 8–10">${esc(pst.text)}</textarea>
+      <textarea class="inp mono" id="split-text" rows="14" aria-label="Your split, one day per heading" placeholder="Monday – Chest&#10;1. Bench Press – 4 × 6–8&#10;2. Incline Dumbbell Press – 3 × 8–10&#10;15 min incline walk&#10;&#10;Tuesday – Back&#10;1. Lat Pulldown – 3 × 8–10">${esc(pst.text)}</textarea>
       <button class="btn" data-act="split-read">Read my split</button>`;
     return { title: 'Paste a split', sub: 'Turn your plan into the programme', back: 'program', html: h, color: 'push' };
   }

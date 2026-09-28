@@ -1,12 +1,13 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
 import { guessMuscles } from '../io.js';
 import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round, MAX_KG, MAX_REPS } from '../engine.js';
-import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
+import { esc, fmtDate, fmtTime, chip, chipText, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer, canInstall } from '../app.js';
 import { groupLabels } from './today.js';
-import { translate, getLang } from '../i18n.js';
+import { translate, getLang, syncRawNames } from '../i18n.js';
 import { plainText } from '../plain.js';
 import { searchText } from '../seed.js';
+import { filterList } from '../search.js';
 import { weekStats, streakLine } from '../streak.js';
 import { streakInfo, badges, gameOn } from '../gamify.js';
 
@@ -73,6 +74,7 @@ function setsText(ex, sets) {
 }
 
 export function render() {
+  syncRawNames(S);
   const d = S.draft;
   if (!d) return empty();
   if (d.summary) return summary(d);
@@ -99,7 +101,7 @@ export function render() {
   h += `<section class="box notesbox"><p class="lbl">Session notes</p>
     <div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([v, l]) => `<button data-act="feel" data-v="${v}" aria-pressed="${d.feel === v}" title="${l}">${v}</button>`).join('')}</div></div>
     <div class="rrow"><label for="hr">Peak heart rate</label><input class="inp sm" id="hr" type="number" inputmode="numeric" placeholder="bpm" value="${d.hr ?? ''}" data-input="hr"></div>
-    <textarea class="inp" id="snote" rows="2" placeholder="Anything worth remembering: sleep, energy, technique" data-input="snote">${esc(d.note || '')}</textarea></section>`;
+    <textarea class="inp" id="snote" rows="2" aria-label="Session notes" placeholder="Anything worth remembering: sleep, energy, technique" data-input="snote">${esc(d.note || '')}</textarea></section>`;
   // Every set ticked: the Finish button sticks to the bottom of the screen, within thumb reach.
   const allDone = all.length > 0 && done === all.length;
   h += allDone
@@ -148,17 +150,17 @@ function card(e, ei, grp, focusSi = -1) {
   }).join('');
   const whyOpen = openWhy.has(e.uid);
   // The suggestion chip doubles as the "why" toggle, so the reason costs no space until asked for.
-  const tag = e.sg?.why ? `<button class="whybtn" data-act="why" data-uid="${e.uid}" aria-expanded="${whyOpen}" aria-label="Why this target for ${esc(ex.name)}">${chip(e.sg, ex)}<i class="whyq">${ICON.help}</i></button>` : chip(e.sg, ex);
+  const tag = e.sg?.why ? `<button class="whybtn" data-act="why" data-uid="${e.uid}" aria-expanded="${whyOpen}" aria-label="${esc(chipText(e.sg, ex))} · Why this target for ${esc(ex.name)}">${chip(e.sg, ex)}<i class="whyq">${ICON.help}</i></button>` : chip(e.sg, ex);
   return `<article class="box exc" id="ex-${e.uid}">
-    <header><div><h3>${g}<a href="#/ex/${esc(ex.id)}">${esc(ex.name)}</a></h3>
-      ${slot?.note ? `<p class="snote">${esc(slot.note)}</p>` : ''}
+    <header><div><h2>${g}<a href="#/ex/${esc(ex.id)}">${esc(ex.name)}</a></h2>
+      ${slot?.note ? `<p class="snote" data-raw>${esc(slot.note)}</p>` : ''}
       <p>${slot ? `${e.sg?.reps?.length || slot.sets}×${slot.lo}–${slot.hi} · ` : ''}${esc(lastTxt)}</p></div>
       <span class="hdr-r">${tag}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
     ${whyOpen ? `<p class="whyp">${esc(e.sg.why)} Aim for ${esc(rirWords(e.sg.rir))} on each set.${e.sg.t === 'cal' ? helpTip('calibrate') : ''}</p>` : ''}
     ${startPick(e, ex, ei)}
     ${helper(e, ex)}
     <div class="sets">${rows}</div>
-    ${e.note ? `<p class="enote">${esc(e.note)}</p>` : ''}
+    ${e.note ? `<p class="enote" data-raw>${esc(e.note)}</p>` : ''}
     <div class="exf"><span class="rirlbl">${esc(T('rir'))}${helpTip('rir')}</span><div class="seg sm" role="group" aria-label="${esc(ex.name)}: ${esc(T('rirLong'))} on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="grow"></span>${canWarm(e, ex) ? `<button class="mini" data-act="warm" data-e="${ei}" aria-label="Add warm-up sets to ${esc(ex.name)}">+ Warm-up</button>` : ''}
       <button class="mini" data-act="add-set" data-e="${ei}" aria-label="Add a set to ${esc(ex.name)}">+ Set</button><button class="mini" data-act="pain" data-e="${ei}" aria-pressed="${!!e.pain}" aria-label="${esc(ex.name)}: pain">Pain</button></div>
   </article>`;
@@ -336,7 +338,7 @@ function summary(d) {
   const before = muscleXP(S.sessions, S.exById, d.date);
   const after = muscleXP([...S.sessions, { id: d.id, date: d.date, name: d.name, end: Date.now(), entries: d.entries }], S.exById, d.date);
   const gains = Object.entries(after.muscles).map(([m, r]) => ({ m, g: r.xp - (before.muscles[m]?.xp || 0), up: levelFor(r.xp).level > levelFor(before.muscles[m]?.xp || 0).level, L: levelFor(r.xp).level })).filter(x => x.g > 0).sort((a, b) => b.g - a.g);
-  if (gains.length) h += `<a class="box prbox" href="#/levels"><p class="lbl">XP earned · +${gains.reduce((a, x) => a + x.g, 0)}</p><div class="xpgain">${gains.map(x => pill(`${x.up ? '▲ ' : ''}${x.m} +${x.g}${x.up ? ` · level ${x.L}` : ''}`, x.up ? 'push' : 'up')).join('')}</div></a>`;
+  if (gains.length) h += `<a class="box prbox" href="#/levels"><p class="lbl">${expertWording() ? 'XP' : 'XP (experience points)'} earned · +${gains.reduce((a, x) => a + x.g, 0)}</p><div class="xpgain">${gains.map(x => pill(`${x.up ? '▲ ' : ''}${x.m} +${x.g}${x.up ? ` · level ${x.L}` : ''}`, x.up ? 'push' : 'up')).join('')}</div></a>`;
   h += `<div class="box pad0"><p class="lbl in">Next time</p>${rows}</div>
     <div class="box ready"><div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([val, l]) => `<button data-act="feel" data-v="${val}" aria-pressed="${d.feel === val}" title="${l}">${val}</button>`).join('')}</div></div></div>
     <p class="fine">*${anyKg ? `${esc(T('volume'))} is weight × reps added up and counts both dumbbells. ` : ''}"vs last time" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.</p>
@@ -565,6 +567,7 @@ export const actions = {
   },
   'back-to-workout'() { S.draft.summary = false; commit(); },
   async save() {
+    if (!S.draft) return; // a late second tap after the first save finished
     const sess = await commitDraft();
     toast('Workout saved', 'up');
     go('session/' + sess.id);
@@ -575,10 +578,13 @@ export const actions = {
   },
 };
 
+/** Smooth scrolling, unless the phone asks for reduced motion. */
+const smooth = () => (matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+
 function focusField(f, e, si) {
   const inp = document.getElementById(`${f}-${e.uid}-${si}`);
   if (!inp) return;
-  inp.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  inp.scrollIntoView({ block: 'center', behavior: smooth() });
   inp.focus({ preventScroll: true });
 }
 
@@ -678,7 +684,7 @@ function showNext(e) {
   if (!row || !sc) return;
   const r = row.getBoundingClientRect(), v = sc.getBoundingClientRect();
   const timerH = document.getElementById('timer')?.offsetHeight || 0;
-  if (r.top < v.top + 60 || r.bottom > v.bottom - timerH - 12) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (r.top < v.top + 60 || r.bottom > v.bottom - timerH - 12) row.scrollIntoView({ block: 'center', behavior: smooth() });
 }
 
 function pickExercise(ei) {
@@ -688,15 +694,14 @@ function pickExercise(ei) {
   // Same-muscle alternatives first; exercises already in today's workout sink to the bottom.
   const list = [...S.exercises].sort((a, b) => (inW.has(a.id) - inW.has(b.id)) || ((b.muscles?.[0] === m) - (a.muscles?.[0] === m)) || a.name.localeCompare(b.name));
   const sheet = openSheet(`<h2 class="sh-title">${cur ? `Swap ${esc(cur.name)}` : 'Add exercise'}</h2>
-    <input class="inp" id="exsearch" type="search" placeholder="Search exercises" autocomplete="off">
+    <input class="inp" id="exsearch" type="search" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off">
     <p class="fine" id="exnone" hidden>No exercise matches. Create it below.</p>
     <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(searchText(x))}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
     <button class="btn ghost" data-act="quick-new" data-e="${ei ?? ''}">${ICON.plus} <span id="qn-label">Create a new exercise</span></button>`, { label: 'Pick exercise' });
   sheet.querySelector('#exsearch').addEventListener('input', ev => {
     const raw = ev.target.value.trim(), q = raw.toLowerCase();
-    let shown = 0;
-    for (const b of sheet.querySelectorAll('#exlist .li')) { b.hidden = !!q && !b.dataset.name.includes(q); if (!b.hidden) shown++; }
-    sheet.querySelector('#exnone').hidden = shown > 0;
+    const shown = filterList(sheet, raw, '#exlist .li');
+    sheet.querySelector('#exnone').hidden = !q || shown > 0;
     sheet.querySelector('#qn-label').textContent = raw ? `Create "${raw.slice(0, 40)}"` : 'Create a new exercise';
   });
 }
