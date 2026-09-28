@@ -481,3 +481,25 @@ export function parseSplitText(text) {
  * met; with all seven taken it joins that weekday's list. Order is kept. Use on parseSplitText(...).days.
  */
 export const spreadSameWeekday = days => dedupeDays(days, 'items');
+
+/** Weekdays in the order the programme screen lists them, Monday first. */
+export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/**
+ * Drag a day to another place in the week: the workouts in between shift one day along (rest days too), and
+ * every weekday still has exactly one day. A weekday missing from the programme counts as a rest day.
+ * Returns a new programme; the one passed in is left alone.
+ */
+export function moveDay(program, fromDow, toDow) {
+  const rest = dow => ({ dow, name: 'Rest', sub: '', color: 'rest', slots: [] });
+  const week = WEEK_ORDER.map(dow => structuredClone(program.days.find(d => d.dow === dow) || rest(dow)));
+  const i = WEEK_ORDER.indexOf(fromDow), j = WEEK_ORDER.indexOf(toDow);
+  if (i < 0 || j < 0 || i === j) return structuredClone(program);
+  const [d] = week.splice(i, 1);
+  week.splice(j, 0, d);
+  week.forEach((d, k) => { d.dow = WEEK_ORDER[k]; });
+  return { ...structuredClone(program), days: week };
+}
+
+/** An empty week to build a new plan in. */
+export const blankWeek = () => ({ days: WEEK_ORDER.map(dow => ({ dow, name: 'Rest', sub: '', color: 'rest', slots: [] })) });

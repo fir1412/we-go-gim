@@ -1208,3 +1208,22 @@ body:has(#timer:not([hidden])) #toast { bottom: calc(86px + var(--timer-h, 64px)
 @media (min-width: 1000px) and (min-height: 520px) {
   body:has(#timer:not([hidden])) #toast { bottom: calc(28px + var(--timer-h, 64px)); }
 }
+
+/* Programme: drag a day by its handle; My templates */
+.pdays { display: grid; gap: 12px; }
+.pdrow { display: flex; align-items: stretch; }
+.pdrow .pdh { flex: 1; min-width: 0; }
+.dragh { flex: none; width: 48px; display: grid; place-items: center; background: none; border: 0; border-left: 1px solid var(--line); color: var(--mute); touch-action: none; cursor: grab; }
+.dragh svg { width: 20px; height: 20px; }
+.dragh:focus-visible { outline: 2px solid var(--k); outline-offset: -3px; }
+.dragmode { user-select: none; -webkit-user-select: none; }
+.dragmode .pday2 { transition: transform .15s ease; }
+.dragmode .pday2.dragging { transition: none; position: relative; z-index: 5; box-shadow: 0 10px 28px rgb(0 0 0 / .35); cursor: grabbing; }
+.dragmode .pday2.dragging .dragh { color: var(--k); cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) { .dragmode .pday2 { transition: none; } }
+.mytpl { display: grid; gap: 10px; }
+.mytpl p { margin: 0; }
+.mytpl .li .grow { flex: 1; min-width: 0; }
+.mytpl .li .grow b, .mytpl .li .grow small { display: block; }
+.mytpl .li .grow small { color: var(--mute); font-size: 0.75rem; }
+.mytpl .li:first-child { border-top: 0; }
