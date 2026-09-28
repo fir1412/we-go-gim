@@ -1590,6 +1590,7 @@ export default {
 "The PDF reader failed its safety check, so it was not used. Try again later.": "PDF リーダーが安全チェックに通らなかったため、使用しませんでした。後でもう一度お試しください。",
 "The app now reads exercise names better. These may count toward the wrong muscles on your levels and the {0}D view.": "アプリが種目名をより正しく読めるようになりました。これらはレベルや {0}D 表示で違う筋肉に数えられている可能性があります。",
 "The curvy bar for curls and skull crushers, often {0}–{1} kg. Leave it blank if you don't know: the app then skips the empty-bar warm-up and plate maths for it.": "カールやスカルクラッシャーに使う曲がったバーで、たいてい{0}〜{1}kgです。わからなければ空欄のままに：その場合、空のバーでのウォームアップとプレート計算を省きます。",
+"The female body map now shows hair on the back view too": "女性のボディマップの背面にも髪が表示されるようになりました",
 "The file is empty.": "ファイルが空です。",
 "The next mission shows on Today": "次のミッションは「今日」に表示されます",
 "The rest timer runs along the bottom: +{0} seconds for more rest, Skip when you are ready. The next set is highlighted.": "休憩タイマーは下に表示されます：+{0} 秒で休憩を延長、準備ができたらスキップ。次のセットが強調表示されます。",

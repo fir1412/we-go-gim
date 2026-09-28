@@ -1590,6 +1590,7 @@ export default {
 "The PDF reader failed its safety check, so it was not used. Try again later.": "PDF 閱讀器未透過安全檢查，因此沒有使用。請稍後再試。",
 "The app now reads exercise names better. These may count toward the wrong muscles on your levels and the {0}D view.": "應用程式現在能更準確地識別動作名稱。這些動作可能被算到了錯誤的肌肉上，影響你的等級和 {0}D 檢視。",
 "The curvy bar for curls and skull crushers, often {0}–{1} kg. Leave it blank if you don't know: the app then skips the empty-bar warm-up and plate maths for it.": "用於彎舉和仰臥臂屈伸的彎曲槓鈴杆，通常{0}–{1}公斤。不知道就留空：應用程式會跳過它的空杆熱身和配片計算。",
+"The female body map now shows hair on the back view too": "女性身體圖的背面現在也顯示頭髮了",
 "The file is empty.": "檔案是空的。",
 "The next mission shows on Today": "下一個任務會顯示在「今天」",
 "The rest timer runs along the bottom: +{0} seconds for more rest, Skip when you are ready. The next set is highlighted.": "休息計時顯示在底部：+{0} 秒可多休息，準備好了就點「跳過」。下一組會高亮顯示。",

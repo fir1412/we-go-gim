@@ -265,8 +265,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.8.3';
+export const APP_VERSION = '1.8.4';
 const WHATS_NEW = {
+  '1.8.4': ['The female body map now shows hair on the back view too'],
   '1.8.3': ['Learn the app: 10 short missions that show what each feature does. Skip any time and find them under More', 'Pounds work everywhere: Equipment, the exercise editor, and + and − step to the dumbbells you own', 'Set your EZ bar weight in Equipment', 'Imports keep gym and heart rate, and say why lines were left out'],
   '1.8.2': ['Exercise search finds what you mean as you type: words in any order, “pullup” or “pull-up”, best matches first', 'New users always start at the welcome screen, and a new exercise made from your programme goes straight back to it', 'Turn speed slider for the 3D muscle view', 'Many fixes from testing: safer imports and edits, long names wrap, no double saves'],
   '1.8.1': ['Prefer a plain log? Streaks, quests and badges can now be turned off in Settings'],
