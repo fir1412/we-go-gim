@@ -1590,6 +1590,7 @@ export default {
 "The PDF reader failed its safety check, so it was not used. Try again later.": "Pembaca PDF gagal semakan keselamatan, jadi ia tidak digunakan. Cuba lagi nanti.",
 "The app now reads exercise names better. These may count toward the wrong muscles on your levels and the {0}D view.": "Aplikasi kini membaca nama senaman dengan lebih baik. Senaman ini mungkin dikira untuk otot yang salah dalam tahap anda dan paparan {0}D.",
 "The curvy bar for curls and skull crushers, often {0}–{1} kg. Leave it blank if you don't know: the app then skips the empty-bar warm-up and plate maths for it.": "Bar melengkung untuk curl dan skull crusher, biasanya {0}–{1} kg. Biarkan kosong jika tidak tahu: aplikasi akan melangkau set pemanasan bar kosong dan kiraan plat untuknya.",
+"The female body map now shows hair on the back view too": "Peta badan wanita kini menunjukkan rambut pada paparan belakang juga",
 "The file is empty.": "Fail itu kosong.",
 "The next mission shows on Today": "Misi seterusnya dipaparkan di Hari Ini",
 "The rest timer runs along the bottom: +{0} seconds for more rest, Skip when you are ready. The next set is highlighted.": "Pemasa rehat berjalan di bahagian bawah: +{0} saat untuk rehat lebih, Langkau apabila anda sedia. Set seterusnya diserlahkan.",
