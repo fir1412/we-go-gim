@@ -10,36 +10,35 @@ const planned = d => dayForDate(d).slots.length > 0;
 const flexible = () => S.settings.missedReminders === false;
 
 /**
- * Walk forward from the first workout to today.
- * A workout day: streak +1. A planned day missed: a shield covers it, or the streak resets.
- * Rest days pass without effect. Today, not yet done, is still open.
+ * Walk forward from the first workout to today. Every workout day adds one to the streak.
+ * Moving a workout to another day is fine: a week only counts as short when it ends with fewer workouts than
+ * the plan has training days. Each missing workout uses a shield, or resets the streak. Rest days never count
+ * against it, and the week in progress (and the first, partial week) is never judged.
  */
 export function streakInfo(t = todayIso()) {
   const days = trainedDays();
   const first = [...days].sort()[0];
   const out = { streak: 0, best: 0, shields: 0, shieldUsed: null, perfectWeeks: 0, earned: {} };
   if (!first) return out;
-  let weekOk = true, weekPlanned = 0;
+  const perWeek = S.program.days.filter(d => d.slots.length).length;
+  let weekDone = 0, firstWeek = true;
   for (let d = first; d <= t; d = addDays(d, 1)) {
-    const did = days.has(d), plan = flexible() ? false : planned(d);
-    if (plan) weekPlanned++;
-    if (did) out.streak++;
-    else if (plan && d < t) {
-      weekOk = false;
-      if (out.shields > 0) { out.shields--; out.shieldUsed = d; } else out.streak = 0;
-    }
+    if (days.has(d)) { out.streak++; weekDone++; }
     if (out.streak > out.best) {
       out.best = out.streak;
       for (const n of [3, 7, 14, 30, 60, 100, 200, 365]) if (out.streak >= n && !out.earned['streak' + n]) out.earned['streak' + n] = d;
     }
-    // Sunday closes the week: every planned day done earns a shield (at most 2 held).
-    if (new Date(d + 'T00:00:00Z').getUTCDay() === 0) {
-      if (weekOk && weekPlanned > 0) {
+    // Sunday closes the week.
+    if (new Date(d + 'T00:00:00Z').getUTCDay() === 0 && d < t) {
+      const short = firstWeek ? 0 : Math.max(0, perWeek - weekDone);
+      if (!firstWeek && perWeek > 0 && short === 0) {
         out.perfectWeeks++;
         out.shields = Math.min(2, out.shields + 1);
         for (const n of [1, 4, 12]) if (out.perfectWeeks >= n && !out.earned['perfect' + n]) out.earned['perfect' + n] = d;
+      } else if (short > 0) {
+        if (out.shields >= short) { out.shields -= short; out.shieldUsed = d; } else { out.streak = 0; out.shields = 0; }
       }
-      weekOk = true; weekPlanned = 0;
+      weekDone = 0; firstWeek = false;
     }
   }
   return out;
