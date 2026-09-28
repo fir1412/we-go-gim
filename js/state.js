@@ -53,6 +53,9 @@ export async function load() {
     await db.setKv('settings', settings);
   }
   S.settings = { ...structuredClone(DEFAULT_SETTINGS), ...settings, equip: { ...DEFAULT_SETTINGS.equip, ...(settings.equip || {}) } };
+  // Settings saved by an older version (or restored before backups were checked) may hold no usable gym list.
+  if (!Array.isArray(S.settings.gyms) || !S.settings.gyms.length || S.settings.gyms.some(g => !g || typeof g.id !== 'string')) S.settings.gyms = cleanGyms(S.settings.gyms);
+  if (!S.settings.gyms.some(g => g.id === S.settings.gymId)) S.settings.gymId = S.settings.gyms[0].id;
   let exs = await db.all('exercises');
   // Library exercises added in an update reach existing installs too (never ones the user deleted).
   const have = new Set(exs.map(e => e.id)), gone = new Set(S.settings.deletedExercises || []);
@@ -71,7 +74,8 @@ export async function load() {
   S.cardio = (await db.all('cardio')).sort((a, b) => b.date.localeCompare(a.date));
   S.draft = await db.getKv('draft');
   S.daily = {};
-  for (const x of await db.all('kv')) if (x.key.startsWith('daily:')) S.daily[x.key.slice(6)] = x.value;
+  // Only the daily-log keys, never every value (the kv store also holds progress photos).
+  for (const k of await db.kvKeys('daily:')) S.daily[k.slice(6)] = await db.getKv(k);
   S.measures = ((await db.getKv('measures')) || []).sort((a, b) => a.date.localeCompare(b.date));
   S.photos = ((await db.getKv('photos')) || []).sort((a, b) => a.date.localeCompare(b.date));
   const r = await db.getKv('readiness');
@@ -317,7 +321,9 @@ export function sanitizeBackup(data) {
   const oneOf = (v, list, d) => (list.includes(v) ? v : d);
   // Loads and reps are 0 to the cap; anything outside is a typo or junk and is dropped.
   const cap = (v, max) => (v != null && (v > max || v < 0) ? null : v);
-  const set = x => ({ w: cap(numOr(x?.w), MAX_KG), r: cap(numOr(x?.r), MAX_REPS), done: bool(x?.done), ...(x?.warm ? { warm: true } : {}), ...(Number.isFinite(x?.at) ? { at: x.at } : {}) });
+  // A negative load is kept only on a bodyweight or assisted lift, where it is the machine's help.
+  const assisted = new Set((Array.isArray(data.exercises) ? data.exercises : []).filter(e => e && (e.unit === 'bw' || /\bassist/i.test(e.name))).map(e => e.id));
+  const set = (x, neg = false) => ({ w: neg && numOr(x?.w) < 0 && numOr(x?.w) >= -MAX_KG ? numOr(x.w) : cap(numOr(x?.w), MAX_KG), r: cap(numOr(x?.r), MAX_REPS), done: bool(x?.done), ...(x?.warm ? { warm: true } : {}), ...(Number.isFinite(x?.at) ? { at: x.at } : {}) });
   const slot = s => s && typeof s === 'object' ? { exId: str(s.exId, 80), sets: Math.max(1, Math.min(20, Math.round(numOr(s.sets, 3)))), lo: numOr(s.lo, 8), hi: numOr(s.hi, 12), group: str(s.group, 4), ...(s.note ? { note: str(s.note, 120) } : {}) } : undefined;
   const cardio = c => ({ type: str(c?.type, 40) || 'Other', min: numOr(c?.min, 0), intensity: oneOf(c?.intensity, ['easy', 'moderate', 'hard'], 'moderate'), ...(numOr(c?.km) ? { km: numOr(c.km) } : {}) });
   const out = { ...data };
@@ -326,7 +332,7 @@ export function sanitizeBackup(data) {
     note: str(s.note, 2000), hr: numOr(s.hr), feel: numOr(s.feel), minutes: numOr(s.minutes, undefined), start: numOr(s.start), end: numOr(s.end),
     notes: Array.isArray(s.notes) ? s.notes.map(n => str(n, 500)) : undefined,
     cardio: Array.isArray(s.cardio) ? s.cardio.map(cardio) : undefined,
-    entries: s.entries.map(e => ({ ...e, exId: str(e.exId, 80), slot: slot(e.slot), sets: e.sets.map(set), rir: e.rir == null ? null : str(e.rir, 4), pain: bool(e.pain), note: str(e.note, 1000), sug: optStr(e.sug, 20) })),
+    entries: s.entries.map(e => ({ ...e, exId: str(e.exId, 80), slot: slot(e.slot), sets: e.sets.map(x => set(x, assisted.has(e.exId))), rir: e.rir == null ? null : str(e.rir, 4), pain: bool(e.pain), note: str(e.note, 1000), sug: optStr(e.sug, 20) })),
   }));
   if (Array.isArray(data.exercises)) out.exercises = data.exercises.map(e => ({
     ...e, id: str(e.id, 80), name: str(e.name, 80), equip: oneOf(e.equip, ['db', 'barbell', 'smith', 'machine', 'cable', 'bw'], 'machine'),
@@ -344,7 +350,7 @@ export function sanitizeBackup(data) {
       out.daily[d] = clean;
     }
   }
-  if (Array.isArray(data.measures)) out.measures = data.measures.map(m => {
+  if (Array.isArray(data.measures)) out.measures = data.measures.filter(m => m && typeof m === 'object').map(m => {
     const r = { id: str(m.id, 80), date: iso(m.date) };
     for (const k of ['waist', 'chest', 'hips', 'arm', 'thigh']) if (numOr(m[k]) != null) r[k] = numOr(m[k]);
     return r;
@@ -354,7 +360,11 @@ export function sanitizeBackup(data) {
     const s = { ...data.settings };
     for (const k of ['goalKg', 'heightCm', 'sessionLen']) if (k in s) s[k] = numOr(s[k]);
     if (s.targets && typeof s.targets === 'object') s.targets = Object.fromEntries(DAILY_FIELDS.filter(k => k in s.targets).map(k => [k, numOr(s.targets[k])]));
-    if (Array.isArray(s.gyms)) s.gyms = s.gyms.map(g => ({ id: str(g?.id, 40), name: str(g?.name, 60) }));
+    // Today and the CSV export look gyms up on every render: always a list of real gyms, and gymId one of them.
+    s.gyms = cleanGyms(s.gyms);
+    if (typeof s.gymId !== 'string' || !s.gyms.some(g => g.id === s.gymId)) s.gymId = s.gyms[0].id;
+    if ('deletedExercises' in s) s.deletedExercises = Array.isArray(s.deletedExercises) ? s.deletedExercises.filter(x => typeof x === 'string').map(x => x.slice(0, 80)) : [];
+    if ('units' in s && !['kg', 'lb'].includes(s.units)) delete s.units;
     for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience', 'textSize', 'remindAt']) if (k in s && typeof s[k] !== 'string') delete s[k];
     if ('streakPauses' in s) s.streakPauses = cleanPauses(s.streakPauses);
     if ('equip' in s) { const q = cleanEquip(s.equip); if (q) s.equip = q; else delete s.equip; }
@@ -365,6 +375,16 @@ export function sanitizeBackup(data) {
     out.settings = s;
   }
   return out;
+}
+
+/** Gyms from a backup or old settings: objects with an id (text) and a name; the default gym when none are left. */
+export function cleanGyms(list) {
+  const seen = new Set();
+  const gyms = (Array.isArray(list) ? list : [])
+    .filter(g => g && typeof g === 'object' && (typeof g.id === 'string' || typeof g.id === 'number') && String(g.id).trim())
+    .map(g => ({ id: String(g.id).slice(0, 40), name: (typeof g.name === 'string' || typeof g.name === 'number' ? String(g.name).slice(0, 60) : '') || 'Gym' }))
+    .filter(g => !seen.has(g.id) && seen.add(g.id));
+  return gyms.length ? gyms : structuredClone(DEFAULT_SETTINGS.gyms);
 }
 
 /** Streak pauses kept: the streak is recomputed from all history, so old pauses must not fall off the list. */
@@ -435,8 +455,20 @@ export async function importAll(data, { merge = false } = {}) {
   await db.putMany('cardio', data.cardio || []);
   if (!merge || !S.program) await db.setKv('program', data.program || PROGRAM);
   if (!merge) await db.setKv('settings', data.settings || DEFAULT_SETTINGS);
-  if (Array.isArray(data.measures)) await db.setKv('measures', data.measures.filter(m => m && typeof m.id === 'string' && validIso(m.date)));
-  if (data.daily && typeof data.daily === 'object') for (const [d, v] of Object.entries(data.daily)) if (validIso(d) && v && typeof v === 'object') await db.setKv('daily:' + d, v);
+  const measures = (Array.isArray(data.measures) ? data.measures : []).filter(m => m && typeof m.id === 'string' && validIso(m.date));
+  const daily = Object.entries(data.daily && typeof data.daily === 'object' ? data.daily : {}).filter(([d, v]) => validIso(d) && v && typeof v === 'object');
+  if (merge) {
+    // Merge only adds: measurements this phone lacks (by id and by date), daily fields it hasn't logged.
+    const ids = new Set(S.measures.map(m => m.id)), dates = new Set(S.measures.map(m => m.date));
+    const add = measures.filter(m => !ids.has(m.id) && !dates.has(m.date) && dates.add(m.date));
+    if (add.length) await db.setKv('measures', [...S.measures, ...add]);
+    for (const [d, v] of daily) await db.setKv('daily:' + d, { ...v, ...(S.daily[d] || {}) });
+  } else {
+    // Replace (and Undo, which is one) leaves nothing of the old data behind: daily logs and measurements too.
+    for (const k of await db.kvKeys('daily:')) await db.del('kv', k);
+    await db.setKv('measures', measures);
+    for (const [d, v] of daily) await db.setKv('daily:' + d, v);
+  }
   await load();
   refresh();
   return { skipped: merged.skipped };

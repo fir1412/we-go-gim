@@ -346,9 +346,11 @@ const SECTION_WORD = /^(可选|选做|選做|最后加练|最後加練|最后|�
 export function parseSplitText(text) {
   const days = [], skipped = [], notAdded = [];
   let day = null, section = '', blank = true, explicit = false;
-  for (const raw of String(text).split(/\r?\n/)) {
+  // Old Mac files end lines with a bare CR.
+  for (const raw of String(text).split(/\r\n|\r|\n/)) {
     // Full-width digits, colons and brackets ("５セット", "水曜日：背中", "（月）") become their plain forms.
-    const line = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
+    // A real plan line is short; a pasted blob is cut so the patterns below stay quick.
+    const line = raw.slice(0, 500).normalize('NFKC').replace(/\s+/g, ' ').trim();
     if (!line) { blank = true; continue; }
     const wasBlank = blank;
     blank = false;
@@ -359,7 +361,8 @@ export function parseSplitText(text) {
     const wh = !dh && !explicit && (wasBlank || !day) && (!day || day.items.length) && WORKOUT_RE.test(bare);
     if (dh || wh) {
       if (dh) explicit = true;
-      const name = dh ? dh.name || 'Workout' : capFirst(bare);
+      // A day's name is kept to the programme's 40 characters.
+      const name = (dh ? dh.name || 'Workout' : capFirst(bare)).slice(0, 40).trim();
       day = { dow: dh ? dh.dow : null, name, sub: '', color: (COLOR_FOR.find(([re]) => re.test(name)) || [0, 'upper'])[1], items: [] };
       days.push(day); section = '';
       continue;
@@ -414,7 +417,7 @@ export function parseSplitText(text) {
     let m;
     if (pct) {
       const reps = [...pct[2].matchAll(/[x×]\s*(\d+)/gi)].map(x => +x[1]);
-      m = [null, pct[1], String(reps.length), String(Math.min(...reps)), String(Math.max(...reps)), [pct[2].trim().replace(/[,;/]$/, ''), pct[3].trim()].filter(Boolean).join(' ')];
+      m = [null, pct[1], String(reps.length), String(reps.reduce((a, b) => Math.min(a, b))), String(reps.reduce((a, b) => Math.max(a, b))), [pct[2].trim().replace(/[,;/]$/, ''), pct[3].trim()].filter(Boolean).join(' ')];
     } else {
       // "Bench Press – 4 × 6–8", "Bench press 3x8", "Squat: 5 sets"
       m = body.match(/^(.+?)\s*(?:[–—:-]\s*)?(\d+)\s*(?:[x×]\s*(\d+)(?:\s*[–—-]\s*(\d+))?|sets?)(?:\b|(?=[a-z]))(.*)$/i);
@@ -441,7 +444,8 @@ export function parseSplitText(text) {
     rest = rest.replace(/^[,;·-]\s*/, '').replace(/^amrap$/i, 'AMRAP').replace(/^max(?: reps)?$/i, 'AMRAP');
     const sec = own || section;
     const note = [OPTIONAL_RE.test(sec) ? 'Optional' : FINISH_RE.test(sec) ? 'Finisher' : '', rest].filter(Boolean).join(' · ');
-    day.items.push({ name, sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note, group });
+    // Names and notes kept to the lengths the programme stores (exercise names 80, slot notes 120).
+    day.items.push({ name: name.slice(0, 80).trim(), sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note: note.slice(0, 120).trim(), group });
   }
   // A superset label on its own ("A1" with no A2) is just numbering.
   for (const d of days) for (const it of d.items) if (it.group && d.items.filter(x => x.group === it.group).length < 2) it.group = '';

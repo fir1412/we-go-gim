@@ -1,23 +1,36 @@
 // Import / export: CSV, JSON backup, and a forgiving parser for free-text workout logs (pasted or from PDF).
-import { MAX_KG, MAX_REPS, cleanText } from './engine.js';
+import { MAX_KG, MAX_REPS, cleanText, validIso } from './engine.js';
 import { EXERCISES } from './seed.js';
 import { plainText } from './plain.js';
 
 // ---- CSV ------------------------------------------------------------------------------
-const CSV_COLS = ['date', 'session', 'exercise', 'unit', 'set', 'warmup', 'weight', 'reps', 'done', 'rir', 'pain', 'gym', 'note'];
-const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-/** Text that Excel or Sheets would run as a formula (=, +, -, @, tab, return) is kept as text with a leading apostrophe. */
-const safeText = v => { const s = String(v ?? ''); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; };
+// Weights are always kg (unit says how: per dumbbell, level, added to bodyweight). The session note and heart
+// rate come last so older readers of this file still find every column they know.
+const CSV_COLS = ['date', 'session', 'exercise', 'unit', 'set', 'warmup', 'weight', 'reps', 'done', 'rir', 'pain', 'gym', 'note', 'session_note', 'hr'];
+// Quoted when it holds a delimiter (comma, or semicolon for European Excel), a quote or a line break.
+const q = v => { const s = String(v ?? ''); return /[",;\n\r\t]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+/**
+ * Text that Excel or Sheets would run as a formula (=, +, -, @, tab, return, after any leading spaces) is kept
+ * as text with a leading apostrophe. A semicolon-locale Excel splits cells on ";" even inside quotes, so a
+ * formula character after a ";" gets one too.
+ */
+const safeText = v => {
+  const s = String(v ?? '').replace(/;(?=[ \t]*[=+\-@\t\r])/g, ";'");
+  return /^[ \t]*[=+\-@\t\r]/.test(s) ? "'" + s : s;
+};
+/** Undoes safeText on a cell of our own export (only the apostrophes it adds: before a formula character). */
+const unsafeText = s => String(s).replace(/^'(?=[ \t]*[=+\-@\t\r])/, '').replace(/;'(?=[ \t]*[=+\-@\t\r])/g, ';');
 
 export function toCSV(sessions, exById, gyms = []) {
-  const gname = id => gyms.find(g => g.id === id)?.name || '';
+  const gname = id => (Array.isArray(gyms) ? gyms.find(g => g?.id === id)?.name : '') || '';
   const rows = [CSV_COLS.join(',')];
   for (const s of [...sessions].sort((a, b) => a.date.localeCompare(b.date))) {
     for (const e of s.entries || []) {
       const ex = exById[e.exId];
       let n = 0;
       for (const set of e.sets || []) {
-        rows.push([s.date, safeText(s.name), safeText(ex?.name || e.exId), ex?.unit || '', set.warm ? 'W' : ++n, set.warm ? 1 : 0, set.w ?? '', set.r ?? '', set.done ? 1 : 0, safeText(e.rir ?? ''), e.pain ? 1 : 0, safeText(gname(s.gymId)), safeText(e.note || '')].map(q).join(','));
+        rows.push([s.date, safeText(s.name), safeText(ex?.name || e.exId), ex?.unit || '', set.warm ? 'W' : ++n, set.warm ? 1 : 0, set.w ?? '', set.r ?? '', set.done ? 1 : 0, safeText(e.rir ?? ''), e.pain ? 1 : 0, safeText(gname(s.gymId)), safeText(e.note || ''),
+          safeText(s.note || ''), Number.isFinite(s.hr) ? s.hr : ''].map(q).join(','));
       }
     }
   }
@@ -59,7 +72,8 @@ export function parseCSV(text, delim = ',') {
  * Pounds are converted to kg: a "weight_lbs"/"lbs" column, a "Weight Unit" of lbs, or opts.lb for a bare "weight".
  * Numeric dates are read day first unless the file is clearly month first (a "9/21/2026") or opts.dateOrder says so.
  */
-export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallbackDate = null } = {}) {
+export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallbackDate = null, lang = null, today = null } = {}) {
+  loadForeignNames(); // for the review screen's name matching
   let rows = parseCSV(String(text).replace(/^\uFEFF/, ''), csvDelimiter(text));
   if (!rows.length) throw new Error('The file is empty.');
   // Accept common header spellings from other apps and hand-made sheets.
@@ -74,6 +88,8 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
     datum: 'date', fecha: 'date', tarikh: 'date', übung: 'exercise', ejercicio: 'exercise', exercice: 'exercise', senaman: 'exercise',
     wdh: 'reps', wiederholungen: 'reps', repeticiones: 'reps', répétitions: 'reps', ulangan: 'reps', gewicht: 'weight', 'gewicht kg': 'weight', peso: 'weight', 'peso kg': 'weight', poids: 'weight', 'poids kg': 'weight', berat: 'weight', 'berat kg': 'weight', satz: 'setindex', serie: 'setindex', séries: 'sets', series: 'sets',
     'exercise name': 'exercise', 'weight kilograms': 'weight',
+    // Our own export's session columns.
+    'session note': 'wnote', 'heart rate': 'hr', 'avg hr': 'hr', 'avg heart rate': 'hr', bpm: 'hr',
     // Malay, Japanese and Chinese sheets.
     latihan: 'exercise', 'nama latihan': 'exercise', 'nama senaman': 'exercise', beban: 'weight', 'beban kg': 'weight', 'tarikh latihan': 'date',
     训练日期: 'date', 訓練日期: 'date', 锻炼日期: 'date', トレーニング日: 'date', 'bil set': 'sets', 'bilangan set': 'sets', 'berat kgs': 'weight', catatan: 'note', nota: 'note',
@@ -95,22 +111,39 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
   const miss = [['date', has('date') || fallbackDate], ['exercise', has('exercise')], ['reps', has('reps') || has('seconds') || perRowSets]].filter(x => !x[1]).map(x => x[0]);
   if (miss.length) throw new Error(`Missing column${miss.length > 1 ? 's' : ''}: ${miss.join(', ')}. Expected at least date, exercise and reps (weight if there is one).`);
   const ix = n => head.indexOf(n);
-  // Japanese and Chinese files write the month first ("9/5" is 5 September), as their text notes do.
-  const order = !has('date') ? 'ymd' : dateOrder === 'auto' ? detectDateOrder(rows.slice(1).map(r => r[ix('date')]), { monthFirst: isCJK(text) }) : dateOrder;
+  // Japanese and Chinese files write the month first ("9/5" is 5 September), as their text notes do: a sheet
+  // written in Chinese or Japanese (its header, or most of its lift names), or read with the app in those languages.
+  // A few Chinese lift names in a Western sheet don't count. The dates themselves decide when any can (21/9, 9/21).
+  const cjkish = t => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(t);
+  const monthFirst = () => {
+    if (['zh', 'zh-Hant', 'ja'].includes(lang) || cjkish(rows[0].join(' '))) return true;
+    const names = rows.slice(1).map(r => String(r[ix('exercise')] ?? '').trim()).filter(Boolean);
+    return names.length > 0 && names.filter(cjkish).length * 2 > names.length;
+  };
+  const order = !has('date') ? 'ymd' : dateOrder === 'auto' ? detectDateOrder(rows.slice(1).map(r => r[ix('date')]), { monthFirst: monthFirst() }) : dateOrder;
   const kgHeader = /kg/i.test(rows[0][ix('weight')] || '');
+  // Our own export (see toCSV): its weights are kg whatever the unit column says, and its guard apostrophes come off.
+  const ours = rows[0].slice(0, 7).map(h => String(h).trim()).join(',') === CSV_COLS.slice(0, 7).join(',');
   const map = new Map();
-  const num = v => { const x = String(v ?? '').replace(',', '.').replace(/\s*(kgs?|lbs?|reps?|s)$/i, '').trim(); return x === '' || !isFinite(+x) ? null : +x; };
+  const num = csvNum;
+  // Rows dated after tomorrow can't be workouts that happened: left out, and counted.
+  const tomorrow = today && validIso(today) ? isoOf(t(today) + DAY) : null;
+  let future = 0;
   for (const r of rows.slice(1)) {
     const date = has('date') ? normDate(excelDate(r[ix('date')]), order) : fallbackDate;
     if (!date) continue;
-    const cell = n => (ix(n) >= 0 ? String(r[ix(n)] ?? '').trim() : '');
+    if (tomorrow && date > tomorrow) { future++; continue; }
+    const cell = n => { if (ix(n) < 0) return ''; const v = String(r[ix(n)] ?? ''); return (ours ? unsafeText(v) : v).trim(); };
     const name = cell('session') || 'Imported';
     const key = date + '|' + name;
     if (!map.has(key)) map.set(key, { date, name, entries: [], notes: [] });
     const sess = map.get(key);
     const wn = cell('wnote');
     if (wn && !sess.notes.includes(wn)) sess.notes.push(wn);
-    const exName = cleanText(cell('exercise').replace(/_+/g, ' '));
+    const hr = num(cell('hr'));
+    if (hr > 0 && hr < 260 && sess.hr == null) sess.hr = Math.round(hr);
+    if (cell('gym') && sess.gym == null) sess.gym = cleanText(cell('gym'), 60);
+    const exName = keepZwj(cell('exercise').replace(/_+/g, ' '), cleanText);
     if (!exName) continue;
     // Whole sets in one cell: Jefit "logs" ("60x8,60x8") or "Set 1…" columns ("60x8", or reps with a weight column).
     if (perRowSets && !has('reps')) {
@@ -129,10 +162,19 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
       e2.sets.push(...found.map(s => ({ w: s.w, r: s.r, done: true })));
       continue;
     }
-    // Pounds: its own column, a unit column that says so, or the whole file (opts.lb) when the column doesn't say kg.
-    const lbRow = cell('weightlb') !== '' || /^(lbs?|pounds?)$/i.test(cell('wunit')) || /^(lbs?|pounds?)$/i.test(cell('unit')) || (lb && !kgHeader && !/^kgs?$/i.test(cell('wunit') || cell('unit')));
-    let w = cell('weightlb') !== '' ? num(cell('weightlb')) : num(cell('weight'));
+    // Pounds: the cell says so ("135lbs"), its own column, a unit column that says so, or the whole file (opts.lb)
+    // when nothing says kg. Our own export is always kg (its unit column is kg, kg/DB, L or bw), and a cable
+    // level (L) is never a weight at all.
+    const wcell = cell('weightlb') !== '' ? cell('weightlb') : cell('weight');
+    const cellUnit = /\d\s*(?:lbs?|pounds?)$/i.test(wcell) ? 'lb' : /\d\s*(?:kgs?|kilos?)$/i.test(wcell) ? 'kg' : null;
+    const level = /^(l|level|lvl|levels)$/i.test(cell('unit')) || /^(l|level|lvl|levels)$/i.test(cell('wunit'));
+    const lbRow = !ours && !level && (cellUnit ? cellUnit === 'lb'
+      : cell('weightlb') !== '' || /^(lbs?|pounds?)$/i.test(cell('wunit')) || /^(lbs?|pounds?)$/i.test(cell('unit')) || (lb && !kgHeader && !/^(kgs?|kg\/db|bw)$/i.test(cell('wunit') || cell('unit'))));
+    let w = num(wcell);
+    // A negative load is assistance (an assisted pull-up or dip machine); on any other lift the sign is a typo.
+    if (w < 0 && !ASSISTED_RE.test(exName)) w = -w;
     let reps = num(cell('reps'));
+    if (reps < 0) reps = null;
     // Timed sets (a plank in Hevy or Strong): seconds count as reps.
     if (reps == null && num(cell('seconds'))) reps = num(cell('seconds'));
     // Cardio and distance rows have no load and no reps: nothing to log as a set.
@@ -155,7 +197,37 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
     for (const e of s.entries) e.sets = e.sets.filter(x => !(+x.w > MAX_KG) && !(+x.r > MAX_REPS));
     s.entries = s.entries.filter(e => e.sets.length);
   }
-  return [...map.values()].filter(s => s.entries.length);
+  const out = [...map.values()].filter(s => s.entries.length);
+  out.future = future;
+  return out;
+}
+
+/** An assisted lift: a negative load on it is the machine's help, not a typo. */
+const ASSISTED_RE = /\bassist(?:ed|ance)?\b|\bgravitron\b/i;
+
+/**
+ * A number from a CSV cell: "60", "60 kg", "135lbs", "60,5" (decimal comma), "1,000" and "1.000,5" (thousands
+ * separators), "1,234.5". Hex, exponents and other oddities are not numbers. Conservative: "1.500" stays 1.5;
+ * a single "." group counts as thousands only as "1.000" (up to MAX_KG).
+ */
+export function csvNum(v) {
+  let x = String(v ?? '').trim().replace(/\s*(?:kgs?|kilos?|lbs?|pounds?|reps?|s)$/i, '').replace(/\s+/g, '');
+  if (x.includes(',') && x.includes('.')) {
+    // Both: the last one is the decimal point.
+    x = x.lastIndexOf(',') > x.lastIndexOf('.') ? x.replace(/\./g, '').replace(',', '.') : x.replace(/,/g, '');
+  } else if (x.includes(',')) {
+    x = /^-?[1-9]\d{0,2}(,\d{3})+$/.test(x) ? x.replace(/,/g, '') : x.replace(',', '.');
+  } else if (/^-?[1-9]\d{0,2}(\.\d{3}){2,}$/.test(x) || (/^-?[1-9]\d{0,2}\.000$/.test(x) && Math.abs(+x) * 1000 <= MAX_KG)) {
+    x = x.replace(/\./g, '');
+  }
+  return /^[-+]?(\d+\.?\d*|\.\d+)$/.test(x) ? +x : null;
+}
+
+/** fn(s) with emoji joined by zero-width joiners ("🏋️‍♀️") kept whole: cleanText would take the joiner out. */
+const ZWJ_KEEP = '\u{10FFFD}';
+function keepZwj(s, fn) {
+  const t = String(s).replace(/(\p{Extended_Pictographic}️?)‍(?=\p{Extended_Pictographic})/gu, `$1${ZWJ_KEEP}`);
+  return fn(t).replaceAll(ZWJ_KEEP, '‍');
 }
 
 // ---- reading any file someone picks ------------------------------------------------------------------
@@ -210,6 +282,7 @@ const REJECT = {
  * kind: pdf | csv | text | html | rtf | backup | reject (with a message).
  */
 export function routeFile(name, head, sample = '') {
+  loadForeignNames(); // a file was picked: the names are ready by the time it has been read
   const ext = (String(name).match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
   const h = head instanceof Uint8Array ? head : new Uint8Array(head || []);
   const sig = String.fromCharCode(...h.subarray(0, 12));
@@ -236,16 +309,78 @@ export function routeFile(name, head, sample = '') {
 const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', times: '×', ndash: '–', mdash: '—', hellip: '…' };
 /** HTML, Evernote or Notion exports to plain lines: block ends and table cells become line breaks and spaces. */
 export function htmlToText(html) {
-  return String(html)
-    .replace(/<sms\b[^>]*?\bbody="([^"]*)"[^>]*>/gi, (m, b) => `<p>${b.replace(/&#10;/g, '<br>')}</p>`)
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/<(script|style|head)\b[\s\S]*?<\/\1>/gi, '')
+  // The tag-pair steps are indexOf scans, not regexes: a crafted file of unclosed tags would make a
+  // backtracking regex take minutes (each is linear in the file's length).
+  return stripBlocks(unwrapCdata(smsBodies(String(html))))
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|tr|h[1-6]|note|title|en-note|table|ul|ol)>/gi, '\n')
     .replace(/<\/t[dh]>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e) => e[0] === '#' ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : +e.slice(1)) : ENT[e.toLowerCase()] ?? m)
+    // A tag never holds another '<': that keeps this linear on a file of unclosed tags.
+    .replace(/<[^<>]+>/g, '')
+    .replace(/&(#x?[0-9a-f]{1,8}|[a-z]{1,10});/gi, (m, e) => {
+      if (e[0] !== '#') { const k = e.toLowerCase(); return Object.hasOwn(ENT, k) ? ENT[k] : m; }
+      const cp = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : /^\d+$/.test(e.slice(1)) ? +e.slice(1) : NaN;
+      // Past U+10FFFF, or a lone surrogate half: not a character.
+      return Number.isInteger(cp) && cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : '�';
+    })
     .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n');
+}
+/** SMS Backup & Restore XML: each <sms … body="…"> becomes a paragraph of its body. */
+function smsBodies(s) {
+  const re = /<sms\b/gi;
+  let out = '', from = 0, m;
+  while ((m = re.exec(s))) {
+    const i = m.index;
+    let end = s.indexOf('>', i);
+    if (end < 0) break; // no '>' left: no later tag can close either
+    // Every '<sms' up to `end` is consumed below, so each character is looked at a bounded number of times.
+    const bm = /[\s"']body="/i.exec(s.slice(i, end));
+    let body = null;
+    if (bm) {
+      const b = i + bm.index + 1;
+      const close = s.indexOf('"', b + 6);
+      if (close < 0) break;
+      body = s.slice(b + 6, close);
+      if (close > end) { end = s.indexOf('>', close); if (end < 0) break; }
+    }
+    if (body == null) { re.lastIndex = end + 1; continue; }
+    out += s.slice(from, i) + `<p>${body.replace(/&#10;/g, '<br>')}</p>`;
+    from = re.lastIndex = end + 1;
+  }
+  return from ? out + s.slice(from) : s;
+}
+/** <![CDATA[x]]> -> x. */
+function unwrapCdata(s) {
+  let out = '', from = 0;
+  for (;;) {
+    const i = s.indexOf('<![CDATA[', from);
+    if (i < 0) break;
+    const j = s.indexOf(']]>', i + 9);
+    if (j < 0) break;
+    out += s.slice(from, i) + s.slice(i + 9, j);
+    from = j + 3;
+  }
+  return from ? out + s.slice(from) : s;
+}
+/** <script>, <style> and <head> blocks removed with their contents (an unclosed one stays, as before). */
+const BLOCK_OPEN = /<(script|style|head)\b/gi;
+const BLOCK_CLOSE = { script: /<\/script>/gi, style: /<\/style>/gi, head: /<\/head>/gi };
+function stripBlocks(s) {
+  let out = '', from = 0, m;
+  const noClose = new Set();
+  BLOCK_OPEN.lastIndex = 0;
+  while ((m = BLOCK_OPEN.exec(s))) {
+    const tag = m[1].toLowerCase();
+    if (noClose.has(tag)) continue;
+    const close = BLOCK_CLOSE[tag];
+    close.lastIndex = m.index + m[0].length;
+    const c = close.exec(s);
+    // Not closed: no later block of this kind can be either.
+    if (!c) { noClose.add(tag); continue; }
+    out += s.slice(from, m.index);
+    from = BLOCK_OPEN.lastIndex = c.index + c[0].length;
+  }
+  return from ? out + s.slice(from) : s;
 }
 /** Rich text (TextEdit, WordPad) to plain lines. */
 export function rtfToText(rtf) {
@@ -265,6 +400,7 @@ export function rtfToText(rtf) {
  * Used by the Import screen and by the import tests.
  */
 export function importFile(name, bytes, exercises, opts = {}) {
+  loadForeignNames();
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const text = decodeBytes(u8);
   const route = routeFile(name, u8.subarray(0, 16), text.slice(0, 2000));
@@ -294,7 +430,8 @@ export function excelDate(v) {
 export const lbToKg = v => Math.round(+v * 0.45359237 * 1000) / 1000;
 
 // ---- dates ------------------------------------------------------------------------------
-const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+// English and Malay (Mac, Mei, Ogos, Okt, Dis; Januari, Julai…): the first three letters pick the month.
+const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12, mac: 3, mei: 5, ogo: 8, okt: 10, dis: 12 };
 const pad = n => String(n).padStart(2, '0');
 function mk(y, m, d) {
   if (y < 100) y += 2000;
@@ -304,7 +441,9 @@ function mk(y, m, d) {
 }
 
 // Whole month words only: "maybe 2 rir" is not 2 May, "4 decent reps" is not 4 December.
-const MONTH = String.raw`(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?`;
+const MONTH = String.raw`(jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch)?|mac|apr(?:il)?|may|mei|june?|julai|july?|aug(?:ust)?|ogos?|sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?|dis(?:ember)?)\.?`;
+// A weekday in front of a short date ("Mon 21/9 Push", "Isnin 28/9"), English or Malay.
+const WEEKDAY_BEFORE_DATE = /^(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|isnin|selasa|rabu|khamis|jumaat|sabtu|ahad)\.?,?\s+(?=\d{1,2}[/.-]\d{1,2}(?![/.-]?\d))/i;
 // A number followed by these is a set, not a day: "May 2 rir", "7.5 x8", "12.5 kg".
 const NOT_DAY = String.raw`(?!\s*(?:x\s*\d|[x×]\b|reps?\b|sets?\b|rir\b|rpe\b|kgs?\b|lbs?\b|more\b|%|\.\d))`;
 const RE_DMY = new RegExp(String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+${MONTH}(?![a-z])(?:,?\s*(\d{4}|\d{2})\b)?`, 'i');
@@ -360,8 +499,7 @@ export function isCJK(t) {
 }
 
 // ---- free-text log parser ------------------------------------------------------------------
-const NUM = String.raw`(\d+(?:[.,]\d+)?)`;
-/**
+const NUM = String.raw`(\d+(?:[.,]\d+)?)`;/**
  * Parse one line into sets, or null if it holds none.
  * Returns {sets:[{w,r}], unit?, before, after, rest}: `before` is text ahead of the first set (an inline
  * exercise name, e.g. "Incline DB press 25 kg 8,8,8"); `after` is text behind the sets (a remark).
@@ -369,7 +507,9 @@ const NUM = String.raw`(\d+(?:[.,]\d+)?)`;
 export function parseSetLine(line, { lb = false } = {}) {
   // Real set lines are short; a huge line (a pasted blob of digits) would make the patterns below crawl.
   if (line.length > 400) return null;
-  let s = line.replace(/[×✕]/g, 'x').replace(/,(?=\d{3}\b)/g, '');
+  // Thousands separators: "1,000 lbs", and "1.000 kg" (European) when that is a real load.
+  let s = line.replace(/[×✕]/g, 'x').replace(/,(?=\d{3}\b)/g, '')
+    .replace(/\b([1-9])\.000(?=\s*(?:kgs?|kilos?|lbs?|pounds?)\b)/gi, (m, d) => (+d * 1000 <= MAX_KG ? d + '000' : m));
   // Pounds become kg ("135 lbs x5" -> "61.235kg x5"). A line that gives both ("80lbs or 36kg x8") keeps its kg.
   const saysKg = /\d\s*(?:kgs?|kilos?)\b/i.test(s);
   if (!saysKg) s = s.replace(/(\d+(?:[.,]\d+)?)\s*(?:lbs?|pounds?)\b/gi, (m, v) => `${lbToKg(+v.replace(',', '.'))}kg`);
@@ -474,9 +614,10 @@ export function sessionNameFromFile(name) {
 }
 
 /** RIR hints in a remark: "2 rir" -> "2"; "mech fail", "cannot", "failure" -> "0". */
+const RIR_NUM_RE = /(\d)\s*\+?\s*rir|rir\s*(\d)/i;
 function rirFrom(t) {
   let m;
-  if ((m = t.match(/(\d)\s*\+?\s*rir|rir\s*(\d)/i))) return String(m[1] ?? m[2]);
+  if ((m = t.match(RIR_NUM_RE))) return String(m[1] ?? m[2]);
   if (/\b(mech\w* fail\w*|muscles? failure|failure|cannot|can'?t (do|push|lift)|cant do|no juice|out of juice|failed)\b/i.test(t)) return '0';
   return null;
 }
@@ -549,12 +690,19 @@ const CJK_WORD_RE = new RegExp(CJK_WORDS.map(([k]) => k).join('|'), 'g');
 const CJK_WORD_TO = new Map(CJK_WORDS);
 
 // Library names as the Chinese, Japanese and Malay screens show them, read back to the library's own name
-// ("杠铃卧推" → "Barbell bench press"). Loaded in the background (the dictionaries are large); ready when this resolves.
+// ("杠铃卧推" → "Barbell bench press"). The dictionaries are large (~400 KB), so they are loaded only when an
+// import needs them: the first call of an import function starts the load (in the background), and
+// `await foreignNamesReady` (or loadForeignNames()) waits for it.
 let foreignRe = null;
 const foreignTo = new Map(); // translated name (lower case) → library exercise
 const foreignKey = s => String(s).normalize('NFKC').replace(/[・･]/g, '').toLowerCase().trim();
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-export const foreignNamesReady = Promise.all(['zh', 'ja', 'ms'].map(l => import(`./i18n/${l}.js`).then(m => m.default?.names || {}, () => ({}))))
+let foreignLoad = null;
+/** Starts loading the Chinese, Japanese and Malay exercise names (once); resolves when they are in use. */
+export const loadForeignNames = () => (foreignLoad ??= loadForeign());
+/** A promise-like: awaiting it loads the names. Nothing is fetched until then or until an import runs. */
+export const foreignNamesReady = { then: (ok, fail) => loadForeignNames().then(ok, fail) };
+const loadForeign = () => Promise.all(['zh', 'ja', 'ms'].map(l => import(`./i18n/${l}.js`).then(m => m.default?.names || {}, () => ({}))))
   .then(dicts => {
     const english = new Set(EXERCISES.map(e => e.name.toLowerCase()));
     for (const ex of EXERCISES) for (const names of dicts) {
@@ -586,9 +734,10 @@ const norm = s => ALIASES.reduce((a, [re, to]) => a.replace(re, to), toEnglish(s
 const squash = s => norm(s).replace(/ /g, '');
 // Words that name the equipment, and words that don't change which lift it is.
 // "Competition bench", "Bench press (BB)" and an Olympic bar are barbell lifts: never matched to a dumbbell one, or the other way round.
-const EQUIP_WORD = { db: 'db', machine: 'machine', cable: 'machine', rope: 'machine', smith: 'smith', barbell: 'barbell', bb: 'barbell', competition: 'barbell', comp: 'barbell', olympic: 'barbell', bw: 'bw', bodyweight: 'bw' };
+// (No prototype: a lift named "constructor…" must not find Object's own keys here.)
+const EQUIP_WORD = { __proto__: null, db: 'db', machine: 'machine', cable: 'machine', rope: 'machine', smith: 'smith', barbell: 'barbell', bb: 'barbell', competition: 'barbell', comp: 'barbell', olympic: 'barbell', bw: 'bw', bodyweight: 'bw' };
 // A body part in the logged name must be one the exercise trains: "Hamstring curl" is not "DB curl".
-const BODY_WORD = { hamstring: ['Hamstrings'], ham: ['Hamstrings'], leg: ['Quads', 'Hamstrings', 'Glutes', 'Calves'], bicep: ['Biceps'], triceps: ['Triceps'], tricep: ['Triceps'],
+const BODY_WORD = { __proto__: null, hamstring: ['Hamstrings'], ham: ['Hamstrings'], leg: ['Quads', 'Hamstrings', 'Glutes', 'Calves'], bicep: ['Biceps'], triceps: ['Triceps'], tricep: ['Triceps'],
   calf: ['Calves'], glute: ['Glutes'], quad: ['Quads'], ab: ['Abs'], core: ['Abs'], lat: ['Back'], delt: ['Front delts', 'Side delts', 'Rear delts'], shoulder: ['Front delts', 'Side delts', 'Rear delts'], wrist: ['Forearms'], forearm: ['Forearms'], neck: ['Neck'] };
 const SOFT = new Set(['flat', 'seated', 'standing', 'one', 'arm', 'hand', 'triceps', 'tricep', 'bicep', 'the', 'with', 'on', 'and']);
 // "Bench press" and "Chest press" are one pattern; "bench" is folded into "chest" when matching.
@@ -670,8 +819,13 @@ export function normalizeLog(text, exercises = []) {
   let lastChatDate = null, table = null;
   const known = n => exercises.length && !!matchExercise(n, exercises);
   // Full-width letters and digits ("６０ｋｇ×１０回", "：") become their plain forms first.
+  let wasBlank = false;
   for (let l of String(text).normalize('NFKC').split(/\r\n|\r|\n/)) {
     if (l.length > 2000) l = l.slice(0, 2000); // keeps a long note, bounds the work per line
+    // A run of blank lines means what one does (a break): the rest are skipped before any of the work below.
+    const empty = !/\S/.test(l);
+    if (empty && wasBlank) continue;
+    wasBlank = empty;
     // Chat exports: "[21/09/2026, 18:02:11] Name: text" (iOS) or "21/09/2026, 18:02 - Name: text" (Android).
     const chat = l.match(/^\u200e?\[?(\d{1,2}[/.]\d{1,2}[/.]\d{2,4}),? \d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]\.?m\.?)?\]?\s*(?:-\s*)?[^:]{1,40}:\s(.*)$/i);
     if (chat) {
@@ -688,7 +842,7 @@ export function normalizeLog(text, exercises = []) {
       .replace(new RegExp(String.raw`\b(\d{1,2})-(${MON3})[a-z]*-(\d{2})\b`, 'gi'), (m, d, mo, y) => `${d} ${mo} 20${y}`)
       .replace(/^(\p{L}{2,9}\.?,?\s+)?(\d{1,2})\.(\d{1,2})\.(?=\s|$)/u, (m, w, d, mo) => `${w || ''}${d}/${mo}`)
       // "Mon 21/9 Push": a weekday in front of a short date
-      .replace(/^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+(?=\d{1,2}[/.-]\d{1,2}(?![/.-]?\d))/i, '');
+      .replace(WEEKDAY_BEFORE_DATE, '');
     // Tables: "| Bench press | 60kg | 8 | 3 |" or "Bench press | 3 | 8 | 60kg" under a header naming the columns.
     if ((l.match(/\|/g) || []).length >= 2 || (table && l.includes('|'))) {
       const cells = l.replace(/^\s*\||\|\s*$/g, '').split('|').map(c => c.trim());
@@ -733,7 +887,8 @@ export function normalizeLog(text, exercises = []) {
       // "60kg 3组" / "3セット" with no reps left: a set count.
       .replace(/(\d{1,2})\s*(?:组|組|セット)(?!\s*[x×*,、]?\s*(?:每组|各)?\s*[x×*]?\s*\d)/g, ' $1 sets ')
       .replace(/\s+/g, ' ').trim();
-    l = l
+    // Every rewrite below needs a number: a line of chat or a remark without one skips them all.
+    if (/\d/.test(l)) l = l
       // "60kg - 3 sets x 8 reps", "60kg 3 set x 8 ulangan"
       .replace(new RegExp(String.raw`${KGU}\s*[-–,:]?\s*(\d{1,2})\s*${SETW}\s*(?:x|of|×)\s*(\d{1,3})\s*(?:${REPW})?`, 'gi'), '$1 x $3 x $2')
       // "60kg 3 set 5 ulangan", "60kg 3 sets, 8 reps"
@@ -789,6 +944,7 @@ export function normalizeLog(text, exercises = []) {
  *   Everything else ("Lazy", a remark wrapped onto its own line) is a note.
  */
 export function parseLogText(text, exercises, { year = new Date().getFullYear(), sessionName = 'Imported', dateOrder = 'auto', lb = false } = {}) {
+  loadForeignNames();
   const sessions = [];
   let sess = null, ent = null, skipped = 0;
   const rows = [];
@@ -814,12 +970,28 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
     || l.split(' ').length > 8 || !/^[A-Z]/.test(l) || (/^[A-Z]{2,4}$/.test(l) && !known);
   const nameLike = l => { const k = isKnown(splitName(l)[0]); return k || !isRemarkish(l, k); };
   const addNote = (e, t) => { e.note = (e.note ? e.note + ' · ' : '') + t; };
+  // For a text row i: the first row after it that isn't a plain text line (or is a name-like line after a
+  // blank one). Worked out once from the end, so a long run of chat or note lines isn't rescanned per line.
+  let stops = null;
+  const stopAfter = i => {
+    if (!stops) {
+      stops = new Int32Array(rows.length + 1);
+      stops[rows.length] = rows.length;
+      for (let k = rows.length - 1; k >= 0; k--) stops[k] = rows[k].kind === 'text' && !(rows[k].blank && nameLike(rows[k].l)) ? stops[k + 1] : k;
+    }
+    return stops[i + 1];
+  };
   // Pain and set remarks go with the exercise; sleep, energy and general comments on their own line go with the session.
   // A remark that wrapped onto the next line ("... maybe 3" / "rir") is joined back to the one before it.
   let last = null; // {e} or {s}, plus the remark text so far
+  // A remark can run on for thousands of lines (a pasted chat): only the new part, with a little of what came
+  // before it for context ("no" / "pain"), is checked, so the work stays linear.
   const remark = (t, onSet = false, cont = false) => {
+    let win = t;
     if (cont && last) {
-      last.text += ' ' + t;
+      win = last.text.slice(-60) + ' ' + t;
+      // Only the end of the remark is kept here (reading back a long joined string would copy it every line).
+      last.text = (last.text + ' ' + t).slice(-200);
       if (last.e) last.e.note += ' ' + t; else sess.notes[sess.notes.length - 1] += ' ' + t;
     } else {
       if (ent && (onSet || hasPain(t) || !SESSION_RE.test(t))) { addNote(ent, t); last = { e: ent, text: t }; }
@@ -827,15 +999,19 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       else return;
     }
     const tgt = last.e || last.s;
-    if (hasPain(last.text)) tgt.pain = true;
-    const r = last.e ? rirFrom(last.text) : null;
-    if (r != null) last.e.rir = r;
+    if (!tgt.pain && hasPain(win)) tgt.pain = true;
+    // As when the whole remark was read at once: the first "N rir" counts, else the first "failure"-like word.
+    if (last.e && !last.rirNum) {
+      const r = rirFrom(win);
+      if (r != null && RIR_NUM_RE.test(win)) { last.e.rir = r; last.rirNum = true; }
+      else if (r != null && !last.rir) { last.e.rir = r; last.rir = true; }
+    }
   };
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (row.kind === 'date') {
       sess = { date: row.date, name: sessionName, entries: [], notes: [] };
-      let label = row.l.replace(CJK_HEAD_RE, (m, p) => ` ${CJK_PART[p]} day `).replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b/gi, '').replace(/\b\d+(st|nd|rd|th)?\b/gi, '').replace(MONTH_RE, '').replace(/\s+/g, ' ').trim();
+      let label = row.l.replace(CJK_HEAD_RE, (m, p) => ` ${CJK_PART[p]} day `).replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\b(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|isnin|selasa|rabu|khamis|jumaat|sabtu|ahad)\b/gi, '').replace(/\b\d+(st|nd|rd|th)?\b/gi, '').replace(MONTH_RE, '').replace(/\s+/g, ' ').trim();
       // "push 1" under a file called "Monday Push 1" says nothing new.
       const known = new Set(sessionName.toLowerCase().split(/\W+/).concat('day', 'session', 'workout'));
       if (label.split(' ').every(w => known.has(w.toLowerCase()))) label = '';
@@ -877,9 +1053,11 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       const lib = ent.exName === 'Unknown exercise' ? undefined : exOf(ent.exName);
       const bwLift = bwName || lib?.unit === 'bw';
       let got = si.sets;
+      // "Assisted pull up -20kg x 8": the machine's help, kept negative (on other lifts the minus sign is dropped).
+      const assist = ASSISTED_RE.test(ent.exName) && /(?:^|[\s(:])[-−]\s*\d/.test(row.l);
       if (si.bare && (bwLift || (lib === null && exercises.length && guessNewExercise(ent.exName, { loaded: false }).equip === 'bw'))) got = Array.from({ length: si.bare.k }, () => ({ w: 0, r: si.bare.r }));
       const bwSets = got !== si.sets || (bwLift && got.every(s => s.w == null || s.w === 0));
-      ent.sets.push(...got.map(s => ({ ...s, ...(bwName || bwSets ? { w: 0 } : {}), done: true })));
+      ent.sets.push(...got.map(s => ({ ...s, ...(bwName || bwSets ? { w: 0 } : assist && +s.w > 0 ? { w: -s.w } : {}), done: true })));
       if (bwName || bwSets) ent.unit = 'bw';
       if (si.unit && !ent.unit) ent.unit = si.unit;
       const after = si.after.replace(/^[,.;:\-–\s]+/, '');
@@ -896,8 +1074,7 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
     }
     // A text line. Look past any further text lines: do sets follow before the next date?
     // A name-like line after a blank line starts a new block ("Pull up / No bar" then "Lat pulldown / L12 x6").
-    let j = i + 1;
-    while (j < rows.length && rows[j].kind === 'text' && !(rows[j].blank && nameLike(rows[j].l))) j++;
+    const j = stopAfter(i);
     const setsFollow = j < rows.length && rows[j].kind === 'sets';
     const [n, extra] = splitName(row.l);
     const known = isKnown(n);
@@ -920,7 +1097,7 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       continue;
     }
     // Continues the remark above: no blank line between, starts in lower case, and the one above didn't end a sentence.
-    remark(row.l, false, !row.blank && !!last && /^[a-z0-9(]/.test(row.l) && !/[.!?]$/.test(last.text));
+    remark(row.l, false, !row.blank && !!last && /^[a-z0-9(]/.test(row.l) && !/[.!?]/.test(last.text.slice(-1)));
   }
   // Loads or reps past any real lift are typos or junk: those sets are dropped.
   for (const s of sessions) for (const e of s.entries) { e.exName = cleanText(e.exName); e.sets = e.sets.filter(x => !(+x.w > MAX_KG) && !(+x.r > MAX_REPS)); }
@@ -1068,6 +1245,7 @@ const MUSCLE_GUESS = [
   [/crunch|plank|\babs?\b|sit.?up|leg raise|knee raise|core|oblique|dead ?bug|hollow|pallof|rollout/, ['Abs']],
 ];
 export function guessMuscles(name) {
+  loadForeignNames();
   // A library name in Chinese, Japanese or Malay: that exercise's own muscles.
   const lib = foreignExercise(String(name));
   if (lib?.muscles?.length) return lib.muscles.slice();
