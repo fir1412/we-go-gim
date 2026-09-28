@@ -436,6 +436,7 @@ function cleanEquip(e) {
   if ('plates' in e) { const p = nums(e.plates, 0.25, 100, 20); if (p.length) out.plates = p.sort((a, b) => b - a); }
   if ('dumbbells' in e) { const d = nums(e.dumbbells, 0.5, 200, 100); if (d.length) out.dumbbells = d.sort((a, b) => a - b); }
   for (const k of ['barKg', 'smithBarKg']) if (k in e) { const v = num(e[k]); if (v != null && v >= 0 && v <= 100) out[k] = v; }
+  if ('ezBarKg' in e) { const v = num(e.ezBarKg); if (v != null && v >= 2 && v <= 40) out.ezBarKg = v; }
   return out;
 }
 

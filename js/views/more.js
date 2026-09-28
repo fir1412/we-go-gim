@@ -255,6 +255,8 @@ function equip() {
     <div class="row2"><label class="field"><span>Barbell (${u})</span><input class="inp" id="eq-bar" type="number" inputmode="decimal" step="0.5" value="${d(e.barKg)}"></label>
     <label class="field"><span>Smith bar (${u})</span><input class="inp" id="eq-smith" type="number" inputmode="decimal" step="0.5" value="${d(e.smithBarKg ?? e.barKg)}"></label></div>
     <p class="fine">Smith bars are often counterbalanced to 5–15 kg. Check the label on yours.</p>
+    <label class="field"><span>EZ bar (${u})</span><input class="inp" id="eq-ez" type="number" inputmode="decimal" step="0.5" placeholder="Not sure" value="${e.ezBarKg ? d(e.ezBarKg) : ''}" aria-describedby="ez-help"></label>
+    <p class="fine" id="ez-help">The curvy bar for curls and skull crushers, often 7–10 kg. Leave it blank if you don't know: the app then skips the empty-bar warm-up and plate maths for it.</p>
     <button class="btn" data-act="eq-save" style="--c:var(--up)">Save equipment</button>`;
   return { title: 'Equipment', sub: 'For load and plate suggestions', back: 'more', html: h, color: 'upper' };
 }
@@ -349,7 +351,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
   groups.forEach((g, i) => { for (const n of g.variants) gOf[n + (g.unit === 'L' ? '|L' : '')] = i; });
   // The level-based twin of a lift logged in kilos too gets its own name.
   for (const g of groups) if (g.unit === 'L' && byKey.has(g.key.replace(/ ·L$/, ''))) g.label += ' (levels)';
-  imp = { sessions: r.sessions, skipped: r.skipped || 0, future: r.future || 0, impossible: r.impossible || 0, source, dropped, sameFiles: 0, groups, gOf, filter: groups.some(g => !g.target) ? 'new' : 'all', show: 40, sessShow: 25, replaceSeed: true, raw };
+  imp = { sessions: r.sessions, skipped: r.skipped || 0, future: r.future || 0, impossible: r.impossible || 0, badYears: r.badYears || [], source, dropped, sameFiles: 0, groups, gOf, filter: groups.some(g => !g.target) ? 'new' : 'all', show: 40, sessShow: 25, replaceSeed: true, raw };
 }
 const gk = e => e.exName + (e.unit === 'L' ? '|L' : '');
 const unitClass = u => (u === 'L' ? 'L' : 'w'); // cable levels vs weights (bodyweight counts as a weight)
@@ -394,10 +396,12 @@ function importer() {
   if (nOwn) facts.push(`<b>${nOwn}</b> session${nOwn === 1 ? ' is' : 's are'} already in the app and left unticked`);
   if (imp.skipped) facts.push(`${imp.skipped} line${imp.skipped === 1 ? '' : 's'} before the first date skipped`);
   if (imp.future) facts.push(`<b>${imp.future}</b> line${imp.future === 1 ? '' : 's'} dated after tomorrow left out`);
+  if (imp.badYears?.length && imp.sessions.length) facts.push(`<b>${imp.badYears.length}</b> date${imp.badYears.length === 1 ? '' : 's'} with an impossible year skipped (${esc(imp.badYears[0])})`);
   if (imp.impossible) facts.push(`<b>${imp.impossible}</b> line${imp.impossible === 1 ? '' : 's'} left out because the weight or reps can't be real (over ${MAX_KG} kg or ${MAX_REPS} reps)`);
   if (facts.length) h += `<ul class="impfacts">${facts.map(f => `<li>${f}</li>`).join('')}</ul>`;
   if (!imp.sessions.length) {
     h += `<div class="warn"><b>Nothing found.</b><span>No dated lines with sets were recognised. Each workout needs a date line (e.g. 21/9/2026 or 21 Sep) followed by sets (e.g. 25kg x 8).</span></div>`;
+    if (imp.badYears.length) h += `<div class="warn"><b>Check the year.</b><span>${imp.badYears.length === 1 ? 'A date' : `${imp.badYears.length} dates`} with an impossible year (${esc(imp.badYears[0])}) ${imp.badYears.length === 1 ? 'was' : 'were'} skipped: only years from 1991 to 2099 are read. Fix the year and read the text again.</span></div>`;
     if (imp.raw) h += `<details class="box pad"><summary class="lbl">Text that was read</summary><pre class="rawtxt">${esc(imp.raw.slice(0, 4000))}${imp.raw.length > 4000 ? '\n…' : ''}</pre></details>`;
   } else {
     // Exercises: one row per lift (all its spellings), busiest first. Tap a row to change what it becomes.
@@ -823,13 +827,15 @@ export const actions = {
     const list = id => document.getElementById(id).value.split(/[,\s]+/).map(Number).filter(x => x > 0).map(back).sort((a, b) => a - b);
     const dumbbells = [...new Set(list('eq-db'))], plates = [...new Set(list('eq-pl'))].sort((a, b) => b - a);
     const barKg = back(num(document.getElementById('eq-bar').value, toDisp(20))), smithBarKg = back(num(document.getElementById('eq-smith').value, toDisp(barKg)));
+    const ezRaw = document.getElementById('eq-ez').value.trim(), ezBarKg = ezRaw === '' ? null : back(num(ezRaw, 0));
     if (!plates.length) return toast('Add at least one plate size', 'down');
     const u = getUnits(), lim = kg => toDisp(kg);
     if (!(barKg >= 4.5 && barKg <= 50)) return toast(`Barbell must be between ${lim(4.5)} and ${lim(50)} ${u}`, 'down');
     if (!(smithBarKg >= 0 && smithBarKg <= 50)) return toast(`Smith bar must be between 0 and ${lim(50)} ${u}`, 'down');
+    if (ezBarKg != null && !(ezBarKg >= 2 && ezBarKg <= 40)) return toast(`EZ bar must be between ${lim(2)} and ${lim(40)} ${u}, or blank`, 'down');
     if (dumbbells.some(x => x > 150)) return toast(`Dumbbells can be at most ${lim(150)} ${u}`, 'down');
     if (plates.some(x => x > 50)) return toast(`Plates can be at most ${lim(50)} ${u}`, 'down');
-    await saveSettings({ equip: { dumbbells, plates, barKg, smithBarKg } });
+    await saveSettings({ equip: { dumbbells, plates, barKg, smithBarKg, ...(ezBarKg != null ? { ezBarKg } : {}) } });
     toast('Equipment saved', 'up');
   },
   // data
@@ -928,7 +934,7 @@ export const actions = {
     // exported twice collapse to one session per date. An exact copy (same name and size) isn't read twice.
     const seen = new Set();
     const todo = files.filter(f => { const k = sessionNameFromFile(f.name) + '|' + f.size; if (seen.has(k)) return false; seen.add(k); return true; });
-    let text = '', all = [], skipped = 0, future = 0, impossible = 0, last = 0;
+    let text = '', all = [], skipped = 0, future = 0, impossible = 0, badYears = [], last = 0;
     const paint = force => { const now = Date.now(); if (force || now - last > 120) { last = now; refresh(); } };
     try {
       for (let i = 0; i < todo.length; i++) {
@@ -949,7 +955,7 @@ export const actions = {
           r.skipped ||= 0;
         }
         for (const s of r.sessions) { s.fileTime = f.lastModified; s.file = f.name; }
-        all.push(...r.sessions); skipped += r.skipped; future += r.future || 0; impossible += r.impossible || 0;
+        all.push(...r.sessions); skipped += r.skipped; future += r.future || 0; impossible += r.impossible || 0; badYears.push(...(r.badYears || []));
       }
     } catch (err) {
       impBusy = null; refresh();
@@ -957,7 +963,7 @@ export const actions = {
     }
     impBusy = null;
     const { sessions, dropped } = dedupeSessions(all);
-    prepImport({ sessions, skipped, future, impossible }, src, text, dropped);
+    prepImport({ sessions, skipped, future, impossible, badYears }, src, text, dropped);
     imp.sameFiles = files.length - todo.length;
     refresh();
   },

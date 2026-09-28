@@ -262,9 +262,9 @@ export function stepLoad(w, ex, dir, { step = ex?.inc || 2.5, dumbbells = null }
 }
 
 /** Bars that are not the Olympic bar: their weight varies (EZ bar about 7 to 10 kg, trap bar 20 to 30 kg). */
-const ODD_BAR_IDS = new Set(['ezcurl', 'trapdl']);
+const ODD_BAR_IDS = new Set(['ezcurl', 'trapdl', 'skull']); // skull crushers are usually done with an EZ bar
 const ODD_BAR_NAME = /\b(ez|trap|hex)\b/i;
-export const isOddBar = ex => ex?.equip === 'barbell' && (ODD_BAR_IDS.has(ex.id) || ODD_BAR_NAME.test(ex.name || ''));
+export const isOddBar = ex => ex?.equip === 'barbell' && !/\b(straight|olympic)\b/i.test(ex.name || '') && (ODD_BAR_IDS.has(ex.id) || ODD_BAR_NAME.test(ex.name || ''));
 /**
  * Bar weight in kg for plate maths and warm-ups: the Smith bar, the Olympic bar, 0 for non-barbell lifts,
  * and null (unknown) for EZ and trap bars unless the user set `equip.ezBarKg`.

@@ -425,12 +425,12 @@ export function importFile(name, bytes, exercises, opts = {}) {
     catch (e) {
       // A CSV that isn't a set-by-set log (one row per exercise, or a coach's sheet) still reads as text lines.
       const r = parseLogText(text.replace(/[,;\t]+/g, ' '), exercises, { sessionName: sessionNameFromFile(name), ...opts });
-      return r.sessions.length ? { kind: 'text', sessions: r.sessions, skipped: r.skipped, future: r.future, impossible: r.impossible } : { kind: 'reject', message: e.message, sessions: [] };
+      return r.sessions.length ? { kind: 'text', sessions: r.sessions, skipped: r.skipped, future: r.future, impossible: r.impossible, badYears: r.badYears } : { kind: 'reject', message: e.message, sessions: [] };
     }
   }
   const plain = route.kind === 'html' ? htmlToText(text) : route.kind === 'rtf' ? rtfToText(text) : text;
   const r = parseLogText(plain, exercises, { sessionName: sessionNameFromFile(name), ...opts });
-  return { kind: route.kind, sessions: r.sessions, skipped: r.skipped, future: r.future, impossible: r.impossible };
+  return { kind: route.kind, sessions: r.sessions, skipped: r.skipped, future: r.future, impossible: r.impossible, badYears: r.badYears || [] };
 }
 
 /** Excel stores dates as day numbers (46286 = 21 Sep 2026); a CSV saved from it can keep them. */
@@ -463,6 +463,14 @@ const NOT_DAY = String.raw`(?!\s*(?:x\s*\d|[x×]\b|reps?\b|sets?\b|rir\b|rpe\b|k
 const RE_DMY = new RegExp(String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+${MONTH}(?![a-z])(?:,?\s*(\d{4}|\d{2})\b)?`, 'i');
 const RE_MDY = new RegExp(String.raw`\b${MONTH}(?![a-z])\s+(\d{1,2})(?:st|nd|rd|th)?\b${NOT_DAY}(?:,?\s*(\d{4})\b)?`, 'i');
 const RE_DM = new RegExp(String.raw`^\s*(\d{1,2})[/.](\d{1,2})\b(?![/.]\d)${NOT_DAY}`);
+/** Years on date-shaped text that the reader skips (outside 1991–2099), e.g. "21/9/9999": shown so "Nothing found" has a reason. */
+export function badYearsIn(text) {
+  const out = new Set();
+  const res = [/\b(\d{4})[-/.]\d{1,2}[-/.]\d{1,2}\b/g, /\b\d{1,2}[-/.]\d{1,2}[-/.](\d{4})\b/g, /(\d{4})\s*年\s*\d{1,2}\s*月/g,
+    new RegExp(String.raw`\b\d{1,2}(?:st|nd|rd|th)?\s+${MONTH}(?![a-z]),?\s*(\d{4})\b`, 'gi'), new RegExp(String.raw`\b${MONTH}(?![a-z])\s+\d{1,2}(?:st|nd|rd|th)?,?\s*(\d{4})\b`, 'gi')];
+  for (const re of res) for (const m of String(text || '').matchAll(re)) { const y = +m[m.length - 1]; if (!(y > 1990 && y < 2100)) out.add(String(y)); }
+  return [...out].slice(0, 10);
+}
 export const MONTH_RE = new RegExp(String.raw`\b${MONTH}(?![a-z])`, 'gi');
 
 /** Find a date in a line. Numeric dates are day first (Malaysian/UK style) unless order is 'mdy' (US). Returns {iso, index}. */
@@ -1144,7 +1152,7 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
   const tomorrow = today && validIso(today) ? isoOf(t(today) + DAY) : null;
   if (tomorrow) out = out.filter(s => (s.date > tomorrow ? (future += s.lines, false) : true));
   for (const s of sessions) delete s.lines;
-  return { sessions: out, skipped, future, impossible };
+  return { sessions: out, skipped, future, impossible, badYears: badYearsIn(text) };
 }
 
 // Day headings: "Chest day", "Push & pull day", and in Chinese and Japanese "胸の日", "脚の日", "背中トレ", "腿日".
