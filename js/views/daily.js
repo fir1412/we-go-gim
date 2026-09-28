@@ -69,7 +69,7 @@ function quickSheet(k) {
     ${steps ? `<div class="row3">${steps.map(s => `<button class="btn" data-act="daily-add" data-k="${k}" data-v="${s}">+ ${withUnit(k, s)}</button>`).join('')}</div>
       <button class="linkbtn" data-act="daily-undo" data-k="${k}" id="daily-undo" hidden>Undo last add</button>` : ''}
     ${sleep ? `<div class="chips" role="group" aria-label="Hours slept">${SLEEP_PRESETS.map(h => `<button class="mini" data-act="daily-sleep" data-v="${h}" aria-pressed="${+v === h}">${h}${h === 9 ? '+' : ''} h</button>`).join('')}</div>` : ''}
-    <label class="field"><span>${sleep ? 'Or type hours slept last night' : "Or type today's total"}</span><input class="inp" id="daily-v" type="number" inputmode="decimal" step="${step}" min="0" value="${v ?? ''}"></label>
+    <label class="field"><span>${sleep ? 'Or type hours slept last night' : "Or type today's total"}</span><input class="inp" id="daily-v" type="text" inputmode="decimal" autocomplete="off" step="${step}" min="0" value="${v ?? ''}"></label>
     <div class="row2"><button class="btn ghost" data-act="daily-clear" data-k="${k}">Clear today</button><button class="btn" data-act="daily-set" data-k="${k}" style="--c:var(--up)">Save total</button></div>
     ${steps ? `<button class="btn ghost" data-act="daily-done">Done</button>` : ''}`, { label });
 }
@@ -126,7 +126,7 @@ export const actions = {
   'daily-targets'() {
     const t = S.settings.targets || {}, d = dailyTargets();
     openSheet(`<h2 class="sh-title">Daily targets</h2><p class="sh-body">Leave a box empty to hide that target.</p>
-      ${METRICS.map(([k, label, unit, , , step]) => `<label class="field"><span>${label}${unit ? ` (${unit})` : ''}</span><input class="inp" id="tg-${k}" type="number" inputmode="decimal" step="${step}" min="0" value="${esc(t[k] === null ? '' : d[k] ?? '')}" placeholder="${k === 'kcal' ? 'e.g. 2500' : 'hidden'}"></label>`).join('')}
+      ${METRICS.map(([k, label, unit, , , step]) => `<label class="field"><span>${label}${unit ? ` (${unit})` : ''}</span><input class="inp" id="tg-${k}" type="text" inputmode="decimal" autocomplete="off" step="${step}" min="0" value="${esc(t[k] === null ? '' : d[k] ?? '')}" placeholder="${k === 'kcal' ? 'e.g. 2500' : 'hidden'}"></label>`).join('')}
       <button class="btn" data-act="daily-targets-save" style="--c:var(--up)">Save targets</button>`, { label: 'Daily targets' });
   },
   async 'daily-targets-save'() {

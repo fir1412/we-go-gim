@@ -218,7 +218,7 @@ export const actions = {
     const last = S.body[S.body.length - 1];
     openSheet(`<h2 class="sh-title">Body weight</h2>
       <label class="field"><span>Date</span><input id="bw-date" type="date" value="${t}" max="${t}"></label>
-      <label class="field"><span>Weight (${getUnits()})</span><input id="bw-kg" type="number" inputmode="decimal" step="0.1" min="20" max="${getUnits() === 'lb' ? 660 : 300}" value="${cur ? num(toDisp(cur.kg)) : last ? num(toDisp(last.kg)) : ''}" autofocus></label>
+      <label class="field"><span>Weight (${getUnits()})</span><input id="bw-kg" type="text" inputmode="decimal" autocomplete="off" step="0.1" min="20" max="${getUnits() === 'lb' ? 660 : 300}" value="${cur ? num(toDisp(cur.kg)) : last ? num(toDisp(last.kg)) : ''}" autofocus></label>
       <p class="fine">Same time of day, ideally morning, gives the cleanest trend.${S.settings.goalKg ? ` Goal: ${esc(num(toDisp(S.settings.goalKg)))} ${getUnits()}.` : ''}</p>
       <div class="row2"><a class="btn ghost" href="#/body">See trend</a><button class="btn" data-act="bw-save">Save</button></div>`, { label: 'Body weight' });
   },

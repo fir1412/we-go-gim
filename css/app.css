@@ -453,6 +453,7 @@ select.inp { appearance: auto; }
 .foldbtn small { display: block; font-size: 0.75rem; color: var(--mute); }
 .foldbtn > svg { width: 16px; height: 16px; color: var(--faint); transform: rotate(90deg); flex: none; }
 .foldbtn .grow { flex: 1; min-width: 0; }
+.foldup svg { transform: rotate(-90deg); }
 /* summary: concrete next-time targets */
 .nt .num { font-family: var(--display); font-size: 1.0625rem; white-space: nowrap; }
 .nt .num small { font-family: var(--body); font-size: 0.75rem; color: var(--mute); font-weight: 500; }

@@ -45,6 +45,10 @@ export function parseRoute() {
 export const go = path => { location.hash = '#/' + path; };
 
 let current = null, lastKey = '';
+// Where the lifter came from, so a detail screen's back arrow returns there, at the same scroll position.
+let curPath = '', prevPath = '', left = null; // left: the screen just left and its scroll position
+/** The screen before this one ('workout', 'history', …), or `fallback` when the app was opened here. */
+export const backTo = fallback => prevPath || fallback;
 let touring = false; // while the quick tour moves between screens
 
 function render() {
@@ -68,10 +72,17 @@ function renderRoute() {
   const [view, tab] = ROUTES[route.name];
   current = { view, route };
   if (!touring) learnView.learnFrom({ route: route.name }); // "Learn the app" missions done by visiting a screen (the tour's own visits don't count)
-  const out = view.render(route) || {};
   const key = route.name + '/' + route.args.join('/');
   const sc = $('#screen');
-  const keep = key === lastKey ? sc.scrollTop : 0;
+  let keep = key === lastKey ? sc.scrollTop : 0;
+  if (key !== lastKey) {
+    // Straight back to the screen just left (back arrow or phone back): pick up where the lifter was.
+    if (left && left.key === key && left.to === lastKey) keep = left.top;
+    left = lastKey ? { key: lastKey, top: sc.scrollTop, to: key } : null;
+    prevPath = curPath;
+    curPath = location.hash.replace(/^#\/?/, '');
+  }
+  const out = view.render(route) || {};
   const focusId = key === lastKey && sc.contains(document.activeElement) ? document.activeElement.id : null;
 
   $('#app').style.setProperty('--c', cvar(out.color || 'push'));
@@ -128,7 +139,20 @@ document.addEventListener('change', ev => dispatch('change', ev));
 // Tapping a number field selects it, so typing replaces "25" instead of making "257".
 document.addEventListener('focusin', ev => {
   const t = ev.target;
-  if (t.matches?.('input[type="number"]')) setTimeout(() => { try { t.select(); } catch {} }, 0);
+  if (t.matches?.('input[type="number"], input[inputmode="decimal"]')) setTimeout(() => { try { t.select(); } catch {} }, 0);
+});
+// Decimal fields are text fields: a number field silently drops the "," that many phone keyboards
+// type (42,5 became 425, or nothing at all). Take "," as ".", and keep only digits and one point.
+document.addEventListener('input', ev => {
+  const t = ev.target;
+  if (!t.matches?.('input[inputmode="decimal"]')) return;
+  const v = t.value, at = t.selectionStart ?? v.length;
+  const clean = s => { const x = s.replace(/,/g, '.').replace(/[^\d.]/g, ''); const i = x.indexOf('.'); return i < 0 ? x : x.slice(0, i + 1) + x.slice(i + 1).replace(/\./g, ''); };
+  const nv = clean(v);
+  if (nv === v) return;
+  t.value = nv;
+  const c = clean(v.slice(0, at)).length;
+  try { t.setSelectionRange(c, c); } catch {}
 });
 
 const GLOBAL = {
@@ -186,6 +210,7 @@ export function restNotice() {
     } catch {}
   }, Math.max(0, t.end - Date.now()));
 }
+const OVER_MAX = 10 * 60; // a forgotten bar closes itself after 10 minutes over
 function paintTimer() {
   const el = $('#timer');
   const t = S.draft?.timer;
@@ -193,14 +218,15 @@ function paintTimer() {
   const left = Math.ceil((t.end - Date.now()) / 1000);
   if (left <= 0) {
     if (beeped !== t.end) { beeped = t.end; alertDone(); }
-    if (left < -5) { S.draft.timer = null; saveDraft(); el.hidden = true; return; }
+    // Rest over: the bar stays and counts up (+0:45) as a nudge, until the next tick or Close. Never saved as data.
+    if (left < -OVER_MAX) { S.draft.timer = null; saveDraft(); el.hidden = true; return; }
   }
   el.hidden = false;
   el.classList.toggle('over', left <= 0);
-  const a = Math.max(0, left);
+  const a = Math.abs(left);
   // Build once, then only update text, so taps on the buttons are never lost mid-rebuild.
   if (!el.firstChild) el.innerHTML = `<span class="num"></span><span class="t"><span class="st"></span><b></b></span><button data-act="timer-add">+30s</button><button data-act="timer-skip"></button>`;
-  el.querySelector('.num').textContent = `${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}`;
+  el.querySelector('.num').textContent = `${left < 0 ? '+' : ''}${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}`;
   el.querySelector('.st').textContent = left <= 0 ? 'Rest done. Next set.' : 'Rest';
   el.querySelector('.t b').textContent = t.label;
   el.querySelector('[data-act="timer-skip"]').textContent = left <= 0 ? 'Close' : 'Skip';
@@ -265,8 +291,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.0';
+export const APP_VERSION = '1.9.1';
 const WHATS_NEW = {
+  '1.9.1': ['When rest is over, the timer counts up (+0:45) so you can see how long you have been resting. It is never saved as data', 'Weights with a comma (42,5) type in properly', 'A finished exercise you opened again can be folded back with the ^ button', 'Back from an exercise’s details returns to where you were, like your workout'],
   '1.9.0': ['Programme: drag a day by its handle to move it up or down the week. The days in between shift along', 'My templates: save your week as a template, build a new plan without changing the one you train with, and switch whenever you like'],
   '1.8.4': ['The female body map now shows hair on the back view too'],
   '1.8.3': ['Learn the app: 10 short missions that show what each feature does. Skip any time and find them under More', 'Pounds work everywhere: Equipment, the exercise editor, and + and − step to the dumbbells you own', 'Set your EZ bar weight in Equipment', 'Imports keep gym and heart rate, and say why lines were left out'],

@@ -5,6 +5,7 @@ import {
   hasEstMax, trendRange,
 } from '../engine.js';
 import { esc, fmtDate, pill, chip, spark, lineChart, barChart, STATUS, ICON, toast, confirmSheet, openSheet, closeSheet, num, cvar, kstyle, GLYPH_ICON, T, helpTip, expertWording } from '../ui.js';
+import { backTo } from '../app.js';
 import { weeklyVolume, baseSets } from '../split.js';
 import { syncRawNames } from '../i18n.js';
 import { filterList } from '../search.js';
@@ -305,7 +306,7 @@ function exDetail(id) {
   } else {
     h += `<div class="empty"><b>No sessions yet.</b><p>Log this lift once to set a baseline.</p></div>`;
   }
-  return { title: ex.name, sub: esc((ex.muscles || []).join(' · ')), back: 'lifts', html: h, color: 'legs' };
+  return { title: ex.name, sub: esc((ex.muscles || []).join(' · ')), back: backTo('lifts'), html: h, color: 'legs' };
 }
 
 /** The next planned session's target for this lift, from the same engine as the Today screen. */
@@ -345,7 +346,7 @@ function body() {
   const lo = Math.round(20 * f), hi = Math.round(300 * f);
   let h = `<div class="box pad addrow">
     <label class="field"><span>Date</span><input class="inp" id="b-date" type="date" value="${t}" max="${t}"></label>
-    <label class="field"><span>Weight (${u})</span><input class="inp" id="b-kg" type="number" inputmode="decimal" step="0.1" min="${lo}" max="${hi}" value="${last ? bwDisp(last.kg) : ''}"></label>
+    <label class="field"><span>Weight (${u})</span><input class="inp" id="b-kg" type="text" inputmode="decimal" autocomplete="off" step="0.1" min="${lo}" max="${hi}" value="${last ? bwDisp(last.kg) : ''}"></label>
     <button class="btn" data-act="body-add">Save</button></div>`;
   const pctWk = rate != null && last ? rate / last.kg * 100 : null;
   const toGo = last && goal ? +(last.kg - goal).toFixed(1) : null;
@@ -444,7 +445,7 @@ function measure() {
   const t = todayIso(), list = S.measures, first = list[0], last = list[list.length - 1];
   let h = `<div class="box pad stack"><p class="lbl">Measure (${mUnit()})</p>
     <label class="field"><span>Date</span><input class="inp" id="m-date" type="date" value="${t}" max="${t}"></label>
-    <div class="mgrid">${MEAS.map(([k, l]) => `<label class="field"><span>${l}</span><input class="inp" id="m-${k}" type="number" inputmode="decimal" step="0.5" min="${inch() ? 4 : 10}" max="${inch() ? 120 : 300}" placeholder="${mShow(last?.[k]) ?? '—'}"></label>`).join('')}</div>
+    <div class="mgrid">${MEAS.map(([k, l]) => `<label class="field"><span>${l}</span><input class="inp" id="m-${k}" type="text" inputmode="decimal" autocomplete="off" step="0.5" min="${inch() ? 4 : 10}" max="${inch() ? 120 : 300}" placeholder="${mShow(last?.[k]) ?? '—'}"></label>`).join('')}</div>
     <p class="fine">Fill in only what you measure. Same time of day, tape snug but not tight.</p>
     <button class="btn" data-act="m-save">Save measurements</button></div>`;
   if (list.length) {
@@ -545,7 +546,7 @@ export const actions = {
     if (rec) toast(`Weigh-in on ${fmtDate(rec.date)} deleted`, 'ink', { undo: () => saveBody(rec) });
   },
   goal() {
-    openSheet(`<h2 class="sh-title">Goal weight</h2><p class="sh-body">Optional. Leave it empty for no goal.</p><label class="field"><span>${U()}</span><input class="inp" id="goal-kg" type="number" inputmode="decimal" step="0.5" value="${+S.settings.goalKg ? bwDisp(S.settings.goalKg) : ''}" autofocus></label><button class="btn" data-act="goal-save">Save goal</button>`, { label: 'Goal weight' });
+    openSheet(`<h2 class="sh-title">Goal weight</h2><p class="sh-body">Optional. Leave it empty for no goal.</p><label class="field"><span>${U()}</span><input class="inp" id="goal-kg" type="text" inputmode="decimal" autocomplete="off" step="0.5" value="${+S.settings.goalKg ? bwDisp(S.settings.goalKg) : ''}" autofocus></label><button class="btn" data-act="goal-save">Save goal</button>`, { label: 'Goal weight' });
   },
   async 'goal-save'() {
     const raw = document.getElementById('goal-kg').value.trim();
