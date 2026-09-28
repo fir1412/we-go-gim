@@ -308,7 +308,10 @@ function dayHeader(line) {
     const m = clean.match(re);
     if (m) { const n = clean.slice(m[0].length).replace(/^[\s.,:–—-]+/, '').trim(); return { dow, name: n.charAt(0).toUpperCase() + n.slice(1) }; }
   }
-  const d = clean.match(/^(?:day|hari|d[íi]a|workout)\s*(\d{1,2}|[a-f])\b[\s.,:–—-]*(.*)$/i);
+  // Numbered days in Chinese and Japanese: "第4天", "第4日", "4日目".
+  if ((c = clean.match(/^(?:第\s*(\d{1,2})\s*[天日]|(\d{1,2})\s*日目)/))) return { dow: null, name: headerName(clean.slice(c[0].length)) || `Day ${c[1] || c[2]}` };
+  // "Day 2", "D2 – Legs"
+  const d = clean.match(/^(?:day|hari|d[íi]a|workout|d(?=\d))\s*(\d{1,2}|[a-f])\b[\s.,:–—-]*(.*)$/i);
   return d ? { dow: null, name: d[2].trim() || `Day ${d[1].toUpperCase()}` } : null;
 }
 const COLOR_FOR = [[/chest|push/i, 'push'], [/back|pull/i, 'pull'], [/leg|lower|squat/i, 'legs'], [/arm|bicep|tricep/i, 'arms'], [/shoulder|upper|delt/i, 'upper'], [/full/i, 'legsb']];
@@ -321,7 +324,7 @@ const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
 // Section words in Chinese, Japanese and Malay ("可选：", "最后加练：", "仕上げ：", "Pilihan:", "Akhiri dengan:").
 const OPTIONAL_RE = /optional|可选|選做|选做|任意|オプション|pilihan/i;
 const FINISH_RE = /finish|最后|最後|收尾|加练|仕上げ|フィニッシャー|akhiri|penutup/i;
-const SECTION_WORD = /^(可选|选做|選做|最后加练|最後加練|最后|最後|收尾|加练|任意|オプション|仕上げ|フィニッシャー|pilihan|akhiri dengan|akhiri)\s*:\s*(.*)$/i;
+const SECTION_WORD = /^(可选|选做|選做|最后加练|最後加練|最后|最後に|最後|收尾|加练|任意|オプション|仕上げ|フィニッシャー|pilihan|akhiri dengan|akhiri)\s*:\s*(.*)$/i;
 
 /**
  * Read a written split. Returns {days:[{dow, name, sub, color, items:[{name, sets, lo, hi, note, group}]}], skipped:[lines], notAdded:[lines]}.
@@ -381,7 +384,9 @@ export function parseSplitText(text) {
     }
     // Seconds ("60秒") are reps, noted as seconds; "力竭" / "限界まで" is to failure.
     const secs = /\d\s*秒/.test(body);
-    body = body.replace(/(\d)\s*秒/g, '$1次').replace(/\s*(?:至|到)?力竭|\s*限界まで|\s*オールアウト/g, ' to failure')
+    // "60秒×3": the number with 秒 is the hold, the bare one the sets.
+    body = body.replace(/(\d+)\s*秒\s*[x×]\s*(\d+)(?!\s*(?:秒|次|回|\d|组|組|セット))/, '$2×$1秒');
+    body = body.replace(/(\d)\s*秒/g, '$1次').replace(/\s*(?:至|到)?力竭|\s*[x×]?\s*限界(?:まで)?|\s*オールアウト/g, ' to failure')
       .replace(/(\d+)\s*(?:组|組|セット)\s*[x×]?\s*(?=to failure)/, '$1 sets ');
     // Ranges written "8~10" / "8〜10", and "3*10" / "3＊10" for ×.
     body = body.replace(/(\d)\s*[~〜]\s*(?=\d)/g, '$1–').replace(/(\d)\s*[*✕]\s*(?=\d)/g, '$1 × ')

@@ -75,7 +75,8 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
     wdh: 'reps', wiederholungen: 'reps', repeticiones: 'reps', répétitions: 'reps', ulangan: 'reps', gewicht: 'weight', 'gewicht kg': 'weight', peso: 'weight', 'peso kg': 'weight', poids: 'weight', 'poids kg': 'weight', berat: 'weight', 'berat kg': 'weight', satz: 'setindex', serie: 'setindex', séries: 'sets', series: 'sets',
     'exercise name': 'exercise', 'weight kilograms': 'weight',
     // Malay, Japanese and Chinese sheets.
-    latihan: 'exercise', 'nama latihan': 'exercise', 'bil set': 'sets', 'bilangan set': 'sets', 'berat kgs': 'weight', catatan: 'note', nota: 'note',
+    latihan: 'exercise', 'nama latihan': 'exercise', 'nama senaman': 'exercise', beban: 'weight', 'beban kg': 'weight', 'tarikh latihan': 'date',
+    训练日期: 'date', 訓練日期: 'date', 锻炼日期: 'date', トレーニング日: 'date', 'bil set': 'sets', 'bilangan set': 'sets', 'berat kgs': 'weight', catatan: 'note', nota: 'note',
     日付: 'date', 種目: 'exercise', 種目名: 'exercise', 重量: 'weight', '重量 kg': 'weight', 回数: 'reps', レップ数: 'reps', セット: 'sets', セット数: 'sets', メモ: 'note', 備考: 'note',
     日期: 'date', 动作: 'exercise', 动作名称: 'exercise', 動作: 'exercise', 动作名: 'exercise', 项目: 'exercise', '重量 公斤': 'weight', 次数: 'reps', 组数: 'sets', 組數: 'sets', 备注: 'note', 備註: 'note',
   };
@@ -85,13 +86,14 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
   if (at > 0) rows = rows.slice(at);
   const head = rows[0].map(norm);
   // A Malay sheet's "Set" column is the number of sets ("Latihan, Set, Ulangan, Berat"); elsewhere "Set" numbers the rows.
-  if (!head.includes('sets') && head.includes('set') && rows[0].some(h => /^\s*(tarikh|latihan|senaman|ulangan|berat)\b/i.test(h))) head[head.indexOf('set')] = 'sets';
+  if (!head.includes('sets') && head.includes('set') && rows[0].some(h => /^\s*(tarikh|latihan|senaman|nama senaman|ulangan|berat|beban)\b/i.test(h))) head[head.indexOf('set')] = 'sets';
   const has = n => head.includes(n);
   // "Set 1", "Set 2"… columns hold either reps (with a weight column) or whole sets ("60x8").
   const setCols = head.map((h, i) => (/^(set|satz|serie) ?\d+$/.test(h) ? i : -1)).filter(i => i >= 0);
   const perRowSets = has('logs') || setCols.length > 0;
-  const miss = [['date', has('date') || fallbackDate], ['exercise', has('exercise')], ['weight', has('weight') || has('weightlb') || perRowSets], ['reps', has('reps') || has('seconds') || perRowSets]].filter(x => !x[1]).map(x => x[0]);
-  if (miss.length) throw new Error(`Missing column${miss.length > 1 ? 's' : ''}: ${miss.join(', ')}. Expected at least date, exercise, weight, reps.`);
+  // A weight column is optional: a bodyweight log (date, exercise, reps) has none, and its loads stay unknown.
+  const miss = [['date', has('date') || fallbackDate], ['exercise', has('exercise')], ['reps', has('reps') || has('seconds') || perRowSets]].filter(x => !x[1]).map(x => x[0]);
+  if (miss.length) throw new Error(`Missing column${miss.length > 1 ? 's' : ''}: ${miss.join(', ')}. Expected at least date, exercise and reps (weight if there is one).`);
   const ix = n => head.indexOf(n);
   // Japanese and Chinese files write the month first ("9/5" is 5 September), as their text notes do.
   const order = !has('date') ? 'ymd' : dateOrder === 'auto' ? detectDateOrder(rows.slice(1).map(r => r[ix('date')]), { monthFirst: isCJK(text) }) : dateOrder;
@@ -404,14 +406,21 @@ function parseSets(s) {
     return out(m.index, m.index + m[0].length);
   }
   // Bodyweight sets: "BW x16", "Bodyweight x6", "Bodyweight 70 x10" (70 = body weight), "Bodyweight +5kg x6" (added load)
-  const bwRe = /\b(?:bw|body ?weigh\w*)\s*(\+\s*)?(\d+(?:[.,]\d+)?)?\s*(?:kgs?)?\s*x\s*(\d{1,3})\b/gi;
+  // "BW +10kg x6 x3": reps, then a set count.
+  const bwRe = /\b(?:bw|body ?weigh\w*)\s*(\+\s*)?(\d+(?:[.,]\d+)?)?\s*(?:kgs?)?\s*x\s*(\d{1,3})\b(?:\s*x\s*(\d{1,2})\b)?/gi;
   let first = -1, last = 0;
   while ((m = bwRe.exec(s))) {
     if (first < 0) first = m.index;
     last = m.index + m[0].length;
-    sets.push({ w: m[1] && m[2] ? num(m[2]) : 0, r: +m[3] });
+    for (let i = 0; i < Math.min(m[4] ? +m[4] : 1, 12); i++) sets.push({ w: m[1] && m[2] ? num(m[2]) : 0, r: +m[3] });
   }
   if (sets.length) { unit = 'bw'; return out(first, last); }
+  // One load, then a list of reps: "60kg x 8, 8, 6", "60kg x8 x8 x6" (three or more: "25kg x 8 x 4" is still reps x sets).
+  if ((m = s.match(new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?)?${NUM}\s*(?:kgs?|kilos?)?\s*(?:each|ea)?\s*x\s*((?:\d{1,3}\s*[,/;]\s*)+\d{1,3}|\d{1,3}(?:\s*x\s*\d{1,3}){2,})(?!\d|\.\d|\s*(?:x|kgs?|lbs?|[,/;]\s*\d))`, 'i')))) {
+    const w = bwOnly ? 0 : num(m[1]);
+    for (const r of m[2].split(/[,/;x]/i)) sets.push({ w, r: +r.trim() });
+    return out(m.index, m.index + m[0].length);
+  }
   // "L9 x 12 x 3", "25kg x 8 x 4", "25 x 8", several per line: "50kg x3 55kg x3"
   const re = new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?)?${NUM}\s*(?:kgs?|kilos?)?\s*(?:each|ea)?\s*x\s*(\d{1,3})(?:\s*x\s*(\d{1,2}))?\b`, 'gi');
   let n = 0, bare = null;
@@ -424,6 +433,17 @@ function parseSets(s) {
     if (!n++ && /^\d{1,2}\s*x\s*\d{1,3}$/i.test(m[0]) && +m[1] <= 10 && !unit) bare = { k: +m[1], r };
   }
   if (sets.length) return { ...out(first, last), ...(n === 1 && bare ? { bare } : {}) };
+  // "45kg 10.10.8": reps split by dots. Two dots at least, so a load such as "10.5kg" is never taken apart.
+  if ((m = s.match(new RegExp(String.raw`${NUM}\s*(?:kgs?|lbs?)\s*(?:each|ea|dbs?)?\s*[:\-–]?\s*(\d{1,2}(?:\.\d{1,2}){2,})(?![\d.,]|\s*(?:kgs?|lbs?|x))`, 'i')))) {
+    const w = num(m[1]);
+    for (const r of m[2].split('.')) sets.push({ w, r: +r });
+    return out(m.index, m.index + m[0].length);
+  }
+  // "60kg 3 sets" / "60kg 3 set": sets written, reps not. The reps are unknown (the review asks for them).
+  if ((m = s.match(new RegExp(String.raw`${NUM}\s*(?:kgs?|lbs?)\s*(?:each|ea)?\s*[,:\-–]?\s*(\d{1,2})\s*sets?\b(?!\s*(?:of|x)?\s*\d)`, 'i')))) {
+    for (let i = 0; i < Math.min(+m[2], 12); i++) sets.push({ w: num(m[1]), r: null });
+    return out(m.index, m.index + m[0].length);
+  }
   // "25kg 8,8,6,6" / "25 kg: 8/8/8" / "L6: 15, 15"
   // (needs a unit, a colon or "level" so a bare "12/9" isn't read as sets; the three forms capture the load in groups 1–3)
   if ((m = s.match(new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?${NUM}\s*[:\-–]?|${NUM}\s*(?:kgs?|lbs?)\s*(?:each|ea|dbs?)?\s*[:\-–]?|${NUM}\s*:)\s*((?:\d{1,3}\s*[,/;]\s*)+\d{1,3})`, 'i')))) {
@@ -487,6 +507,8 @@ const FOREIGN = [
   [/rudern|remo con barra|rowing barre|remada curvada/gu, 'barbell row'],
   [/bizepscurls?|curl de bíceps|rosca direta/gu, 'bicep curl'],
   // Malay gym names (older and everyday ones the translated library doesn't use).
+  [/\btekan bahu (?:dumb+el+s?|dumbbells?|dbs?)\b|\b(?:dumb+el+s?|dumbbells?|dbs?) tekan bahu\b/g, 'db shoulder press'],
+  [/\btarik dagu\b/g, 'chin up'], [/\blunge berjalan\b|\bberjalan lunge\b/g, 'walking lunge'],
   [/\btarik naik\b/g, 'pull up'], [/\bangkat mati romania\b/g, 'romanian deadlift'], [/\bangkat mati\b/g, 'deadlift'],
   [/\bcangkung(?: barbell)?\b/g, 'barbell squat'], [/\btekan bahu\b/g, 'overhead press'], [/\btekan dada\b/g, 'bench press'],
   [/\bdayung\b/g, 'row'], [/\b(?:bangkit|angkat) betis\b/g, 'calf raise'], [/\btekan tubi\b/g, 'push up'],
@@ -517,6 +539,11 @@ const CJK_WORDS = Object.entries({
   坐姿推胸: 'machine chest press', 腹肌轮: 'ab wheel rollout', 健腹轮: 'ab wheel rollout',
   ラットプル: 'lat pulldown', チェストプレス: 'machine chest press', ベンチ: 'bench press', デッド: 'deadlift', シーテッドロウ: 'seated cable row',
   腹筋ローラー: 'ab wheel rollout', 腕立て伏せ: 'push up', 腕立て: 'push up',
+  ダンベルプレス: 'flat db bench press', ブルガリアンスクワット: 'bulgarian split squat', ブルガリアン: 'bulgarian split squat',
+  ルーマニアンデッドリフト: 'romanian deadlift', ルーマニアン: 'romanian deadlift', カーフレイズ: 'calf raise',
+  ハイパーエクステンション: 'back extension', バックエクステンション: 'back extension', ケーブルクロスオーバー: 'cable chest fly', ケーブルクロス: 'cable chest fly',
+  プッシュダウン: 'pushdown', アダクション: 'hip adduction machine', アブダクション: 'hip abduction machine',
+  ワンハンドロウ: 'one arm db row', ワンアームロウ: 'one arm db row', サイドプランク: 'side plank', プランク: 'plank',
 }).sort((a, b) => b[0].length - a[0].length);
 const CJK_WORD_RE = new RegExp(CJK_WORDS.map(([k]) => k).join('|'), 'g');
 const CJK_WORD_TO = new Map(CJK_WORDS);
@@ -627,7 +654,7 @@ export function matchExercise(name, exercises, { prefer = null, unit = null } = 
 
 // ---- rewriting unusual logs into the forms the parser reads ------------------------------------------------------
 const MON3 = 'jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec';
-const KGU = String.raw`(\d+(?:[.,]\d+)?\s*(?:kgs?|kilos?|lbs?|pounds?))`;
+const KGU = String.raw`(\d+(?:[.,]\d+)?\s*(?:kgs?|kilos?|lbs?|pounds?)(?:\s*each\b)?)`;
 const REPW = String.raw`(?:reps?|repetitions?|ulangan|wdh\.?|repeticiones|répétitions)`;
 const SETW = String.raw`(?:sets?|set|series|séries|sätze|satz)`;
 // Set and rep words in Chinese, Japanese and Malay (with English), for the forms those logs use.
@@ -655,6 +682,7 @@ export function normalizeLog(text, exercises = []) {
       .replace(/^\s*#{1,6}\s+/, '')                                             // markdown headings
       .replace(/^\s*(?:[-*•◦▪☐☑✓✔]|\[[ xX]\])\s+/, '')                         // bullets and checkboxes
       .replace(/(\d)\s*(?:公斤|千克|キロ(?:グラム)?)/g, '$1kg')                    // "60公斤", "60キロ"
+      .replace(/(?:片手|両手とも|单手|單手|每只|每隻|每边|每邊)\s*(\d+(?:\.\d+)?)\s*kg/g, ' $1kg each ')  // "片手12kg": per dumbbell
       .replace(/(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/g, '$1')  // ISO timestamps
       .replace(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/g, (m, y, mo, d) => `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`)
       .replace(new RegExp(String.raw`\b(\d{1,2})-(${MON3})[a-z]*-(\d{2})\b`, 'gi'), (m, d, mo, y) => `${d} ${mo} 20${y}`)
@@ -683,6 +711,13 @@ export function normalizeLog(text, exercises = []) {
       .replace(/(\d)\s*、\s*(?=\d)/g, '$1,')
       .replace(/(\d{1,2})\s*档/g, ' L$1 ')
       .replace(/目盛り?\s*(\d{1,2})/g, ' L$1 ')
+      .replace(/レベル\s*(\d{1,2})/g, ' L$1 ')
+      // Timed holds: "60秒×3セット", "3セット×60秒", "1分×3", "左右30秒" (each side), "プランク 60秒". A minute is 60 seconds.
+      .replace(/(\d{1,2})\s*分(?=\s*(?:[x×*]\s*\d|\d{1,2}\s*(?:组|組|セット)))/g, (m, n) => `${+n * 60}秒`)
+      .replace(/(\d{1,3})\s*秒\s*[x×*]?\s*(\d{1,2})\s*(?:组|組|セット)|(\d{1,3})\s*秒\s*[x×*]\s*(\d{1,2})(?![\d.]|\s*(?:秒|次|回|kg))|(\d{1,2})\s*(?:组|組|セット)\s*[x×*]?\s*(\d{1,3})\s*秒/g,
+        (m, a, b, c, d, k2, s2) => { const sec = a || c || s2, k = b || d || k2; return ` BW ${Array(Math.min(12, +k)).fill(sec).join(',')} `; })
+      .replace(/左右\s*(\d{1,3})\s*秒/g, ' BW $1,$1 ')
+      .replace(/^(?!.*(?:休憩|レスト|インターバル|休息))(\D*\S)\s*(\d{1,3})\s*秒\s*$/, '$1 BW $2')
       // "4组12次", "3组×10次", "4组，每组8次"
       .replace(/(\d{1,2})\s*(?:组|組|セット)\s*[x×*,、]?\s*(?:每组|各)?\s*[x×*]?\s*(\d{1,3})(?:\s*(?:次|回))?(?![\d.,]|\s*(?:kg|秒|s\b|x|×))/gi, ' $2 reps x $1 sets ')
       // "12次3组", "15回×3セット", "10回 3セット"
@@ -695,12 +730,20 @@ export function normalizeLog(text, exercises = []) {
       .replace(/\bBW\s*[x×*]?\s*(\d{1,3}) reps x (\d{1,2}) sets/g, (m, r, k) => `BW ${Array(Math.min(12, +k)).fill(r).join(',')}`)
       // "自重 8回 6回 5回": a list of reps
       .replace(/\bBW\s+(\d{1,3}(?:\s*(?:次|回)?\s*[\s,]\s*\d{1,3})+)\s*(?:次|回)?/g, (m, list) => `BW ${list.match(/\d+/g).join(',')}`)
+      // "60kg 3组" / "3セット" with no reps left: a set count.
+      .replace(/(\d{1,2})\s*(?:组|組|セット)(?!\s*[x×*,、]?\s*(?:每组|各)?\s*[x×*]?\s*\d)/g, ' $1 sets ')
       .replace(/\s+/g, ' ').trim();
     l = l
       // "60kg - 3 sets x 8 reps", "60kg 3 set x 8 ulangan"
       .replace(new RegExp(String.raw`${KGU}\s*[-–,:]?\s*(\d{1,2})\s*${SETW}\s*(?:x|of|×)\s*(\d{1,3})\s*(?:${REPW})?`, 'gi'), '$1 x $3 x $2')
-      // "3 sets 8 reps 60kg", "3 sets of 8 reps with 60kg"
-      .replace(new RegExp(String.raw`\b(\d{1,2})\s*${SETW}\s*(?:of\s*|x\s*)?(\d{1,3})\s*${REPW}\s*(?:@|at|with|x)?\s*${KGU}`, 'gi'), '$3 x $2 x $1')
+      // "60kg 3 set 5 ulangan", "60kg 3 sets, 8 reps"
+      .replace(new RegExp(String.raw`${KGU}\s*[-–,:]?\s*(\d{1,2})\s*${SETW}\s*,?\s*(\d{1,3})\s*${REPW}`, 'gi'), '$1 x $3 x $2')
+      // "3 sets 8 reps 60kg", "3 sets of 8 reps with 60kg", "3 set, 5 ulangan, 60kg"
+      .replace(new RegExp(String.raw`\b(\d{1,2})\s*${SETW}\s*,?\s*(?:of\s*|x\s*)?(\d{1,3})\s*${REPW}\s*,?\s*(?:@|at|with|x)?\s*${KGU}`, 'gi'), '$3 x $2 x $1')
+      // "3 set, 5 ulangan" with no load: the load is unknown.
+      .replace(new RegExp(String.raw`\b(\d{1,2})\s*${SETW}\s*,?\s*(?:of\s*|x\s*)?(\d{1,3})\s*${REPW}(?![\p{L}\d])`, 'giu'), (m, k, r) => (new RegExp(KGU, 'i').test(l) ? m : `${r} reps x ${k} sets`))
+      // "Plank 3x60s", "3 x 60 seconds": seconds count as reps
+      .replace(/\b(\d{1,2})\s*x\s*(\d{1,3})\s*(?:s|secs?|seconds?|saat)\b/gi, (m, k, sec) => (new RegExp(KGU, 'i').test(l) ? m : `BW ${Array(Math.min(12, +k)).fill(sec).join(',')}`))
       // "3 x 8 with 60 kilos"
       .replace(new RegExp(String.raw`\b(\d{1,2})\s*x\s*(\d{1,3})\s*(?:with|at)\s*${KGU}`, 'gi'), '$3 x $2 x $1')
       // "8 reps @ 60kg"
@@ -724,6 +767,13 @@ export function normalizeLog(text, exercises = []) {
     // "Bench press 60 8 8 8": a known lift, a load and reps with no units at all.
     const bare = l.match(/^(\p{L}[\p{L} '()-]*?)\s+(\d{2,3}(?:[.,]\d+)?)\s+((?:\d{1,2}\s+)*\d{1,2})\s*$/u);
     if (bare && known(bare[1]) && bare[3].trim().split(/\s+/).every(r => +r > 0 && +r <= 30)) l = `${bare[1]} ${bare[2]}kg ${bare[3]}`;
+    // "Squat 100kg" or "100kg" on its own line, then "5x5": the load belongs to those sets
+    // (read apart, "5x5" alone would be taken as a bodyweight squat).
+    const prev = out.length - 1;
+    if (/^\s*\d{1,2}\s*x\s*\d{1,3}\s*$/i.test(l) && prev >= 0 && new RegExp(String.raw`(?:^|\s)${KGU}\s*$`, 'i').test(out[prev]) && !parseSetLine(out[prev])?.sets.length) {
+      out[prev] = `${out[prev].trim()} ${l.trim()}`;
+      continue;
+    }
     out.push(l);
   }
   return out;
@@ -785,7 +835,7 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
     const row = rows[i];
     if (row.kind === 'date') {
       sess = { date: row.date, name: sessionName, entries: [], notes: [] };
-      let label = row.l.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b/gi, '').replace(/\b\d+(st|nd|rd|th)?\b/gi, '').replace(MONTH_RE, '').replace(/\s+/g, ' ').trim();
+      let label = row.l.replace(CJK_HEAD_RE, (m, p) => ` ${CJK_PART[p]} day `).replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b/gi, '').replace(/\b\d+(st|nd|rd|th)?\b/gi, '').replace(MONTH_RE, '').replace(/\s+/g, ' ').trim();
       // "push 1" under a file called "Monday Push 1" says nothing new.
       const known = new Set(sessionName.toLowerCase().split(/\W+/).concat('day', 'session', 'workout'));
       if (label.split(' ').every(w => known.has(w.toLowerCase()))) label = '';
@@ -812,7 +862,8 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       // Lowercase names count too ("lunges 10kg 10,10,8") when short and not a remark.
       const nameLike = /^\p{Lu}|^\p{Lo}/u.test(lead) || matchExercise(lead, exercises) || (lead.split(' ').length <= 4 && !PAIN_RE.test(lead) && !COMMENT_RE.test(lead) && !/\b(then|and|also|again|same|next|last|up to|drop)\b/i.test(lead));
       // Chinese and Japanese names are short: "デッド", "卧推".
-      if ((lead.length >= 4 && /\p{L}{3}/u.test(lead) || /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]{2}/u.test(lead)) && nameLike) {
+      // Three-letter names ("Dip", "Row", "Fly") count when the library knows them.
+      if ((lead.length >= 4 && /\p{L}{3}/u.test(lead) || /^\p{L}{3}$/u.test(lead) && isKnown(lead) || /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]{2}/u.test(lead)) && nameLike) {
         const [n, extra] = splitName(lead);
         ent = newEnt(sess, n);
         if (extra) addNote(ent, extra);
@@ -834,6 +885,13 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       const after = si.after.replace(/^[,.;:\-–\s]+/, '');
       if (/[a-z]{2}|[^\x00-\x7f]{2}/i.test(after)) remark(ent.sets.length - before > 1 ? after : `set ${ent.sets.length}: ${after}`, true);
       else last = null;
+      continue;
+    }
+    // "Chest day" / "胸の日" under the date, before any lift: the session's name (unless a file name gives one).
+    const head = !sess.entries.length && headingOf(row.l);
+    if (head) {
+      if (sess.name === 'Imported') sess.name = head; else sess.notes.push(row.l);
+      last = null;
       continue;
     }
     // A text line. Look past any further text lines: do sets follow before the next date?
@@ -881,6 +939,18 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
   }
   fixDateTypos(out);
   return { sessions: out, skipped };
+}
+
+// Day headings: "Chest day", "Push & pull day", and in Chinese and Japanese "胸の日", "脚の日", "背中トレ", "腿日".
+const CJK_PART = { 胸: 'chest', 背中: 'back', 背: 'back', 脚: 'legs', 腿: 'legs', 足: 'legs', 肩: 'shoulders', 腕: 'arms', 手臂: 'arms', 腹: 'abs', 尻: 'glutes', 臀: 'glutes' };
+const CJK_HEAD_RE = /(背中|手臂|[胸背脚腿足肩腕腹尻臀])(?:の日|の?トレ(?:ーニング)?|日|天|训练日?|訓練日?)/g;
+const EN_HEAD_RE = /^(?:(?:push|pull|legs?|chest|back|shoulders?|arms?|upper(?: body)?|lower(?: body)?|full body|glutes?|core|abs|biceps|triceps)\s*(?:&|and|\+|n)?\s*)+(?:day|session|workout)$/i;
+const titleCase = t => t.replace(/\b\w/g, c => c.toUpperCase());
+/** A line that only names the day's workout ("Chest day", "胸の日") as a title, or null. */
+function headingOf(l) {
+  const t = l.replace(/[:：。.!！]+$/, '').trim();
+  if (new RegExp(String.raw`^(?:${CJK_HEAD_RE.source})$`).test(t)) return titleCase(`${CJK_PART[t.match(CJK_HEAD_RE.source)[1]]} day`);
+  return EN_HEAD_RE.test(t) ? titleCase(t.toLowerCase()) : null;
 }
 
 const DAY = 864e5;
@@ -955,13 +1025,14 @@ export const hasPain = t => {
     const before = t.slice(0, m.index).toLowerCase().split(/\s+/).filter(Boolean).slice(-3);
     const neg = before.some(w => /^(no|not|without|zero|never|didn'?t|doesn'?t|don'?t|dont|didnt|less|nothing|tak|tidak|tiada|takde|bukan)$/.test(w.replace(/[^a-z']/g, '')));
     // Chinese and Japanese denials: "不痛", "没有痛", "痛くない", "痛みなし".
-    const cjkNeg = /(不|没有?|沒有?|无|無|毫无)\s*$/.test(t.slice(0, m.index)) || /^(く(な|ありません)|みな[しい]|み無|みはな|みがな)/.test(t.slice(m.index + m[0].length));
+    const cjkNeg = /(不|没有?|沒有?|无|無|毫无)\s*$/.test(t.slice(0, m.index)) || /^(く(な|ありません)|みな[しい]|み無|みはな|みがな|\s*(?:なし|無し|は?な[いし]|がな[いし]|ありません))/.test(t.slice(m.index + m[0].length));
     if (!neg && !cjkNeg && !/^\s*[- ]?(free|less|gone)\b/i.test(t.slice(m.index + m[0].length))) return true;
   }
   return false;
 };
 // English words, Chinese 痛/疼 (but 酸痛 is ordinary muscle soreness), Japanese 痛い/痛み/痛めた, Malay "sakit" (not "sakit otot").
-const PAIN_RE = /\b(?:pain|painful|hurt|hurts|hurting|ache|aching|achy|ping|pinged|pinging|twinge|tweak|tweaked|niggle|strain|strained|sore|tight|flared?|injur\w*|numb|clicking|popped)\b|(?<!酸)(?:疼痛|拉伤|拉傷|扭伤|扭傷|不舒服|[痛疼])|\bsakit\b(?!\s+otot)/i;
+// Japanese 違和感 (something feels off), 張り (tightness, as "tight"), しびれ/痺れ (numbness).
+const PAIN_RE = /\b(?:pain|painful|hurt|hurts|hurting|ache|aching|achy|ping|pinged|pinging|twinge|tweak|tweaked|niggle|strain|strained|sore|tight|flared?|injur\w*|numb|clicking|popped)\b|(?<!酸)(?:疼痛|拉伤|拉傷|扭伤|扭傷|不舒服|[痛疼])|違和感|張り(?!切)|しびれ|痺れ|\bsakit\b(?!\s+otot)/i;
 const COMMENT_RE = /\b(felt|feel|feels|feeling|tired|lazy|sleep|slept|heavy|easy|hard|strong|weak|good|bad|great|awful|hr|bpm|rpe|rir|pump|form|failure|failed|energy|sick|fever|dizzy|skipped|missed|didn'?t|couldn'?t|was|were|a bit|very|really)\b/i;
 const SESSION_RE = /\b(slept|sleep|felt|feel|tired|energy|rpe|session|today|workout|gym|sick|fever)\b/i;
 
