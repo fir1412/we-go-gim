@@ -11,6 +11,7 @@ import * as levels from './views/levels.js';
 import * as setup from './views/setup.js';
 import * as more from './views/more.js';
 import * as daily from './views/daily.js';
+import './fx.js'; // motion and touch feedback (self-starting)
 
 const TABS = [
   ['today', 'Today', ICON.today],
