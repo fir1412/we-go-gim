@@ -5,6 +5,7 @@ import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirm
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
 import { weekStats, streakLine } from '../streak.js';
+import { streakInfo, badges } from '../gamify.js';
 
 const FEEL = [[1, 'Drained'], [2, 'Low'], [3, 'OK'], [4, 'Good'], [5, 'Great']];
 
@@ -311,7 +312,17 @@ function summary(d) {
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
   if (partial) h += `<p class="fine keepgoing">Every set counts. Showing up is what keeps the plan going.</p>`;
-  if (!d.past) h += streakLine(weekStats(d.date, S.sessions.some(s => s.date >= d.date) ? 0 : 1));
+  if (!d.past) {
+    // What this workout adds: the day streak after saving, and any badge it unlocks.
+    const was = S.sessions, withThis = [...S.sessions, { id: d.id, date: d.date, name: d.name, entries: d.entries }];
+    const before = new Set(badges(d.date).filter(b => b.date).map(b => b.id));
+    S.sessions = withThis;
+    let st, fresh;
+    try { st = streakInfo(d.date); fresh = badges(d.date).filter(b => b.date && !before.has(b.id)); } finally { S.sessions = was; }
+    h += `<div class="box pad gamewin"><p class="big">🔥 Day streak: ${st.streak}</p>${st.streak > 1 && st.streak === st.best ? '<p class="fine">Your best streak yet.</p>' : ''}</div>`;
+    if (fresh.length) h += `<div class="box prbox badgewin"><p class="lbl">New badge</p>${fresh.map(b => `<p><span class="bi" aria-hidden="true">${b.icon}</span> <b>${b.name}</b></p><p class="fine">${b.about}</p>`).join('')}</div>`;
+    h += streakLine(weekStats(d.date, S.sessions.some(s => s.date >= d.date) ? 0 : 1));
+  }
   h += earlyWins(d);
   // Early on, one offer of reminders: the biggest reason people drift away is forgetting the next workout.
   if (!d.past && !S.settings.calAdded && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Want a nudge on training days?</b></p><p class="fine">Your phone's calendar can remind you 10 minutes before. Nothing is sent anywhere.</p><button class="btn ghost" data-act="cal-export">Add training days to my calendar</button></div>`;

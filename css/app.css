@@ -989,3 +989,21 @@ html[data-text="xl"] { font-size: 125%; }
 .streak span { font-size: 0.8rem; color: var(--mute); }
 .keepgoing { text-align: center; }
 
+/* ---- daily habit loop: quests, rest day, badges ---- */
+.streak .shield { font-size: 0.8rem; color: var(--text); }
+.quests ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.quests li { display: flex; gap: 10px; align-items: center; }
+.quests li i { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-style: normal; font-size: 0.8rem; font-weight: 800; }
+.quests li.done i { background: var(--up); border-color: var(--up); color: var(--on); }
+.quests li.done span { color: var(--mute); text-decoration: line-through; }
+.quests.alldone { border-color: color-mix(in srgb, var(--up) 50%, var(--line)); }
+.restcard { border-color: color-mix(in srgb, var(--rest) 45%, var(--line)); }
+.gamewin .big { font-size: 1.25rem; font-weight: 800; margin: 0; }
+.badgewin .bi { font-size: 1.6rem; }
+.badges { list-style: none; margin: 0 0 12px; padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.badges li { display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 12px; background: var(--card); opacity: 0.5; }
+.badges li.got { opacity: 1; background: color-mix(in srgb, var(--push) 10%, var(--card)); }
+.badges .bi { font-size: 1.4rem; }
+.badges .bt { display: grid; }
+.badges small { color: var(--mute); font-size: 0.72rem; }
+

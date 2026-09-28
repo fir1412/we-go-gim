@@ -3,6 +3,7 @@ import { bodySVG } from '../anatomy.js';
 import { hasEstMax, trendRange, muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
 import { esc, fmtDate, pill, STATUS, num, cvar, kstyle, dowName, ICON, T, helpTip, expertWording } from '../ui.js';
 import { progressNav } from './insights.js';
+import { badgeWall } from '../gamify.js';
 
 /** Lifters who arrive with real history (experienced in setup, or a big import) never see beginner titles. */
 function seasoned() {
@@ -102,6 +103,7 @@ export function render() {
   }
   h += `</ul>`;
 
+  h += badgeWall(t);
   const ups = data.levelUps.slice(-6).reverse();
   if (ups.length) h += `<p class="lbl">Recent level-ups</p><ul class="box xplist pad">${ups.map(u => `<li><span>${fmtDate(u.date)}</span><span class="grow">${esc(u.muscle)} reached level ${u.level}</span><b class="lvstar">${ICON.star}</b></li>`).join('')}</ul>`;
   const nImp = S.sessions.filter(s => s.imported).length;
