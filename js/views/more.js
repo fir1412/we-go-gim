@@ -5,10 +5,12 @@ import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, COLO
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, guessMuscles, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
+import { parseSplitText } from '../split.js';
 
 export function render(route) {
   switch (route.name) {
     case 'program': return program();
+    case 'paste': return pasteSplit();
     case 'exercises': return exercises();
     case 'exercise': return exerciseEdit(route.args[0]);
     case 'gyms': return gyms();
@@ -84,7 +86,8 @@ function program() {
   }
   const p = S.program;
   const ws = weeklySets(p, S.exById);
-  let h = `<p class="fine">Tap a day to edit it. Changes save as you go and apply to future sessions; past sessions stay as they were.</p>
+  let h = `<a class="btn ghost" href="#/paste">${ICON.upload} Paste a written split</a>
+    <p class="fine">Tap a day to edit it. Changes save as you go and apply to future sessions; past sessions stay as they were.</p>
     <div class="box pad vsum"><p class="lbl">Weekly direct sets · green is 10 or more</p><div class="chips">${MUSCLES.filter(m => ws[m]).map(m => pill(`${m} ${ws[m]}`, ws[m] >= 10 ? 'up' : ws[m] >= 6 ? 'flat' : 'mute')).join('')}</div></div>`;
   for (const dow of DOW_ORDER) {
     const di = p.days.findIndex(d => d.dow === dow);
@@ -816,4 +819,92 @@ window.addEventListener('hashchange', () => {
   if (!location.hash.startsWith('#/program')) pOrig = null;
   if (!location.hash.startsWith('#/exercise/')) edFor = null;
   if (!location.hash.startsWith('#/data')) undoMeta = undefined;
+});
+
+// ---- paste a written split -------------------------------------------------------------------
+let pst = null; // {text, days, map: {itemKey: exId | ''}}
+/** Best exercise for a split line: a good name match, preferring the one with the most logged history
+ *  (so "Lat Pulldown" finds your main pulldown, not a rarely used variant). Burnouts stay separate. */
+export function splitMatch(name, exercises, sessions) {
+  const count = {}, last = {};
+  for (const s of sessions) for (const e of s.entries) { count[e.exId] = (count[e.exId] || 0) + 1; if (!last[e.exId] || s.date > last[e.exId]) last[e.exId] = s.date; }
+  const recentFrom = sessions.reduce((m, s) => (s.date > m ? s.date : m), '').replace(/^(\d{4})/, y => String(+y - 1)); // a year before the newest log
+  const burn = /burn.?out|drop.?set|finisher/i.test(name);
+  let best = null;
+  for (const ex of exercises) {
+    if (burn !== /burn.?out|drop.?set|finisher/i.test(ex.name)) continue;
+    const m = matchExercise(name, [ex]);
+    if (!m) continue;
+    const v = m.score + 0.15 * Math.log10(1 + (count[ex.id] || 0)) + (last[ex.id] && last[ex.id] >= recentFrom ? 0.1 : 0);
+    if (!best || v > best.v) best = { id: ex.id, v };
+  }
+  return best?.id || '';
+}
+const unitGuess = n => /\b(db|dumbbells?)\b/i.test(n) ? 'kg/DB' : /\b(cable|rope|pec deck|straight.?arm)\b/i.test(n) ? 'L' : /\b(push.?ups?|pull.?ups?|chin.?ups?|dips?|hyperextension|bodyweight|hanging)\b/i.test(n) ? 'bw' : 'kg';
+function pasteSplit() {
+  if (!pst) pst = { text: '', days: null, map: {} };
+  if (!pst.days) {
+    const h = `<p class="fine">Paste your plan as text: one line per day like <b>Monday – Chest</b>, then one line per exercise like <b>Bench Press – 4 × 6–8</b>. Numbering, "Finish with:", "Optional:" and cardio lines are fine.</p>
+      <textarea class="inp mono" id="split-text" rows="14" placeholder="Monday – Chest&#10;1. Bench Press – 4 × 6–8&#10;2. Incline Dumbbell Press – 3 × 8–10&#10;15 min incline walk&#10;&#10;Tuesday – Back&#10;1. Lat Pulldown – 3 × 8–10">${esc(pst.text)}</textarea>
+      <button class="btn" data-act="split-read">Read my split</button>`;
+    return { title: 'Paste a split', sub: 'Turn your plan into the programme', back: 'program', html: h, color: 'push' };
+  }
+  const opts = sel => `<option value="">+ Add as a new exercise</option>${S.exercises.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}`;
+  const n = pst.days.reduce((a, d) => a + d.items.length, 0), nNew = Object.values(pst.map).filter(v => !v).length;
+  let h = `<div class="kpis"><div class="kpi"><b>${pst.days.length}</b><span>training days</span></div><div class="kpi"><b>${n}</b><span>exercises</span></div><div class="kpi"><b>${nNew}</b><span>new to the app</span></div></div>
+    <p class="fine">Check each match. Your logged history stays; it just follows the matched exercises. Days not listed become rest days.</p>`;
+  pst.days.forEach((d, di) => {
+    h += `<section class="box pad wz-day" style="--k:${cvar(d.color)}"><header><b>${dowName(d.dow)}</b><span>${esc(d.name)}</span></header>${d.sub ? `<p class="fine">${esc(d.sub)}</p>` : ''}<div class="stack">`;
+    d.items.forEach((it, ii) => {
+      const key = `${di}:${ii}`;
+      h += `<div class="impent"><div class="rowt"><b>${esc(it.name)}</b><small>${it.sets} × ${it.lo === it.hi ? it.lo : `${it.lo}–${it.hi}`}${it.note ? ' · ' + esc(it.note) : ''}</small></div>
+        <select class="inp" id="sp-${di}-${ii}" data-input="split-map" data-k="${key}" aria-label="Match ${esc(it.name)}">${opts(pst.map[key])}</select></div>`;
+    });
+    h += `</div></section>`;
+  });
+  if (pst.skipped?.length) h += `<p class="fine">Not used: ${pst.skipped.map(esc).join(' · ')}</p>`;
+  h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="split-edit">Edit text</button><button class="btn" data-act="split-use" style="--c:var(--up)">Use this split</button></div></div>`;
+  return { title: 'Your split', sub: 'Check the matches', back: 'program', html: h, color: 'up' };
+}
+Object.assign(actions, {
+  'split-read'() {
+    const text = document.getElementById('split-text').value;
+    const r = parseSplitText(text);
+    if (!r.days.length) return toast('No days found. Start each day with its name, e.g. "Monday – Chest".', 'flat');
+    pst = { text, days: r.days, skipped: r.skipped, map: {} };
+    r.days.forEach((d, di) => d.items.forEach((it, ii) => { pst.map[`${di}:${ii}`] = splitMatch(it.name, S.exercises, S.sessions); }));
+    refresh(); document.getElementById('screen').scrollTop = 0;
+  },
+  'split-edit'() { pst.days = null; refresh(); },
+  'split-map'(el) { pst.map[el.dataset.k] = el.value; },
+  async 'split-use'() {
+    const nDays = pst.days.length;
+    if (!(await confirmSheet({ title: 'Replace your programme with this split?', body: `${nDays} training day${nDays === 1 ? '' : 's'}; the other days become rest. Your logged workouts are kept.`, ok: 'Use this split' }))) return;
+    const created = {};
+    const days = [];
+    for (let di = 0; di < pst.days.length; di++) {
+      const d = pst.days[di], slots = [];
+      for (let ii = 0; ii < d.items.length; ii++) {
+        const it = d.items[ii];
+        let id = pst.map[`${di}:${ii}`];
+        if (!id) {
+          const key = it.name.toLowerCase();
+          if (!created[key]) {
+            const u = unitGuess(it.name);
+            const ex = { id: key.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + Math.random().toString(36).slice(2, 6), name: it.name, unit: u, equip: u === 'bw' ? 'bw' : u === 'kg/DB' ? 'db' : u === 'L' ? 'cable' : 'machine', inc: u === 'L' ? 1 : 2.5, rest: 90, muscles: guessMuscles(it.name).length ? guessMuscles(it.name) : ['Chest'], perGym: u === 'L' };
+            await saveExercise(ex);
+            created[key] = ex.id;
+          }
+          id = created[key];
+        }
+        slots.push({ exId: id, sets: it.sets, lo: it.lo, hi: it.hi, group: '' });
+      }
+      days.push({ dow: d.dow, name: d.name, sub: d.sub, color: d.color, slots });
+    }
+    for (let dow = 0; dow < 7; dow++) if (!days.some(x => x.dow === dow)) days.push({ dow, name: 'Rest', sub: 'Rest or easy cardio', color: 'rest', slots: [] });
+    await saveProgram({ ...S.program, days: days.sort((a, b) => ((a.dow + 6) % 7) - ((b.dow + 6) % 7)) });
+    pst = null; pOrig = null;
+    toast('Your split is now the programme', 'up');
+    go('program');
+  },
 });

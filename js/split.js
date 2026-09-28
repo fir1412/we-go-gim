@@ -282,3 +282,60 @@ export function explainSplit(answers) {
     : '';
   return `${n} day${n === 1 ? '' : 's'} a week: ${kind}.${goal}`;
 }
+
+// ---- a split written out as text ("Monday – Chest", "1. Bench Press – 4 × 6–8") ----------------
+const DAY_NAMES = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
+const COLOR_FOR = [[/chest|push/i, 'push'], [/back|pull/i, 'pull'], [/leg|lower|squat/i, 'legs'], [/arm|bicep|tricep/i, 'arms'], [/shoulder|upper|delt/i, 'upper'], [/full/i, 'legsb']];
+
+/**
+ * Read a written split. Returns {days:[{dow, name, sub, color, items:[{name, sets, lo, hi, note}]}], skipped:[lines]}.
+ * Understands "4 × 6–8", "3 x 10", "4 sets", "2 sets to near failure", "3 × 12 each leg";
+ * section words ("Biceps", "Finish with:", "Optional:") become notes, cardio lines become the day's subtitle.
+ */
+export function parseSplitText(text) {
+  const days = [], skipped = [];
+  let day = null, section = '';
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, ' ').trim();
+    if (!line) continue;
+    const dm = line.match(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*(?:[–—:-]\s*(.*))?$/i);
+    if (dm) {
+      const name = (dm[2] || '').trim() || 'Workout';
+      day = { dow: DAY_NAMES[dm[1].toLowerCase()], name, sub: '', color: (COLOR_FOR.find(([re]) => re.test(name)) || [0, 'upper'])[1], items: [] };
+      days.push(day); section = '';
+      continue;
+    }
+    if (!day) { skipped.push(line); continue; }
+    // Cardio and other non-lifting lines describe the day.
+    if (/\b(walk|cardio|treadmill|bike|cycling|swim|run|km\/h|incline|speed|min|minutes)\b/i.test(line) && !/[x×]\s*\d/.test(line)) {
+      const c = day.cardio ||= {};
+      const t = line.replace(/^(?:\d+[.)]|[-•*])\s+/, '');
+      let mm;
+      if ((mm = t.match(/(\d+)\s*(?:min|minutes)\b/i))) c.min = +mm[1];
+      if ((mm = t.match(/incline:?\s*(\d+)\s*%/i))) c.incline = mm[1];
+      if ((mm = t.match(/(\d+(?:\.\d+)?)\s*km\/h/i))) c.speed = mm[1];
+      if ((mm = t.match(/\b(incline walk|walk|treadmill|bike|cycling|swim|run)\b/i))) c.kind = mm[1].toLowerCase();
+      continue;
+    }
+    const body = line.replace(/^(?:\d+[.)]|[-•*])\s*/, '');
+    const m = body.match(/^(.+?)\s*[–—:-]\s*(\d+)\s*(?:[x×]\s*(\d+)(?:\s*[–—-]\s*(\d+))?|sets?)\b(.*)$/i);
+    if (!m) {
+      // A heading inside a day ("Biceps", "Finish with:", "Optional:") labels what follows.
+      if (/^[A-Za-z][A-Za-z /&]{1,24}:?$/.test(body)) { section = body.replace(/:$/, ''); continue; }
+      skipped.push(line); continue;
+    }
+    const sets = Math.max(1, Math.min(10, +m[2]));
+    let lo = m[3] ? +m[3] : null, hi = m[4] ? +m[4] : lo;
+    const rest = (m[5] || '').trim();
+    if (lo == null) { lo = /failure/i.test(rest) ? 8 : 6; hi = /failure/i.test(rest) ? 20 : 10; } // "4 sets" / "to near failure"
+    const note = [/optional/i.test(section) ? 'Optional' : /finish/i.test(section) ? 'Finisher' : '', rest.replace(/^[,;·-]\s*/, '')].filter(Boolean).join(' · ');
+    day.items.push({ name: m[1].replace(/\s*\(.*?\)\s*$/, '').trim(), sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note });
+  }
+  // "+ 15 min incline walk (10%, 5.5 km/h)"
+  for (const d of days) if (d.cardio) {
+    const c = d.cardio, extra = [c.incline && `${c.incline}%`, c.speed && `${c.speed} km/h`].filter(Boolean).join(', ');
+    d.sub = `+ ${c.min ? c.min + ' min ' : ''}${c.kind || (c.incline ? 'incline walk' : 'cardio')}${extra ? ` (${extra})` : ''}`;
+    delete d.cardio;
+  }
+  return { days: days.filter(d => d.items.length), skipped };
+}

@@ -96,6 +96,7 @@ function start() {
       <button class="li" data-act="wz-begin" style="--k:var(--push)"><i class="sw"></i><span><b>Build my split</b><small>7 quick questions, then a weekly plan made for you. About a minute.</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Start fresh with the example split</b><small>A 5-day push, pull, legs, upper, lower plan for a full gym. Edit it any time.</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-logs" style="--k:var(--legs)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes or a spreadsheet, or restore a backup. Your levels start from your real history.</small></span>${ICON.chev}</button>
+      <button class="li" data-act="wz-own" style="--k:var(--upper)"><i class="sw"></i><span><b>I have my own split</b><small>Paste your plan as text (from a note, a coach or a chat) and it becomes your programme.</small></span>${ICON.chev}</button>
     </div>
     <button class="linkbtn center" data-act="wz-skip">Skip for now</button>`;
   return back
@@ -154,6 +155,7 @@ export const actions = {
     await finish('today', { tour: !back });
   },
   async 'wz-logs'() { await finish('import', { tour: false }); },
+  async 'wz-own'() { await finish('paste', { tour: false }); },
   async 'wz-skip'() { await finish('today'); },
   'wz-cancel'() { st = null; try { sessionStorage.removeItem(DRAFT); } catch {} go('settings'); },
   'wz-day'(el) {

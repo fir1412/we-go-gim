@@ -25,7 +25,7 @@ const ROUTES = {
   levels: [levels, 'levels'],
   setup: [setup, 'more'],
   history: [history, 'history'], session: [history, 'history'],
-  more: [more, 'more'], program: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
+  more: [more, 'more'], program: [more, 'more'], paste: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
   gyms: [more, 'more'], equip: [more, 'more'], data: [more, 'more'], settings: [more, 'more'], import: [more, 'more'],
 };
 
@@ -165,7 +165,7 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.3.0';
+export const APP_VERSION = '1.3.1';
 const WHATS_NEW = {
   '1.0.0': ['Levels tab: muscle map with XP and level-ups', 'Time left and finish time during workouts', 'Import your old PDF logs from More → Import'],
   '1.1.0': [
@@ -174,6 +174,9 @@ const WHATS_NEW = {
     'Import reads more log formats and keeps pain and sleep comments',
     'Restore and erase keep an undo copy',
     'Install button in More; phone Back closes pop-ups',
+  ],
+  '1.3.1': [
+    'Paste a written split (from a note, coach or chat) under More → Programme, or pick "I have my own split" when setting up',
   ],
   '1.3.0': [
     'Move a workout to another day: More → Programme → open a day → Move to another day',
