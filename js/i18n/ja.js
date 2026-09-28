@@ -1473,6 +1473,7 @@ export default {
 "Tuesday": "火曜日",
 "Turn off for a plain log: no streak, daily quests or badges. Levels and your progress stay": "オフにするとシンプルな記録だけに：連続記録、デイリークエスト、バッジは表示されません。レベルと成長の記録はそのままです",
 "Turn on": "オンにする",
+"Turn speed": "回転の速さ",
 "Turn the body to": "体の向き",
 "Turn your plan into the programme": "自分のプランをトレーニングプランにする",
 "Twelve weeks with nothing missed.": "12週間、一度も休まず。",

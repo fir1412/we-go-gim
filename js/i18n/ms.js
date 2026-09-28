@@ -1473,6 +1473,7 @@ export default {
 "Tuesday": "Selasa",
 "Turn off for a plain log: no streak, daily quests or badges. Levels and your progress stay": "Matikan untuk log biasa: tiada kiraan berturut-turut, misi harian atau lencana. Tahap dan kemajuan anda kekal",
 "Turn on": "Hidupkan",
+"Turn speed": "Kelajuan pusingan",
 "Turn the body to": "Pusingkan badan ke",
 "Turn your plan into the programme": "Jadikan pelan anda sebagai program",
 "Twelve weeks with nothing missed.": "Dua belas minggu tanpa terlepas.",

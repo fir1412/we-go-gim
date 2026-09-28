@@ -1473,6 +1473,7 @@ export default {
 "Tuesday": "星期二",
 "Turn off for a plain log: no streak, daily quests or badges. Levels and your progress stay": "關閉後只做簡單記錄：沒有連續記錄、每日任務或徽章。等級和進度會保留",
 "Turn on": "開啟",
+"Turn speed": "轉動速度",
 "Turn the body to": "把身體轉到",
 "Turn your plan into the programme": "把你的計畫變成訓練計畫",
 "Twelve weeks with nothing missed.": "十二週沒有錯過任何訓練。",

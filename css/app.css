@@ -1145,3 +1145,7 @@ button, a, summary, .li, label.filebtn { transition: background-color var(--pres
 .days .dn { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .callist { display: grid; gap: 8px; }
 
+/* 3D atlas turn-speed slider */
+.atlas-sens { display: inline-flex; gap: 8px; align-items: center; font-size: 0.85rem; color: var(--mute); }
+.atlas-sens input { width: 120px; accent-color: var(--push); }
+
