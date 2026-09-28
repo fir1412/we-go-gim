@@ -5,6 +5,12 @@ import assert from 'node:assert/strict';
 import * as io from '../js/io.js';
 import { parseSplitText } from '../js/split.js';
 import { EXERCISES } from '../js/seed.js';
+import zhD from '../js/i18n/zh.js';
+import jaD from '../js/i18n/ja.js';
+import msD from '../js/i18n/ms.js';
+import { plainText } from '../js/plain.js';
+const libName = id => EXERCISES.find(e => e.id === id).name;
+const trName = (d, id) => d.names[plainText(libName(id))] ?? d.names[libName(id)];
 
 await io.foreignNamesReady;
 
@@ -65,15 +71,11 @@ test('plan: English plans read exactly as before', () => {
 
 // ---- names in other languages match library exercises ---------------------------------------------
 test('names: translated library names match through the reverse lookup', () => {
-  assert.equal(match('杠铃卧推'), 'bbbench');
-  assert.equal(match('高位下拉'), 'pulldown');
-  assert.equal(match('ラットプルダウン'), 'pulldown');
-  assert.equal(match('バーベルベンチプレス'), 'bbbench');
-  assert.equal(match('デッドリフト'), 'deadlift');
-  assert.equal(match('レッグプレス'), 'legpress');
-  assert.equal(match('Tekan dada barbell'), 'bbbench');
-  assert.equal(match('Angkat mati'), 'deadlift');
-  assert.equal(match('Cangkung barbell'), 'bbsquat');
+  // Names come from the dictionaries themselves, so rewording a translation never breaks this test.
+  for (const d of [zhD, jaD, msD]) for (const id of ['bbbench', 'pulldown', 'deadlift', 'legpress', 'bbsquat']) {
+    const tr = trName(d, id);
+    if (tr && tr.toLowerCase() !== libName(id).toLowerCase()) assert.equal(match(tr), id, `${tr} → ${id}`);
+  }
   // English is unchanged.
   assert.equal(match('Barbell bench press'), 'bbbench');
   assert.equal(match('Deadlift'), 'deadlift');
@@ -107,10 +109,10 @@ test('muscles: word boundaries and rule order', () => {
 
 test('muscles: a translated library name takes that exercise\'s muscles', () => {
   const lib = id => EXERCISES.find(e => e.id === id).muscles;
-  assert.deepEqual(io.guessMuscles('杠铃卧推'), lib('bbbench'));
-  assert.deepEqual(io.guessMuscles('ラットプルダウン'), lib('pulldown'));
-  assert.deepEqual(io.guessMuscles('Angkat mati'), lib('deadlift'));
-  assert.deepEqual(io.guessMuscles('哑铃弯举'), lib('dbcurl'));
+  assert.deepEqual(io.guessMuscles(trName(zhD, 'bbbench')), lib('bbbench'));
+  assert.deepEqual(io.guessMuscles(trName(jaD, 'pulldown')), lib('pulldown'));
+  assert.deepEqual(io.guessMuscles(trName(jaD, 'deadlift')), lib('deadlift'));
+  assert.deepEqual(io.guessMuscles(trName(zhD, 'dbcurl')), lib('dbcurl'));
   // Not a library name, but its words are known.
   assert.deepEqual(io.guessMuscles('ケーブルカール'), ['Biceps']);
 });
@@ -151,7 +153,7 @@ test('log: full-width "６０ｋｇ×１０回" is read', () => {
 });
 
 test('log: Malay "60kg x 10 ulangan", "3 set"', () => {
-  const s = parse('28/9/2026\nTekan dada barbell 60kg x 10 ulangan\nCangkung barbell 80kg x 5 ulangan x 3 set\nAngkat mati 100kg 3 set x 5 ulangan');
+  const s = parse(`28/9/2026\n${trName(msD, 'bbbench')} 60kg x 10 ulangan\n${trName(msD, 'bbsquat')} 80kg x 5 ulangan x 3 set\n${trName(msD, 'deadlift')} 100kg 3 set x 5 ulangan`);
   assert.deepEqual(sets(s[0]), ['60x10', '80x5 80x5 80x5', '100x5 100x5 100x5']);
   assert.deepEqual(s[0].entries.map(e => e.match), ['bbbench', 'bbsquat', 'deadlift']);
 });

@@ -490,7 +490,9 @@ export const foreignNamesReady = Promise.all(['zh', 'ja', 'ms'].map(l => import(
       foreignTo.set(k, ex);
     }
     // Longest first; Latin (Malay) names only as whole words.
-    const keys = [...foreignTo.keys()].sort((a, b) => b.length - a.length)
+    // Only Chinese and Japanese names are swapped inside longer text. Latin-script (Malay) names are mostly gym
+    // English ("Cable fly"), so they match only as a whole name: "Reverse cable fly" must stay a rear-delt lift.
+    const keys = [...foreignTo.keys()].filter(k => /[^\x00-\x7f]/.test(k)).sort((a, b) => b.length - a.length)
       .map(k => (/[a-z]/.test(k) ? String.raw`(?<![\p{L}\p{N}])${escRe(k)}(?![\p{L}\p{N}])` : escRe(k)));
     foreignRe = keys.length ? new RegExp(keys.join('|'), 'gu') : null;
   }, () => {});
