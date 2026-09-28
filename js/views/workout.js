@@ -319,7 +319,7 @@ function summary(d) {
     S.sessions = withThis;
     let st, fresh;
     try { st = streakInfo(d.date); fresh = badges(d.date).filter(b => b.date && !before.has(b.id)); } finally { S.sessions = was; }
-    h += `<div class="box pad gamewin"><p class="big">🔥 Day streak: ${st.streak}</p>${st.streak > 1 && st.streak === st.best ? '<p class="fine">Your best streak yet.</p>' : ''}</div>`;
+    h += `<div class="box pad gamewin"><p class="big"><i class="flame" aria-hidden="true">🔥</i> Day streak: ${st.streak}</p>${st.streak > 1 && st.streak === st.best ? '<p class="fine">Your best streak yet.</p>' : ''}</div>`;
     if (fresh.length) h += `<div class="box prbox badgewin"><p class="lbl">New badge</p>${fresh.map(b => `<p><span class="bi" aria-hidden="true">${b.icon}</span> <b>${b.name}</b></p><p class="fine">${b.about}</p>`).join('')}</div>`;
     h += streakLine(weekStats(d.date, S.sessions.some(s => s.date >= d.date) ? 0 : 1));
   }

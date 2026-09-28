@@ -112,8 +112,8 @@ export const badgesOn = d => badges(d).filter(b => b.date === d);
 /** Streak chip, then today's quests (training day) or a calm rest-day card. */
 export function todayGame(t = todayIso()) {
   const st = streakInfo(t), q = quests(t);
-  const shields = st.shields ? `<span class="shield">🛡️ Shields: ${st.shields}</span>` : '';
-  let h = `<a class="streak day" href="#/levels"><b>🔥 Day streak: ${st.streak}</b>${shields}<span>Best: ${st.best}</span></a>`;
+  const shields = st.shields ? `<span class="shield"><i aria-hidden="true">🛡️</i> Shields: ${st.shields}</span>` : '';
+  let h = `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Day streak: ${st.streak}</b>${shields}<span>Best: ${st.best}</span></a>`;
   if (!q.length) {
     h += `<div class="box pad restcard"><b>Rest day: your streak is safe</b><p class="fine">Muscles grow while you recover. A walk or a stretch is a bonus, not a must.</p></div>`;
   } else {

@@ -20,8 +20,8 @@ export function weekStats(t = todayIso(), extra = 0) {
 /** One line: the streak and this week's count, or a nudge to keep or start it. */
 export function streakLine(st) {
   const week = st.planned ? `<span>This week: ${st.thisWeek} of ${st.planned}</span>` : '';
-  const lead = st.thisWeek > 0 ? `<b>🔥 Week streak: ${st.streak}</b>`
-    : st.past > 0 ? `<b>🔥 Train once this week to keep your streak (${st.past} weeks)</b>`
+  const lead = st.thisWeek > 0 ? `<b><i class="flame" aria-hidden="true">🔥</i> Week streak: ${st.streak}</b>`
+    : st.past > 0 ? `<b><i class="flame" aria-hidden="true">🔥</i> Train once this week to keep your streak (${st.past} weeks)</b>`
       : '<b>Train this week to start a streak</b>';
   return `<a class="streak" href="#/history">${lead}${week}</a>`;
 }
