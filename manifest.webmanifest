@@ -10,13 +10,67 @@
   "background_color": "#0F1117",
   "theme_color": "#0F1117",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
   ],
   "shortcuts": [
-    { "name": "Start today's workout", "url": "./#/today" },
-    { "name": "Log body weight", "url": "./#/body" }
+    {
+      "name": "Start today's workout",
+      "short_name": "Start workout",
+      "url": "./#/start",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Log cardio",
+      "short_name": "Cardio",
+      "url": "./#/cardio",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Log body weight",
+      "short_name": "Weigh in",
+      "url": "./#/body",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

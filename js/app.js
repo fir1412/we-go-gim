@@ -1,4 +1,4 @@
-import { S, load, onChange, saveDraft, saveSettings } from './state.js';
+import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from './state.js';
 import { setUnits, setBwLabel } from './engine.js';
 import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar } from './ui.js';
 import * as today from './views/today.js';
@@ -21,7 +21,7 @@ const TABS = [
 
 // route name -> [view module, tab]
 const ROUTES = {
-  today: [today, 'today'], daily: [daily, 'today'],
+  today: [today, 'today'], daily: [daily, 'today'], start: [today, 'today'],
   workout: [workout, 'workout'],
   insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
   levels: [levels, 'levels'],
@@ -41,7 +41,13 @@ export const go = path => { location.hash = '#/' + path; };
 let current = null, lastKey = '';
 
 function render() {
-  const route = parseRoute();
+  let route = parseRoute();
+  // Home-screen shortcut: #/start opens today's workout in one tap.
+  if (route.name === 'start') {
+    history.replaceState(history.state, '', '#/today');
+    route = parseRoute();
+    setTimeout(quickStart, 0);
+  }
   const [view, tab] = ROUTES[route.name];
   current = { view, route };
   const out = view.render(route) || {};
@@ -66,6 +72,13 @@ function render() {
   out.after?.(sc);
   wake();
   paintTimer();
+}
+
+async function quickStart() {
+  if (S.draft) return go('workout');
+  const t = todayIso(), day = dayForDate(t);
+  if (!day.slots.length) return toast('Rest day today. Tap Train anyway to do a workout.', 'flat');
+  await today.actions.start({ dataset: { date: t } });
 }
 
 // ---- event delegation ---------------------------------------------------------

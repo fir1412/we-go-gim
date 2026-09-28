@@ -834,3 +834,6 @@ button.newmeta u { text-underline-offset: 2px; }
 .cardioc .rowi { display: flex; align-items: center; gap: 10px; }
 .cardioc small { display: block; color: var(--mute); }
 .win svg { width: 18px; height: 18px; vertical-align: -3px; margin-right: 6px; color: var(--up); }
+
+/* Link styled as a small button (banners) */
+a.mini { text-decoration: none; display: inline-grid; place-items: center; color: var(--ink); }

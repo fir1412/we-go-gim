@@ -1,5 +1,5 @@
 import { S, todayIso, dayForDate, setReadiness, startWorkout, suggestionCtx, isPoor, deloadActive, saveSettings, saveBody, discardDraft, refresh, trimmedCounts } from '../state.js';
-import { suggest, weekStart, addDays, deloadCheck, fmtLoad, unitShort, dowOf, estimateDay, planSec, SESSION_LENGTHS, toDisp, fromDisp, getUnits } from '../engine.js';
+import { suggest, weekStart, addDays, daysBetween, deloadCheck, fmtLoad, unitShort, dowOf, estimateDay, planSec, SESSION_LENGTHS, toDisp, fromDisp, getUnits } from '../engine.js';
 import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, dowName, num, T, helpTip, expertWording } from '../ui.js';
 import { dailyCard } from './daily.js';
 import { go } from '../app.js';
@@ -23,6 +23,7 @@ export function render(route) {
     h += `<a class="resume" href="#/workout" style="--k:${cvar(S.draft.color)}"><span><b>${esc(S.draft.name)} ${stale ? `from ${fmtDate(S.draft.date, { dow: true })} not saved` : 'in progress'}</b><small>${done}/${all.length} sets · ${stale ? 'finish or discard it' : `started ${new Date(S.draft.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}</small></span><span class="pill">${stale ? 'Open' : 'Resume'} ${ICON.chev}</span></a>`;
   }
   h += deloadCard(t);
+  if (date === t) h += missedCard(t) + backupCard(t);
 
   // week strip
   const ws = weekStart(t);
@@ -104,7 +105,7 @@ export function render(route) {
   const pastNoLog = date < t && !doneHere.length;
   if (pastNoLog) h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="log-day" data-date="${date}">Log this day</button><button class="btn" data-act="start" data-date="${date}">Do ${esc(day.name)} today</button></div></div>`;
   else if (doneToday && !resume) h += `<button class="btn ghost" data-act="pick-day">Train again today</button>`;
-  else if (!pastNoLog) h += `<div class="cta"><button class="btn" data-act="start" data-date="${date}">${resume ? 'Resume workout' : isToday ? 'Start workout <small>· sets pre-filled</small>' : `Do ${esc(day.name)} today <small>· sets pre-filled</small>`}</button></div>`;
+  else if (!pastNoLog) h += `<div class="cta"><button class="btn" data-act="start" data-date="${date}">${resume ? 'Resume workout' : isToday ? `Start ${esc(day.name)} <small>· sets pre-filled</small>` : `Do ${esc(day.name)} today <small>· sets pre-filled</small>`}</button></div>`;
 
   return { title: isToday ? 'Today' : fmtDate(date, { dow: true }), sub: sub(t, gym), right: bwBtn(lastBw), html: h, color: day.color };
 }
@@ -122,6 +123,36 @@ export function groupLabels(slots) {
     out[i] = s.group + count[s.group];
   });
   return out;
+}
+
+/** A training day in the last two days with nothing logged since: offer to do it today or let it go. */
+export function missedDay(t) {
+  if (S.draft || S.sessions.some(s => s.date === t && !s.seed)) return null;
+  for (const back of [1, 2]) {
+    const d = addDays(t, -back), day = dayForDate(d);
+    if (!day.slots.length) continue;
+    if (S.sessions.some(s => s.date >= d && s.date < t && !s.seed)) return null;
+    if (S.settings.missedSkip === d || day.name === dayForDate(t).name) return null;
+    // Only once there's a habit to protect: a brand-new user hasn't "missed" anything yet.
+    if (!S.sessions.some(s => !s.seed && s.date < d)) return null;
+    return { date: d, day };
+  }
+  return null;
+}
+function missedCard(t) {
+  const m = missedDay(t);
+  if (!m) return '';
+  return `<div class="banner" style="--k:${cvar(m.day.color)}"><span><b>You missed ${esc(m.day.name)} on ${esc(dowName(dowOf(m.date), true))}</b><small>Do it today and the week carries on, or skip it and follow the plan.</small></span>
+    <span class="bcol"><button class="mini" data-act="missed-do" data-date="${m.date}">Do it today</button><button class="mini" data-act="missed-skip" data-date="${m.date}">Skip it</button></span></div>`;
+}
+
+/** Nudge to back up once there's something worth losing: 3+ workouts and no backup in 3 weeks. */
+function backupCard(t) {
+  const own = S.sessions.filter(s => !s.seed).length, lb = S.settings.lastBackup;
+  if (own < 3 || (lb && daysBetween(lb, t) < 21)) return '';
+  if (S.settings.backupSnooze && daysBetween(S.settings.backupSnooze, t) < 7) return '';
+  return `<div class="banner" style="--k:var(--upper)"><span><b>${lb ? `Last backup ${daysBetween(lb, t)} days ago` : 'Back up your workouts'}</b><small>Your ${own} workouts live only on this phone. A backup file keeps them safe if it's lost.</small></span>
+    <span class="bcol"><a class="mini" href="#/data">Back up</a><button class="mini" data-act="backup-later">Later</button></span></div>`;
 }
 
 function deloadCard(t) {
@@ -204,4 +235,15 @@ export const actions = {
   },
   'deload-end': () => saveSettings({ deloadUntil: null }),
   'deload-dismiss': () => saveSettings({ deloadDismissed: todayIso() }),
+  'backup-later': () => saveSettings({ backupSnooze: todayIso() }),
+  async 'missed-do'(el) {
+    if (S.draft) return go('workout');
+    await startWorkout(dayForDate(el.dataset.date), todayIso(), { minutes: +S.settings.sessionLen || null });
+    go('workout');
+  },
+  async 'missed-skip'(el) {
+    const d = el.dataset.date;
+    await saveSettings({ missedSkip: d });
+    toast('Skipped. Following the plan from today.', 'ink', { undo: () => saveSettings({ missedSkip: null }) });
+  },
 };
