@@ -520,6 +520,7 @@ function settings() {
       <p class="fine">Adds your training days to your phone's calendar, which reminds you 10 minutes before. Works even when the app is closed. Nothing is sent anywhere.</p>
       <div class="rrow"><label for="st-remind">Reminder time</label><input class="inp sm" id="st-remind" type="time" value="${esc(st.remindAt || '18:00')}" data-input="st-remind"></div>
       <button class="btn ghost" data-act="cal-export">${ICON.clock || ''} Add training days to my calendar</button>
+      <label class="toggle"><input type="checkbox" id="st-game" data-input="st-game" ${st.gamify === false ? '' : 'checked'}><span><b>Streaks, quests and badges</b><small>Turn off for a plain log: no streak, daily quests or badges. Levels and your progress stay</small></span></label>
       <label class="toggle"><input type="checkbox" id="st-missed" data-input="st-missed" ${st.missedReminders === false ? '' : 'checked'}><span><b>Missed-workout reminders</b><small>Offer to do a missed day today. Turn off if you train on whatever days suit you</small></span></label>
       ${seg('Warm-up sets', 'st-warm', st.autoWarmup === true ? 'all' : st.autoWarmup === 'barbell' ? 'barbell' : 'off', [['off', 'Off'], ['barbell', 'Barbell'], ['all', 'All lifts']])}
       <p class="fine">Ramp-up sets added before your first working set. Barbell: only barbell and Smith lifts, with plates per side shown for each.</p></div>
@@ -1001,6 +1002,7 @@ export const actions = {
     await saveSettings({ [el.dataset.f]: el.checked });
   },
   'st-missed': el => saveSettings({ missedReminders: el.checked }),
+  'st-game': el => saveSettings({ gamify: el.checked }),
   'st-pause'(el) {
     const t = todayIso(), list = (S.settings.streakPauses || []).filter(p => p && p.from).slice(-20);
     if (el.checked && !list.some(p => !p.to)) list.push({ from: t, to: null });

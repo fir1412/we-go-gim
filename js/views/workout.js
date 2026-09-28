@@ -8,7 +8,7 @@ import { translate, getLang } from '../i18n.js';
 import { plainText } from '../plain.js';
 import { searchText } from '../seed.js';
 import { weekStats, streakLine } from '../streak.js';
-import { streakInfo, badges } from '../gamify.js';
+import { streakInfo, badges, gameOn } from '../gamify.js';
 
 const FEEL = [[1, 'Drained'], [2, 'Low'], [3, 'OK'], [4, 'Good'], [5, 'Great']];
 
@@ -315,7 +315,7 @@ function summary(d) {
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
   if (partial) h += `<p class="fine keepgoing">Every set counts. Showing up is what keeps the plan going.</p>`;
-  if (!d.past) {
+  if (!d.past && gameOn()) {
     // What this workout adds: the day streak after saving, and any badge it unlocks.
     const was = S.sessions, withThis = [...S.sessions, { id: d.id, date: d.date, name: d.name, entries: d.entries }];
     const before = new Set(badges(d.date).filter(b => b.date).map(b => b.id));

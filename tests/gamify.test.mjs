@@ -61,3 +61,11 @@ test('streak: weeks inside a pause are never judged', () => {
   S.settings.streakPauses = [];
   assert.equal(streakInfo('2026-10-05').streak, 1);
 });
+
+test('gamification can be switched off', async () => {
+  const { gameOn } = await import('../js/gamify.js');
+  S.settings = {};
+  assert.equal(gameOn(), true);
+  S.settings = { gamify: false };
+  assert.equal(gameOn(), false);
+});
