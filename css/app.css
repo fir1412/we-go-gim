@@ -29,7 +29,7 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--page); color: var(--ink); font-family: var(--body); font-size: 0.9375rem; line-height: 1.45; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+body { overflow-wrap: anywhere; background: var(--page); color: var(--ink); font-family: var(--body); font-size: 0.9375rem; line-height: 1.45; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: .4; cursor: default; }

@@ -560,8 +560,8 @@ export const actions = {
   },
   snote(el) { S.draft.note = el.value; saveDraft(); },
   async finish() {
-    const done = S.draft.entries.some(e => e.sets.some(s => s.done && !s.warm));
-    if (!done) return toast('Tick at least one working set before finishing', 'flat');
+    const done = S.draft.entries.some(e => e.sets.some(s => s.done && !s.warm)) || S.draft.cardio?.length > 0;
+    if (!done) return toast('Tick at least one working set, or log cardio, before finishing', 'flat');
     S.draft.summary = true; S.draft.timer = null; commit();
     document.getElementById('screen').scrollTop = 0;
   },

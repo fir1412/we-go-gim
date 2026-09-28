@@ -755,8 +755,15 @@ export const actions = {
     if (!ed.name) return toast('Give the exercise a name', 'down');
     if (!ed.muscles?.length) return toast('Pick at least one muscle', 'down');
     if (!(ed.inc > 0)) return toast('Weight jump must be above 0', 'down');
+    if (ed.inc > (ed.unit === 'L' ? 10 : 50)) return toast(ed.unit === 'L' ? 'Weight jump can be at most 10 levels' : 'Weight jump can be at most 50 kg', 'down');
+    if (!(ed.rest >= 15 && ed.rest <= 600)) return toast('Rest must be between 15 and 600 seconds', 'down');
     if (S.exercises.some(x => x.name.toLowerCase() === ed.name.toLowerCase() && x.id !== ed.id)) return toast('An exercise with that name exists', 'down');
     const isNew = !ed.id;
+    const was = !isNew && S.exById[ed.id];
+    if (was && was.unit !== ed.unit) {
+      const n = S.sessions.filter(s => s.entries.some(e => e.exId === ed.id)).length;
+      if (n && !(await confirmSheet({ title: 'Change how the load is logged?', body: `${n} logged workout${n === 1 ? '' : 's'} with this exercise keep their numbers but are read the new way, so charts and levels can jump. To keep old records apart, create a new exercise instead.`, ok: 'Change it' }))) return;
+    }
     if (isNew) ed.id = ed.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + Math.random().toString(36).slice(2, 6);
     delete ed.imported; delete ed._auto;
     await saveExercise(structuredClone(ed));
@@ -804,6 +811,10 @@ export const actions = {
     const dumbbells = [...new Set(list('eq-db'))], plates = [...new Set(list('eq-pl'))].sort((a, b) => b - a);
     const barKg = num(document.getElementById('eq-bar').value, 20), smithBarKg = num(document.getElementById('eq-smith').value, barKg);
     if (!plates.length) return toast('Add at least one plate size', 'down');
+    if (!(barKg >= 5 && barKg <= 50)) return toast('Barbell must be between 5 and 50 kg', 'down');
+    if (!(smithBarKg >= 0 && smithBarKg <= 50)) return toast('Smith bar must be between 0 and 50 kg', 'down');
+    if (dumbbells.some(x => x > 150)) return toast('Dumbbells can be at most 150 kg', 'down');
+    if (plates.some(x => x > 50)) return toast('Plates can be at most 50 kg', 'down');
     await saveSettings({ equip: { dumbbells, plates, barKg, smithBarKg } });
     toast('Equipment saved', 'up');
   },
@@ -877,7 +888,7 @@ export const actions = {
     await withUndo('erase', () => resetAll());
     pOrig = null; imp = null;
     toast('Everything erased. Undo it under More → Backup.');
-    go('today');
+    go('setup');
   },
   // import
   async 'imp-file'(el) {
