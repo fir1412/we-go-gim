@@ -50,7 +50,7 @@ const bodyType = () => S.settings.bodyType || (S.settings.stdSex === 'women' ? '
 function tapped(m) {
   const r = regionById(region);
   if (!r || r.group !== m) return '';
-  return `<p class="fine mregion"><span>You tapped:</span> <b>${esc(r.part)}</b> · <a href="#/atlas/g/${encodeURIComponent(m)}">See it in 3D</a></p>`;
+  return `<p class="fine mregion"><span>You tapped:</span> <b data-noplain>${esc(r.part)}</b> · <a href="#/atlas/g/${encodeURIComponent(m)}">See it in 3D</a></p>`;
 }
 
 const xpf = n => Math.round(n).toLocaleString('en-GB');
