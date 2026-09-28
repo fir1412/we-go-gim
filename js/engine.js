@@ -376,11 +376,15 @@ export function deloadCheck(sessions, exercises, today) {
   // Lifts trained in the last 2 weeks with no progress for 3 sessions (a plateau).
   const upto = sessions.filter(s => s.date <= today);
   const stuck = [];
+  let active = 0;
   for (const ex of exercises) {
     const exps = exposures(upto, ex);
     if (exps.length < 4 || daysBetween(exps[0].date, today) > 14) continue;
+    active++;
     if (trend(exps.slice(0, 8), ex.unit).status === 'plateau') stuck.push(ex.name);
   }
+  // Accessories stall all the time; only a broad stall (3+ lifts and 30%+ of what you train) points to fatigue.
+  const broad = stuck.length >= 3 && stuck.length >= 0.3 * active;
   if (stuck.length >= 2) reasons.push(`${stuck.length} lifts stuck for 3 sessions (${stuck.slice(0, 3).join(', ')})`);
   const painEx = new Set();
   for (const s of recent) for (const e of s.entries || []) if (e.pain) painEx.add(e.exId);
@@ -389,7 +393,7 @@ export function deloadCheck(sessions, exercises, today) {
   if (low >= 3) reasons.push(`${low} sessions rated low energy or motivation in the last 2 weeks`);
   const tired = recent.filter(s => s.readiness?.sleep === '<6').length;
   if (tired >= 3) reasons.push(`${tired} sessions after under 6 h sleep in the last 2 weeks`);
-  return { should: falling.length >= 2 || stuck.length >= 3 || reasons.length >= 2, reasons };
+  return { should: falling.length >= 2 || broad || reasons.length >= 2, reasons };
 }
 
 /** Least-squares slope in units per week from [{date, v}]. */

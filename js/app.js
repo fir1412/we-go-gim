@@ -214,7 +214,15 @@ matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S
 export const APP_VERSION = '1.4.0';
 const WHATS_NEW = {
   '1.4.0': [
-    'History shows any month: use the arrows or pick a month to see its calendar and sessions',
+    'History shows any month, with a recap card: days trained, sets, weight lifted, bests and your most improved lift',
+    'Progress tab: Insights and Levels together, with strength standards on the big barbell lifts',
+    'Measurements and progress photos: Progress → Body weight → Measurements',
+    'Workouts: pair two exercises as a superset, add cardio, one-tap warm-ups, and Light / Medium / Heavy to pick a starting weight on new lifts',
+    'Optional notification when rest is over, even with the screen off (More → Settings)',
+    'Today: offers to do a missed workout or skip it, and reminds you to back up',
+    'Ready-made plans: full body, upper / lower, push pull legs, 5×5 and dumbbells at home',
+    'Help page in More, Undo instead of "are you sure?" for small deletes, and long-press any icon to see what it does',
+    'Long-press the app icon for Start workout, Log cardio and Weigh in shortcuts',
     'Plain words or gym terms: pick in More → Settings. Plain says "reps left" and "find your weight"; gym terms say RIR and calibrate. Tap a ? to see what a term means',
     'kg or lb: pick in More → Settings. Weights are stored in kg, so switching never changes your history; imported logs in pounds are converted',
     'Short on time? Choose 20, 30 or 45 minutes on Today and the workout trims itself to fit',
