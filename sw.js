@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever app files change.
-const VERSION = 'wegogim-v19';
+const VERSION = 'wegogim-v20';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/db.js', './js/seed.js', './js/engine.js', './js/ui.js', './js/io.js',
@@ -44,7 +44,9 @@ self.addEventListener('fetch', e => {
   } else if (/cdnjs\.cloudflare\.com/.test(url.host)) {
     e.respondWith(
       caches.match(req).then(hit => hit || fetch(req).then(res => {
-        const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res;
+        // Only a good response is kept; a failed or opaque one would otherwise stick until the next version.
+        if (res.ok && res.type !== 'opaque') { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
+        return res;
       }))
     );
   }

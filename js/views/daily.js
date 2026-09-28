@@ -126,7 +126,7 @@ export const actions = {
   'daily-targets'() {
     const t = S.settings.targets || {}, d = dailyTargets();
     openSheet(`<h2 class="sh-title">Daily targets</h2><p class="sh-body">Leave a box empty to hide that target.</p>
-      ${METRICS.map(([k, label, unit, , , step]) => `<label class="field"><span>${label}${unit ? ` (${unit})` : ''}</span><input class="inp" id="tg-${k}" type="number" inputmode="decimal" step="${step}" min="0" value="${t[k] === null ? '' : d[k] ?? ''}" placeholder="${k === 'kcal' ? 'e.g. 2500' : 'hidden'}"></label>`).join('')}
+      ${METRICS.map(([k, label, unit, , , step]) => `<label class="field"><span>${label}${unit ? ` (${unit})` : ''}</span><input class="inp" id="tg-${k}" type="number" inputmode="decimal" step="${step}" min="0" value="${esc(t[k] === null ? '' : d[k] ?? '')}" placeholder="${k === 'kcal' ? 'e.g. 2500' : 'hidden'}"></label>`).join('')}
       <button class="btn" data-act="daily-targets-save" style="--c:var(--up)">Save targets</button>`, { label: 'Daily targets' });
   },
   async 'daily-targets-save'() {

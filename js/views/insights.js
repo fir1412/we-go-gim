@@ -505,8 +505,8 @@ export const actions = {
     const p = S.photos.find(x => x.id === el.dataset.id);
     if (!p) return;
     const src = photoCache[p.id] || (photoCache[p.id] = await loadPhoto(p.id));
-    openSheet(`<h2 class="sh-title">${fmtDate(p.date, { dow: true, year: true })}</h2>${src ? `<img class="phfull" src="${src}" alt="Progress photo from ${fmtDate(p.date, { year: true })}">` : '<p class="fine">Photo not found.</p>'}
-      ${src ? `<a class="btn ghost" href="${src}" download="progress-${p.date}.jpg">${ICON.save} Save to phone</a>` : ''}
+    openSheet(`<h2 class="sh-title">${fmtDate(p.date, { dow: true, year: true })}</h2>${src ? `<img class="phfull" src="${esc(src)}" alt="Progress photo from ${fmtDate(p.date, { year: true })}">` : '<p class="fine">Photo not found.</p>'}
+      ${src ? `<a class="btn ghost" href="${esc(src)}" download="progress-${esc(p.date)}.jpg">${ICON.save} Save to phone</a>` : ''}
       <div class="row2"><button class="btn ghost" data-act="sheet-close-ins">Close</button><button class="btn danger" data-act="m-photo-del" data-id="${esc(p.id)}">Delete photo</button></div>`, { label: 'Progress photo' });
   },
   'sheet-close-ins': () => closeSheet(),

@@ -290,8 +290,64 @@ export function validateBackup(data) {
   if (data.program && !Array.isArray(data.program.days)) bad('programme', 0);
 }
 
+/**
+ * A backup file is untrusted input: every field is cleaned to the type the app expects, so a crafted file
+ * can't smuggle markup into the page (numbers must be numbers, text must be text, unknown values dropped).
+ */
+export function sanitizeBackup(data) {
+  const str = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : v == null ? '' : String(v).slice(0, max));
+  const optStr = (v, max = 200) => (v == null || v === '' ? undefined : str(v, max));
+  const numOr = (v, d = null) => (v === '' || v == null || !Number.isFinite(+v) ? d : +v);
+  const iso = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const bool = v => v === true;
+  const oneOf = (v, list, d) => (list.includes(v) ? v : d);
+  const set = x => ({ w: numOr(x?.w), r: numOr(x?.r), done: bool(x?.done), ...(x?.warm ? { warm: true } : {}), ...(Number.isFinite(x?.at) ? { at: x.at } : {}) });
+  const slot = s => s && typeof s === 'object' ? { exId: str(s.exId, 80), sets: numOr(s.sets, 3), lo: numOr(s.lo, 8), hi: numOr(s.hi, 12), group: str(s.group, 4), ...(s.note ? { note: str(s.note, 120) } : {}) } : undefined;
+  const cardio = c => ({ type: str(c?.type, 40) || 'Other', min: numOr(c?.min, 0), intensity: oneOf(c?.intensity, ['easy', 'moderate', 'hard'], 'moderate'), ...(numOr(c?.km) ? { km: numOr(c.km) } : {}) });
+  const out = { ...data };
+  out.sessions = data.sessions.map(s => ({
+    ...s, id: str(s.id, 80), date: iso(s.date), name: str(s.name, 80), color: str(s.color, 20), gymId: optStr(s.gymId, 40),
+    note: str(s.note, 2000), hr: numOr(s.hr), feel: numOr(s.feel), minutes: numOr(s.minutes, undefined), start: numOr(s.start), end: numOr(s.end),
+    notes: Array.isArray(s.notes) ? s.notes.map(n => str(n, 500)) : undefined,
+    cardio: Array.isArray(s.cardio) ? s.cardio.map(cardio) : undefined,
+    entries: s.entries.map(e => ({ ...e, exId: str(e.exId, 80), slot: slot(e.slot), sets: e.sets.map(set), rir: e.rir == null ? null : str(e.rir, 4), pain: bool(e.pain), note: str(e.note, 1000), sug: optStr(e.sug, 20) })),
+  }));
+  if (Array.isArray(data.exercises)) out.exercises = data.exercises.map(e => ({
+    ...e, id: str(e.id, 80), name: str(e.name, 80), equip: oneOf(e.equip, ['db', 'barbell', 'smith', 'machine', 'cable', 'bw'], 'machine'),
+    inc: numOr(e.inc, 2.5), rest: numOr(e.rest, 90), muscles: Array.isArray(e.muscles) ? e.muscles.map(m => str(m, 30)) : [],
+    caution: optStr(e.caution, 300), perGym: bool(e.perGym), unitUnclear: bool(e.unitUnclear),
+  }));
+  if (Array.isArray(data.body)) out.body = data.body.map(b => ({ id: str(b.id, 80), date: iso(b.date), kg: numOr(b.kg), ...(b.note ? { note: str(b.note, 300) } : {}), ...(b.seed ? { seed: true } : {}) }));
+  if (Array.isArray(data.cardio)) out.cardio = data.cardio.map(c => ({ ...cardio(c), id: str(c.id, 80), date: iso(c.date), note: str(c.note, 300), ...(c.sessionId ? { sessionId: str(c.sessionId, 80) } : {}) }));
+  if (data.daily && typeof data.daily === 'object') {
+    out.daily = {};
+    for (const [d, v] of Object.entries(data.daily)) {
+      if (!iso(d) || !v || typeof v !== 'object') continue;
+      const clean = {};
+      for (const k of DAILY_FIELDS) if (numOr(v[k]) != null) clean[k] = numOr(v[k]);
+      out.daily[d] = clean;
+    }
+  }
+  if (Array.isArray(data.measures)) out.measures = data.measures.map(m => {
+    const r = { id: str(m.id, 80), date: iso(m.date) };
+    for (const k of ['waist', 'chest', 'hips', 'arm', 'thigh']) if (numOr(m[k]) != null) r[k] = numOr(m[k]);
+    return r;
+  }).filter(m => m.date);
+  if (data.program && Array.isArray(data.program.days)) out.program = { ...data.program, days: data.program.days.map(d => ({ dow: numOr(d.dow, 0), name: str(d.name, 40), sub: str(d.sub, 80), color: str(d.color, 20), slots: Array.isArray(d.slots) ? d.slots.map(slot).filter(Boolean) : [] })) };
+  if (data.settings && typeof data.settings === 'object') {
+    const s = { ...data.settings };
+    for (const k of ['goalKg', 'heightCm', 'sessionLen']) if (k in s) s[k] = numOr(s[k]);
+    if (s.targets && typeof s.targets === 'object') s.targets = Object.fromEntries(DAILY_FIELDS.filter(k => k in s.targets).map(k => [k, numOr(s.targets[k])]));
+    if (Array.isArray(s.gyms)) s.gyms = s.gyms.map(g => ({ id: str(g?.id, 40), name: str(g?.name, 60) }));
+    for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience']) if (k in s && typeof s[k] !== 'string') delete s[k];
+    out.settings = s;
+  }
+  return out;
+}
+
 export async function importAll(data, { merge = false } = {}) {
   validateBackup(data);
+  data = sanitizeBackup(data);
   await db.del('kv', 'draft');
   S.draft = null;
   if (!merge) for (const s of ['sessions', 'exercises', 'body', 'cardio']) await db.clear(s);

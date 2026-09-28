@@ -1,6 +1,6 @@
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
 import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score } from '../engine.js';
-import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
+import { esc, num, fmtDate, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 
 let editing = null; // session id being edited
@@ -143,7 +143,7 @@ function detail(id) {
   if (meta.length || s.note) h += `<div class="box pad"><p class="meta-l">${esc(meta.join(' · '))}</p>${s.note ? `<p class="enote">${esc(s.note)}</p>` : ''}</div>`;
   const sx = xpBySession(muscleXP(S.sessions, S.exById))[s.id];
   if (sx && !ed) h += `<a class="box xpstrip" href="#/levels"><b>+${sx.total} XP</b>${Object.entries(sx.muscles).sort((a, b) => b[1] - a[1]).map(([m, g]) => `<span>${esc(m)} +${g}</span>`).join('')}</a>`;
-  if (s.cardio?.length) h += `<div class="box pad"><p class="lbl">Cardio</p>${s.cardio.map(c => `<p>${esc(c.type)} · ${c.min} min${c.km ? ` · ${c.km} km` : ''} · ${esc(c.intensity)}</p>`).join('')}</div>`;
+  if (s.cardio?.length) h += `<div class="box pad"><p class="lbl">Cardio</p>${s.cardio.map(c => `<p>${esc(c.type)} · ${num(c.min, 0)} min${c.km ? ` · ${num(c.km)} km` : ''} · ${esc(c.intensity)}</p>`).join('')}</div>`;
   if (s.seed) h += `<p class="fine">Imported from the handoff summary. It holds only the lifts that summary named${s.approx ? ', and the date is approximate' : ''}.</p>`;
   else if (s.imported) h += `<p class="fine">Imported from your old logs${s.approx ? '. The date is approximate' : ''}. It counts toward suggestions, progress and levels like any other session.</p>`;
 
@@ -161,8 +161,8 @@ function detail(id) {
     h += `<article class="box exc hx"><header><div><h2>${ex ? `<a href="#/ex/${esc(ex.id)}">${esc(name)}</a>` : esc(name)}</h2><p>${ex ? esc(unitShort(ex.unit) || (ex.unit === 'L' ? 'level' : 'bodyweight')) : ''}${e.rir ? ` · ${esc(T('rir'))} ${esc(e.rir)}` : ''}${cmp?.prevDate ? ` · vs ${fmtDate(cmp.prevDate)}` : ''}</p></div><div class="badges">${badges}</div></header>`;
     if (ed) {
       h += `<div class="sets">${e.sets.map((x, si) => `<div class="set edit ${x.done ? 'done' : ''}"><span class="i">${x.warm ? 'W' : ++n}</span>
-        <input class="inp" id="ew-${ei}-${si}" type="number" inputmode="decimal" step="any" value="${ex && ex.unit !== 'L' ? toDisp(x.w) ?? '' : x.w ?? ''}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name} set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight (${getUnits()})` : `weight (${getUnits()})`}`)}">
-        <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${x.r ?? ''}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="${esc(`${name} set ${si + 1}: reps`)}">
+        <input class="inp" id="ew-${ei}-${si}" type="number" inputmode="decimal" step="any" value="${esc(ex && ex.unit !== 'L' ? toDisp(x.w) ?? '' : x.w ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name} set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight (${getUnits()})` : `weight (${getUnits()})`}`)}">
+        <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${esc(x.r ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="${esc(`${name} set ${si + 1}: reps`)}">
         <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="${esc(`${name} set ${si + 1} counted as done`)}">${ICON.check}</button></div>`).join('')}</div>`;
     } else {
       const fl = w => (ex ? fmtLoad(ex, w) : String(w ?? '—'));

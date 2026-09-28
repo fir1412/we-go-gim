@@ -314,6 +314,8 @@ const NUM = String.raw`(\d+(?:[.,]\d+)?)`;
  * exercise name, e.g. "Incline DB press 25 kg 8,8,8"); `after` is text behind the sets (a remark).
  */
 export function parseSetLine(line, { lb = false } = {}) {
+  // Real set lines are short; a huge line (a pasted blob of digits) would make the patterns below crawl.
+  if (line.length > 400) return null;
   let s = line.replace(/[×✕]/g, 'x').replace(/,(?=\d{3}\b)/g, '');
   // Pounds become kg ("135 lbs x5" -> "61.235kg x5"). A line that gives both ("80lbs or 36kg x8") keeps its kg.
   const saysKg = /\d\s*(?:kgs?|kilos?)\b/i.test(s);
@@ -521,6 +523,7 @@ export function normalizeLog(text, exercises = []) {
   let lastChatDate = null, table = null;
   const known = n => exercises.length && !!matchExercise(n, exercises);
   for (let l of String(text).split(/\r\n|\r|\n/)) {
+    if (l.length > 2000) l = l.slice(0, 2000); // keeps a long note, bounds the work per line
     // Chat exports: "[21/09/2026, 18:02:11] Name: text" (iOS) or "21/09/2026, 18:02 - Name: text" (Android).
     const chat = l.match(/^\u200e?\[?(\d{1,2}[/.]\d{1,2}[/.]\d{2,4}),? \d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]\.?m\.?)?\]?\s*(?:-\s*)?[^:]{1,40}:\s(.*)$/i);
     if (chat) {
@@ -862,13 +865,29 @@ function newEnt(sess, name) {
 // ---- PDF text via pdf.js (loaded on demand from cdnjs, cached by the service worker) ---------
 const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-function loadScript(src) {
+// Subresource integrity (the values cdnjs publishes for 3.11.174): a changed file on the CDN is refused.
+const PDFJS_SRI = 'sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ==';
+const PDFJS_WORKER_SRI = 'sha512-BbrZ76UNZq5BhH7LL7pn9A4TKQpQeNCHOo65/akfelcIBbcVvYWOFQKPXIrykE3qZxYjmDX573oa4Ywsc7rpTw==';
+const PDF_FAIL = 'Could not load the PDF reader. Check your connection and try again.';
+function loadScript(src, integrity) {
   return new Promise((res, rej) => {
     if (document.querySelector(`script[src="${src}"]`)) return res();
     const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load the PDF reader. Check your connection and try again.'));
+    s.src = src; s.integrity = integrity; s.crossOrigin = 'anonymous';
+    s.onload = res; s.onerror = () => rej(new Error(PDF_FAIL));
     document.head.appendChild(s);
   });
+}
+/** The worker can't carry an integrity attribute, so it is fetched, checked against its hash, and run from a blob. */
+let workerUrl = null;
+async function verifiedWorker() {
+  if (workerUrl) return workerUrl;
+  const res = await fetch(PDFJS_WORKER, { mode: 'cors' }).catch(() => null);
+  if (!res?.ok) throw new Error(PDF_FAIL);
+  const buf = await res.arrayBuffer();
+  const hash = 'sha512-' + btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-512', buf))));
+  if (hash !== PDFJS_WORKER_SRI) throw new Error('The PDF reader failed its safety check, so it was not used. Try again later.');
+  return (workerUrl = URL.createObjectURL(new Blob([buf], { type: 'text/javascript' })));
 }
 /**
  * Rebuild text lines from one PDF page's text items ({str, transform:[a,b,c,d,x,y]}).
@@ -902,9 +921,9 @@ export function linesFromItems(items) {
 
 /** Text of a PDF, page by page. onPage(done, total) reports progress; the event loop gets a turn between pages. */
 export async function pdfToText(file, onPage) {
-  await loadScript(PDFJS);
+  await loadScript(PDFJS, PDFJS_SRI);
   const lib = window.pdfjsLib;
-  lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  lib.GlobalWorkerOptions.workerSrc = await verifiedWorker();
   const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), disableFontFace: true, isEvalSupported: false }).promise;
   const out = [];
   try {
