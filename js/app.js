@@ -392,18 +392,11 @@ function onboarding() {
   if (new URLSearchParams(location.search).has('notour')) return; // for automated tests
   const seen = S.settings.seenVersion;
   // Brand-new users choose how to start (fresh, their own logs, or a personalised split); the tour follows.
-  // Setup opens by itself once. Left without a choice, the next launch goes straight in and says which plan is loaded.
+  // The welcome screen stays until they pick something (Skip counts). Closing the app, reopening it, or
+  // installing it (the installed app opens in a new window) never counts as a choice.
   if (!S.settings.onboarded && !S.sessions.length) {
-    // A reload in the same tab (an update, pull-to-refresh) isn't a new launch: setup comes back.
-    let sameTab = false;
-    try { sameTab = !!sessionStorage.getItem('wgg-setup-open'); sessionStorage.setItem('wgg-setup-open', '1'); } catch {}
-    if (!S.settings.setupShown || sameTab) {
-      if (!S.settings.setupShown || S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION, setupShown: true });
-      if (!['setup', 'import', 'data'].includes(parseRoute().name)) go('setup');
-      return;
-    }
-    saveSettings({ seenVersion: APP_VERSION, onboarded: true });
-    setTimeout(() => toast('Using the example 5-day split. Build your own any time: More → Settings → Rebuild my split.'), 400);
+    if (S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION });
+    if (!['setup', 'import', 'data'].includes(parseRoute().name)) go('setup');
     return;
   }
   if (seen === APP_VERSION) return;
