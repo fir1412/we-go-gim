@@ -443,7 +443,7 @@ const squash = s => norm(s).replace(/ /g, '');
 const EQUIP_WORD = { db: 'db', machine: 'machine', cable: 'machine', rope: 'machine', smith: 'smith', barbell: 'barbell', bb: 'barbell', competition: 'barbell', comp: 'barbell', olympic: 'barbell', bw: 'bw', bodyweight: 'bw' };
 // A body part in the logged name must be one the exercise trains: "Hamstring curl" is not "DB curl".
 const BODY_WORD = { hamstring: ['Hamstrings'], ham: ['Hamstrings'], leg: ['Quads', 'Hamstrings', 'Glutes', 'Calves'], bicep: ['Biceps'], triceps: ['Triceps'], tricep: ['Triceps'],
-  calf: ['Calves'], glute: ['Glutes'], quad: ['Quads'], ab: ['Abs'], core: ['Abs'], lat: ['Back'], delt: ['Front delts', 'Side delts', 'Rear delts'], shoulder: ['Front delts', 'Side delts', 'Rear delts'], wrist: ['Biceps'] };
+  calf: ['Calves'], glute: ['Glutes'], quad: ['Quads'], ab: ['Abs'], core: ['Abs'], lat: ['Back'], delt: ['Front delts', 'Side delts', 'Rear delts'], shoulder: ['Front delts', 'Side delts', 'Rear delts'], wrist: ['Forearms'], forearm: ['Forearms'], neck: ['Neck'] };
 const SOFT = new Set(['flat', 'seated', 'standing', 'one', 'arm', 'hand', 'triceps', 'tricep', 'bicep', 'the', 'with', 'on', 'and']);
 // "Bench press" and "Chest press" are one pattern; "bench" is folded into "chest" when matching.
 // Unit words aren't part of a lift's name: "Pec deck (levels)" is the pec deck.
@@ -792,6 +792,10 @@ const SESSION_RE = /\b(slept|sleep|felt|feel|tired|energy|rpe|session|today|work
 /** Guess target muscles from an exercise name, so imported exercises count toward the right muscles. First match wins. */
 const MUSCLE_GUESS = [
   [/nordic|leg curl|ham(string)? curl|glute.?ham/, ['Hamstrings']],
+  [/wrist|forearm|grip|farmer|gripper|dead ?hang/, ['Forearms']],
+  // Neck work ("neck curl", "neck extension"), but a behind-the-neck press is a shoulder press.
+  [n => /\bneck\b/.test(n) && !/press/.test(n), ['Neck']],
+  [/behind the neck|btn press/, ['Front delts', 'Triceps']],
   [/snatch|clean|\bjerk/, ['Quads', 'Glutes', 'Hamstrings']],
   [/push press|thruster/, ['Front delts', 'Triceps', 'Quads']],
   [/trap.?bar|hex.?bar/, ['Quads', 'Glutes', 'Hamstrings']],

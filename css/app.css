@@ -938,3 +938,12 @@ a.mini { text-decoration: none; display: inline-grid; place-items: center; color
   .btn:hover, .mini:hover, .li:hover, .tabs a:hover, .iconbtn:hover, .subnav a:hover { filter: brightness(1.1); }
   .tabs a:hover { color: var(--ink); }
 }
+
+/* Anatomical muscle map */
+.bodysvg { max-height: 62vh; }
+.bodysvg .sil > * { fill: color-mix(in srgb, var(--card) 80%, var(--ink) 6%); stroke: var(--line); stroke-width: 1; }
+.bodysvg .mz { stroke: color-mix(in srgb, var(--bg) 70%, transparent); stroke-width: 1.2; stroke-linejoin: round; }
+.bodysvg .mz:hover { filter: brightness(1.15); }
+.bodysvg .fib path { fill: none; stroke: color-mix(in srgb, var(--bg) 55%, transparent); stroke-width: 1; stroke-linecap: round; pointer-events: none; }
+.bodyseg { display: flex; margin: 6px auto 2px; width: max-content; }
+.bodysvg .sil .hair { fill: color-mix(in srgb, var(--ink) 22%, var(--card)); stroke: none; }

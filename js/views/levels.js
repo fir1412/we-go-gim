@@ -1,4 +1,5 @@
-import { S, todayIso, refresh, dayForDate } from '../state.js';
+import { S, todayIso, refresh, dayForDate, saveSettings } from '../state.js';
+import { bodySVG } from '../anatomy.js';
 import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
 import { esc, fmtDate, pill, STATUS, num, cvar, kstyle, dowName, ICON, T, helpTip } from '../ui.js';
 import { progressNav } from './insights.js';
@@ -21,50 +22,6 @@ const setWord = () => (T('sets') === 'sets' ? 'working set' : 'hard set');
 let mode = 'level';   // level | week
 let sel = null;       // selected muscle
 
-// Stylised front (x 0–200) and back (x 220–420) figures. Muscles drawn on top of a neutral silhouette.
-const E = (m, cx, cy, rx, ry, rot = 0) => ({ m, t: 'e', cx, cy, rx, ry, rot });
-const SHAPES = [
-  // front
-  E('Front delts', 64, 84, 13, 12, -20), E('Front delts', 136, 84, 13, 12, 20),
-  E('Side delts', 51, 92, 8, 14, -12), E('Side delts', 149, 92, 8, 14, 12),
-  E('Chest', 85, 104, 20, 14, 8), E('Chest', 115, 104, 20, 14, -8),
-  E('Biceps', 48, 134, 9, 20, 8), E('Biceps', 152, 134, 9, 20, -8),
-  { m: 'Abs', t: 'r', x: 88, y: 122, w: 24, h: 60, r: 8 },
-  E('Quads', 85, 238, 15, 42, 4), E('Quads', 115, 238, 15, 42, -4),
-  E('Calves', 86, 332, 9, 28, 2), E('Calves', 114, 332, 9, 28, -2),
-  // back
-  E('Rear delts', 283, 84, 13, 11, -20), E('Rear delts', 357, 84, 13, 11, 20),
-  E('Back', 320, 84, 24, 11), E('Back', 303, 122, 16, 28, 10), E('Back', 337, 122, 16, 28, -10),
-  E('Triceps', 268, 134, 9, 20, 8), E('Triceps', 372, 134, 9, 20, -8),
-  E('Glutes', 306, 200, 15, 15), E('Glutes', 334, 200, 15, 15),
-  E('Hamstrings', 305, 250, 13, 34, 3), E('Hamstrings', 335, 250, 13, 34, -3),
-  E('Calves', 305, 330, 10, 27, 2), E('Calves', 335, 330, 10, 27, -2),
-];
-
-// Where each muscle's level number sits on the map (one per muscle).
-const TAGS = {
-  Chest: [116, 105], 'Front delts': [136, 82], 'Side delts': [152, 99], Biceps: [152, 136], Abs: [100, 154], Quads: [115, 240], Calves: [114, 334],
-  'Rear delts': [357, 84], Back: [320, 124], Triceps: [372, 136], Glutes: [320, 201], Hamstrings: [335, 252],
-};
-
-function silhouette(ox) {
-  const c = x => x + ox;
-  return `<g class="sil">
-    <circle cx="${c(100)}" cy="34" r="19"/>
-    <rect x="${c(92)}" y="50" width="16" height="14" rx="4"/>
-    <rect x="${c(62)}" y="68" width="76" height="118" rx="26"/>
-    <rect x="${c(38)}" y="76" width="22" height="84" rx="11" transform="rotate(6 ${c(49)} 118)"/>
-    <rect x="${c(140)}" y="76" width="22" height="84" rx="11" transform="rotate(-6 ${c(151)} 118)"/>
-    <rect x="${c(33)}" y="150" width="17" height="64" rx="8" transform="rotate(6 ${c(41)} 182)"/>
-    <rect x="${c(150)}" y="150" width="17" height="64" rx="8" transform="rotate(-6 ${c(158)} 182)"/>
-    <rect x="${c(68)}" y="176" width="64" height="40" rx="16"/>
-    <rect x="${c(69)}" y="196" width="30" height="104" rx="14"/>
-    <rect x="${c(101)}" y="196" width="30" height="104" rx="14"/>
-    <rect x="${c(74)}" y="296" width="22" height="78" rx="10"/>
-    <rect x="${c(104)}" y="296" width="22" height="78" rx="10"/>
-  </g>`;
-}
-
 function fillFor(m, data) {
   const r = data.muscles[m];
   if (mode === 'week') {
@@ -79,25 +36,13 @@ function fillFor(m, data) {
   return { fill: `color-mix(in srgb, var(--push) ${Math.round(t * 100)}%, var(--legs))`, op: +(0.55 + 0.45 * t).toFixed(2) };
 }
 
+/** Anatomical front and back views, male or female build, coloured by level or by this week's XP. */
 function diagram(data) {
-  let g = silhouette(0) + silhouette(220);
-  for (const s of SHAPES) {
-    const { fill, op } = fillFor(s.m, data);
-    const on = s.m === sel;
-    const lvl = data.muscles[s.m] ? levelFor(data.muscles[s.m].xp).level : 0;
-    const attrs = `class="mz ${on ? 'on' : ''}" data-act="muscle" data-m="${esc(s.m)}" fill="${fill}" fill-opacity="${op}" role="button" tabindex="-1" aria-label="${esc(s.m)}, level ${lvl}"`;
-    g += s.t === 'e'
-      ? `<ellipse ${attrs} cx="${s.cx}" cy="${s.cy}" rx="${s.rx}" ry="${s.ry}" transform="rotate(${s.rot} ${s.cx} ${s.cy})"><title>${esc(s.m)}</title></ellipse>`
-      : `<rect ${attrs} x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="${s.r}"><title>${esc(s.m)}</title></rect>`;
-  }
-  for (const [m, [x, y]] of Object.entries(TAGS)) {
-    const r = data.muscles[m];
-    if (!r?.xp) continue;
-    g += `<text class="mlv" x="${x}" y="${y + 5}" text-anchor="middle" aria-hidden="true">${levelFor(r.xp).level}</text>`;
-  }
-  g += `<text x="100" y="394" text-anchor="middle" class="dlbl">FRONT</text><text x="320" y="394" text-anchor="middle" class="dlbl">BACK</text>`;
-  return `<svg class="bodysvg" viewBox="0 0 420 400" role="group" aria-label="Muscle map, tap a muscle">${g}</svg>`;
+  const lvl = m => (data.muscles[m]?.xp ? levelFor(data.muscles[m].xp).level : 0);
+  return bodySVG({ female: bodyType() === 'female', fill: m => fillFor(m, data), sel, level: lvl, esc });
 }
+/** Build for the map: set on this screen, else taken from the strength-standards choice, else male. */
+const bodyType = () => S.settings.bodyType || (S.settings.stdSex === 'women' ? 'female' : 'male');
 
 const xpf = n => Math.round(n).toLocaleString('en-GB');
 
@@ -126,7 +71,7 @@ export function render() {
 
   h += `<div class="rrow"><div class="seg" role="group" aria-label="Colour the map by">${[['level', 'Level'], ['week', 'This week']].map(([v, l]) => `<button data-act="mode" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
     <span class="legend">${mode === 'level' ? '<i class="lg" style="background:var(--legs)"></i>low <i class="lg" style="background:var(--push)"></i>high' : '<i class="lg" style="background:var(--up);opacity:.3"></i>little <i class="lg" style="background:var(--up)"></i>a lot'}</span></div>`;
-  h += `<div class="box diagram">${diagram(data)}</div>`;
+  h += `<div class="box diagram">${diagram(data)}<div class="seg sm bodyseg" role="group" aria-label="Body shown">${[['male', 'Male'], ['female', 'Female']].map(([v, l]) => `<button data-act="body" data-v="${v}" aria-pressed="${bodyType() === v}">${l}</button>`).join('')}</div></div>`;
 
   // selected muscle card
   const cur = ranked.find(x => x.m === sel);
@@ -199,4 +144,5 @@ function nextDayFor(m, t) {
 export const actions = {
   muscle(el) { sel = el.dataset.m; refresh(); },
   mode(el) { mode = el.dataset.v; refresh(); },
+  body: el => saveSettings({ bodyType: el.dataset.v }),
 };

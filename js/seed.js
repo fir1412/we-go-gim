@@ -22,7 +22,7 @@ export const EXERCISES = [
   X('facepull', 'Face pull', 'L', 'cable', 1, 60, ['Rear delts']),
   X('smithdl', 'Smith deadlift', 'kg', 'smith', 5, 150, ['Hamstrings', 'Back', 'Glutes'], { caution: 'Keep a neutral back; stop the set if form breaks.' }),
   X('inccurl', 'Incline DB curl', 'kg/DB', 'db', 2, 75, ['Biceps']),
-  X('hammer', 'Hammer curl', 'kg/DB', 'db', 2, 75, ['Biceps']),
+  X('hammer', 'Hammer curl', 'kg/DB', 'db', 2, 75, ['Biceps', 'Forearms']),
   X('preacher', 'Preacher curl', 'kg', 'machine', 2.5, 75, ['Biceps']),
   X('ezcurl', 'EZ-bar curl', 'kg', 'barbell', 2.5, 75, ['Biceps'], {}),
   X('squat', 'Smith squat', 'kg', 'smith', 2.5, 180, ['Quads', 'Glutes'], { caution: 'Only progress if depth and control match last time.' }),
@@ -66,8 +66,11 @@ export const EXERCISES = [
   // Common gym lifts, so imported logs match without creating new exercises
   X('pecdeck', 'Pec deck', 'kg', 'machine', 5, 75, ['Chest']),
   X('skull', 'Skull crusher', 'kg', 'barbell', 2.5, 75, ['Triceps']),
-  X('wristcurl', 'Wrist curl', 'kg/DB', 'db', 1, 45, ['Biceps']),
-  X('revwristcurl', 'Reverse wrist curl', 'kg/DB', 'db', 1, 45, ['Biceps']),
+  X('wristcurl', 'Wrist curl', 'kg/DB', 'db', 1, 45, ['Forearms']),
+  X('revwristcurl', 'Reverse wrist curl', 'kg/DB', 'db', 1, 45, ['Forearms']),
+  X('farmer', "Farmer's carry (seconds as reps)", 'kg/DB', 'db', 2, 90, ['Forearms', 'Back']),
+  X('neckcurl', 'Neck curl (plate)', 'kg', 'db', 1.25, 60, ['Neck']),
+  X('neckext', 'Neck extension (plate)', 'kg', 'db', 1.25, 60, ['Neck']),
   X('pullover', 'Cable pullover', 'L', 'cable', 1, 75, ['Back']),
   X('hanglegraise', 'Hanging leg raise', 'bw', 'bw', 2.5, 60, ['Abs']),
   X('bbsquat', 'Barbell squat', 'kg', 'barbell', 2.5, 180, ['Quads', 'Glutes']),
@@ -75,11 +78,11 @@ export const EXERCISES = [
   X('widepulldown', 'Wide-grip lat pulldown', 'kg', 'machine', 2.5, 120, ['Back', 'Biceps']),
   X('closerow', 'Close-grip cable row', 'kg', 'cable', 2.5, 90, ['Back', 'Biceps']),
   X('onearmcablerow', 'Single-arm cable row', 'kg', 'cable', 2.5, 75, ['Back']),
-  X('dbshrug', 'DB shrug', 'kg/DB', 'db', 2, 60, ['Back']),
+  X('dbshrug', 'DB shrug', 'kg/DB', 'db', 2, 60, ['Back', 'Neck']),
   X('cheatcurl', 'Cheat curl', 'kg/DB', 'db', 2, 75, ['Biceps']),
   // Barbell staples, Olympic lifts and common glute work, so experienced lifters' plans and logs match
   X('bbbench', 'Barbell bench press', 'kg', 'barbell', 2.5, 180, ['Chest', 'Front delts', 'Triceps']),
-  X('deadlift', 'Deadlift', 'kg', 'barbell', 5, 180, ['Hamstrings', 'Glutes', 'Back'], { caution: 'Brace and keep the bar close; stop the set if your lower back rounds.' }),
+  X('deadlift', 'Deadlift', 'kg', 'barbell', 5, 180, ['Hamstrings', 'Glutes', 'Back', 'Forearms'], { caution: 'Brace and keep the bar close; stop the set if your lower back rounds.' }),
   X('ohp', 'Overhead press (barbell)', 'kg', 'barbell', 2.5, 150, ['Front delts', 'Triceps']),
   X('frontsquat', 'Front squat', 'kg', 'barbell', 2.5, 180, ['Quads', 'Glutes']),
   X('bbrow', 'Barbell row', 'kg', 'barbell', 2.5, 120, ['Back', 'Biceps', 'Rear delts']),
@@ -180,6 +183,12 @@ export const TEMPLATES = [
     }),
   },
 ];
+
+/** Library exercises whose muscles changed in an update: [old, new]. Applied to installs whose copy still has the old list. */
+export const MUSCLE_UPDATES = {
+  wristcurl: [['Biceps'], ['Forearms']], revwristcurl: [['Biceps'], ['Forearms']], hammer: [['Biceps'], ['Biceps', 'Forearms']],
+  dbshrug: [['Back'], ['Back', 'Neck']], deadlift: [['Hamstrings', 'Glutes', 'Back'], ['Hamstrings', 'Glutes', 'Back', 'Forearms']],
+};
 
 export const DEFAULT_SETTINGS = {
   theme: 'system',

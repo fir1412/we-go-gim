@@ -1,6 +1,6 @@
 // App state held in memory, persisted through db.js.
 import * as db from './db.js';
-import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY } from './seed.js';
+import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY, MUSCLE_UPDATES } from './seed.js';
 import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec } from './engine.js';
 
 export const S = {
@@ -56,6 +56,10 @@ export async function load() {
   const have = new Set(exs.map(e => e.id)), gone = new Set(S.settings.deletedExercises || []);
   const added = EXERCISES.filter(e => !have.has(e.id) && !gone.has(e.id)).map(e => structuredClone(e));
   if (added.length) { await db.putMany('exercises', added); exs = exs.concat(added); }
+  // Library muscles fixed in an update (forearms, neck) reach existing installs, unless the user changed them.
+  const fixed = exs.filter(e => MUSCLE_UPDATES[e.id] && JSON.stringify(e.muscles) === JSON.stringify(MUSCLE_UPDATES[e.id][0]));
+  for (const e of fixed) e.muscles = [...MUSCLE_UPDATES[e.id][1]];
+  if (fixed.length) await db.putMany('exercises', fixed);
   S.exercises = exs.sort((a, b) => a.name.localeCompare(b.name));
   indexExercises();
   S.program = (await db.getKv('program')) || structuredClone(PROGRAM);

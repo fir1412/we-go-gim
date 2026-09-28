@@ -325,7 +325,7 @@ export function weeklySets(program, exById) {
   return t;
 }
 
-export const MUSCLES = ['Chest', 'Back', 'Quads', 'Hamstrings', 'Glutes', 'Front delts', 'Side delts', 'Rear delts', 'Biceps', 'Triceps', 'Calves', 'Abs'];
+export const MUSCLES = ['Chest', 'Back', 'Quads', 'Hamstrings', 'Glutes', 'Front delts', 'Side delts', 'Rear delts', 'Biceps', 'Triceps', 'Calves', 'Abs', 'Forearms', 'Neck'];
 
 /** Per-muscle trend from the most recently trained lift with 2+ scoreable exposures. */
 export function muscleTrends(sessions, exercises) {

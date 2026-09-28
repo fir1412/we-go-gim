@@ -224,8 +224,13 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.5.0';
+export const APP_VERSION = '1.6.0';
 const WHATS_NEW = {
+  '1.6.0': [
+    'Works on tablets and computers: a wider layout, and on big screens a side menu and centred pop-ups',
+    'Levels shows a real muscle map, front and back, with a Male / Female switch',
+    'Forearms and neck now level up: wrist curls, hammer curls, deadlifts, shrugs, plus new farmer's carry and neck exercises',
+  ],
   '1.5.0': [
     'New app icon',
     'Day colours: any colour from the full colour wheel, or type a hex code (More → Programme → tap a day → colour dot)',
