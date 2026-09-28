@@ -139,8 +139,11 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
     if (cell('pain') === '1' || (note && hasPain(note))) ent.pain = true;
     if (note && !ent.note.includes(note)) ent.note = ent.note ? ent.note + ' ' + note : note;
   }
-  for (const s of map.values()) for (const e of s.entries) e.sets = e.sets.filter(x => !(+x.w > MAX_KG) && !(+x.r > MAX_REPS));
-  return [...map.values()].filter(s => s.entries.some(e => e.sets.length));
+  for (const s of map.values()) {
+    for (const e of s.entries) e.sets = e.sets.filter(x => !(+x.w > MAX_KG) && !(+x.r > MAX_REPS));
+    s.entries = s.entries.filter(e => e.sets.length);
+  }
+  return [...map.values()].filter(s => s.entries.length);
 }
 
 // ---- reading any file someone picks ------------------------------------------------------------------
