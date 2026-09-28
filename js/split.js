@@ -292,11 +292,18 @@ const DAY_WORDS = [
   [/^(fri(day)?|jumaat|viernes|金(曜日?)?)(?=[\s.,:–—-]|$)/i, 5], [/^(sat(urday)?|sabtu|s[áa]bado|土(曜日?)?)(?=[\s.,:–—-]|$)/i, 6],
   [/^(sun(day)?|ahad|minggu|domingo|日(曜日?)?)(?=[\s.,:–—-]|$)/i, 0],
 ];
-const SETS_RE = /(\d+)\s*(?:[x×]\s*\d+|sets?\b)/i;
-/** "Monday – Chest", "Mon upper", "Isnin: Dada", "月曜日 胸", "Day 1 – Push" → {dow|null, name} or null. */
+const SETS_RE = /(\d+)\s*(?:[x×*]\s*\d+|sets?\b|组|組|セット)/i;
+// Chinese "星期一"/"周一" (日/天 = Sunday) and Japanese "(月)": weekday characters → weekday.
+const ZH_DAY = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
+const JA_DAY = { 月: 1, 火: 2, 水: 3, 木: 4, 金: 5, 土: 6, 日: 0 };
+const headerName = rest => { const n = rest.replace(/^[\s.,:;、–—-]+/, '').trim(); return n.charAt(0).toUpperCase() + n.slice(1); };
+/** "Monday – Chest", "Mon upper", "Isnin: Dada", "月曜日 胸", "星期一 – 胸", "周一：胸", "(月) 胸", "Day 1 – Push" → {dow|null, name} or null. */
 function dayHeader(line) {
   if (SETS_RE.test(line)) return null;
   const clean = line.replace(/^[#*\s]+|[*]+$/g, '');
+  let c;
+  if ((c = clean.match(/^(?:星期|周|週|礼拜|禮拜)([一二三四五六日天])/))) return { dow: ZH_DAY[c[1]], name: headerName(clean.slice(c[0].length)) };
+  if ((c = clean.match(/^\(([月火水木金土日])(?:曜日?)?\)/))) return { dow: JA_DAY[c[1]], name: headerName(clean.slice(c[0].length)) };
   for (const [re, dow] of DAY_WORDS) {
     const m = clean.match(re);
     if (m) { const n = clean.slice(m[0].length).replace(/^[\s.,:–—-]+/, '').trim(); return { dow, name: n.charAt(0).toUpperCase() + n.slice(1) }; }
@@ -325,7 +332,8 @@ export function parseSplitText(text) {
   const days = [], skipped = [], notAdded = [];
   let day = null, section = '', blank = true, explicit = false;
   for (const raw of String(text).split(/\r?\n/)) {
-    const line = raw.replace(/\s+/g, ' ').trim();
+    // Full-width digits, colons and brackets ("５セット", "水曜日：背中", "（月）") become their plain forms.
+    const line = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
     if (!line) { blank = true; continue; }
     const wasBlank = blank;
     blank = false;
@@ -359,6 +367,16 @@ export function parseSplitText(text) {
     let group = '', lm;
     if ((lm = body.match(/^([A-H])\s?([1-9])\s*[.):–—-]?\s+(?=\S)/i))) { group = lm[1].toUpperCase(); body = body.slice(lm[0].length); }
     else if ((lm = body.match(/^([A-H])[.)]\s+(?=\S)/))) body = body.slice(lm[0].length);
+    // Ranges written "8~10" / "8〜10", and "3*10" / "3＊10" for ×.
+    body = body.replace(/(\d)\s*[~〜]\s*(?=\d)/g, '$1–').replace(/(\d)\s*[*✕]\s*(?=\d)/g, '$1 × ')
+      // Chinese, Japanese and Malay: "4 组，每组 6–8 次", "4 セット × 6–8 回", "4 set, 6–8 ulangan", "3 set 10 rep" -> "4 × 6–8"
+      .replace(/(\d+)\s*(?:组|組|セット|sets?\b)\s*[,、]?\s*(?:每组|各)?\s*(?:[x×]\s*)?(\d+(?:\s*[–—-]\s*\d+)?)\s*(?:次|回|reps?\b|ulangan\b)/i, '$1 × $2')
+      // "4组×8", "3セット×10" (no rep word)
+      .replace(/(\d+)\s*(?:组|組|セット|set\b)\s*[,、]?\s*(?:每组|各)?\s*[x×]\s*(\d+)/i, '$1 × $2')
+      // "8次×4组", "10回 3セット": reps first
+      .replace(/(\d+(?:\s*[–—-]\s*\d+)?)\s*(?:次|回)\s*[x×]?\s*(\d+)\s*(?:组|組|セット)/, '$2 × $1')
+      // "3×10回": the rep word isn't needed
+      .replace(/([x×]\s*\d+(?:\s*[–—-]\s*\d+)?)\s*(?:次|回|ulangan\b)/i, '$1');
     // "5 sets of 5" / "3 sets of 8-12 reps" -> "5 × 5"; "3 x AMRAP" -> 3 sets, as many reps as you can.
     body = body.replace(/(\d+)\s*sets?\s*(?:of|x|×)\s*(\d+)(\s*[–—-]\s*\d+)?(?:\s*reps?\b)?/i, '$1 × $2$3')
       .replace(/(\d+)\s*[x×]\s*(amrap|max(?: reps)?|failure)\b/i, '$1 sets $2');
