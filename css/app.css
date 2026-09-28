@@ -1130,3 +1130,13 @@ button, a, summary, .li, label.filebtn { transition: background-color var(--pres
   .fx-burst, .fx-ghost { display: none; }
   :is(button, summary, label.filebtn, .li, a):active { transform: none !important; }
 }
+
+
+/* Muscle map, fine regions (js/anatomy.js REGIONS): thin gaps between muscles of one group,
+   the selected group outlined, the tapped region outlined more strongly, a lift under the finger. */
+.bodysvg .mz { stroke: color-mix(in srgb, var(--bg) 78%, transparent); stroke-width: 0.9; stroke-linejoin: round; transition: filter .15s; -webkit-tap-highlight-color: transparent; }
+.bodysvg .mz:hover, .bodysvg .mz:active { filter: brightness(1.22); }
+.bodysvg .mg.on .mz { stroke: color-mix(in srgb, var(--ink) 55%, transparent); stroke-width: 1.1; }
+.bodysvg .mg.on .mz.hit { stroke: var(--ink); stroke-width: 2.4; filter: brightness(1.15); }
+.mregion { margin: 0; }
+.mregion a { font-weight: 700; white-space: nowrap; }
