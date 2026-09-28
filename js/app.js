@@ -2,7 +2,7 @@ import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from
 import { setUnits, setBwLabel } from './engine.js';
 import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
 import { setPlain } from './plain.js';
-import { setLang, getLang, translate, LANGS } from './i18n.js';
+import { setLang, getLang, translate, LANGS, setUserNames } from './i18n.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
@@ -234,6 +234,7 @@ export function applyTheme() {
   const en = getLang() === 'en';
   setWording(!en ? 'plain' : S.settings.wording || (S.settings.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain'));
   setDateLang(getLang());
+  if (!en) setUserNames([...S.program.days.map(d => d.name), ...S.exercises.map(x => x.name)]);
   setPlain(!expertWording(), en ? null : translate);
   setUnits(S.settings.units || 'kg');
   setBwLabel(T('bw'));

@@ -18,7 +18,7 @@ const flexible = () => S.settings.missedReminders === false;
 export function streakInfo(t = todayIso()) {
   const days = trainedDays();
   const first = [...days].sort()[0];
-  const out = { streak: 0, best: 0, shields: 0, shieldUsed: null, perfectWeeks: 0, earned: {} };
+  const out = { streak: 0, best: 0, shields: 1, shieldUsed: null, perfectWeeks: 0, earned: {} };
   if (!first) return out;
   const perWeek = S.program.days.filter(d => d.slots.length).length;
   let weekDone = 0, firstWeek = true;
@@ -58,9 +58,10 @@ export function quests(t = todayIso()) {
     return now != null && then != null && now > then + 1e-6;
   });
   const allSets = entries.length > 0 && entries.every(e => e.sets.filter(x => !x.warm).every(x => x.done));
+  const firstEver = !S.sessions.some(s => !s.seed && s.date < t);
   return [
     { id: 'train', label: "Do today's workout", done: today.length > 0 },
-    { id: 'beat', label: 'Beat last time on one lift', done: beat },
+    firstEver ? { id: 'beat', label: 'Save your first workout', done: today.length > 0 } : { id: 'beat', label: 'Beat last time on one lift', done: beat },
     { id: 'all', label: 'Tick every planned set', done: allSets },
   ];
 }
@@ -112,15 +113,34 @@ export const badgesOn = d => badges(d).filter(b => b.date === d);
 export function todayGame(t = todayIso()) {
   const st = streakInfo(t), q = quests(t);
   const shields = st.shields ? `<span class="shield"><i aria-hidden="true">🛡️</i> Shields: ${st.shields}</span>` : '';
-  let h = `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Day streak: ${st.streak}</b>${shields}<span>Best: ${st.best}</span></a>`;
+  let h = st.best
+    ? `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Day streak: ${st.streak}</b>${shields}<span>Best: ${st.best}</span></a>`
+    : `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Start your streak today: your first workout counts as 1</b>${shields}</a>`;
+  const next = nextTraining(t);
   if (!q.length) {
-    h += `<div class="box pad restcard"><b>Rest day: your streak is safe</b><p class="fine">Muscles grow while you recover. A walk or a stretch is a bonus, not a must.</p></div>`;
+    const wk = weekCount(t);
+    h += `<div class="box pad restcard"><b>Rest day: your streak is safe</b><p class="fine">Muscles grow while you recover. A walk or a stretch is a bonus, not a must.</p>${wk.planned ? `<p class="fine">This week: ${wk.done} of ${wk.planned} workouts</p>` : ''}<a class="btn ghost" href="#/cardio">Log a walk or stretch</a></div>`;
   } else {
     const n = q.filter(x => x.done).length;
-    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? '<p class="fine">All done. See you next training day.</p>' : ''}</div>`;
+    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? `<p class="fine">${next ? `All done. Next: ${next.name}, ${next.when}.` : 'All done. See you next training day.'}</p>` : ''}</div>`;
   }
   if (st.shieldUsed && st.shieldUsed >= addDays(t, -2)) h += `<p class="fine shieldnote">🛡️ A streak shield covered a missed day. Earn more with perfect weeks.</p>`;
   return h;
+}
+
+/** Workouts done this week and the plan's weekly count. */
+function weekCount(t) {
+  const d = new Date(t + 'T00:00:00Z'), back = (d.getUTCDay() + 6) % 7;
+  const start = addDays(t, -back);
+  return { done: S.sessions.filter(s => !s.seed && s.date >= start && s.date <= t).length, planned: S.program.days.filter(x => x.slots.length).length };
+}
+/** The next planned training day after t: { name, when } (when = 'tomorrow' or a weekday name). */
+function nextTraining(t) {
+  for (let i = 1; i <= 7; i++) {
+    const d = addDays(t, i), day = dayForDate(d);
+    if (day.slots.length) return { name: day.name, when: i === 1 ? 'tomorrow' : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(d + 'T00:00:00Z').getUTCDay()] };
+  }
+  return null;
 }
 
 export function badgeWall(t = todayIso()) {

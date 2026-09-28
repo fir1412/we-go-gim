@@ -7,7 +7,7 @@ import { EXERCISES, PROGRAM, TEMPLATES, setSearchLocal } from './seed.js';
 import { plainText } from './plain.js';
 
 export const LANGS = [['en', 'English'], ['ms', 'Bahasa Melayu'], ['zh', '中文'], ['ja', '日本語']];
-let dict = null, lang = 'en', nameRe = null;
+let dict = null, lang = 'en', nameRe = null, userNames = [], userKey = '';
 
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const MUSCLE_NAMES = ['Chest', 'Back', 'Calves', 'Forearms', 'Neck', 'Quads', 'Hamstrings', 'Glutes', 'Triceps', 'Biceps', 'Abs', 'Front delts', 'Side delts', 'Rear delts'];
@@ -27,14 +27,14 @@ export function tokenize(s) {
   const WD = '(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat|Ahd|Isn|Sel|Rab|Kha|Jum|Sab)';
   const CJK = String.raw`(?:\s?[(（]?[日月火水木金土一二三四五六周星期]+[)）]?)?`;
   const DATES = String.raw`\d{4}年\d{1,2}月(?:\d{1,2}日)?${CJK}|\d{1,2}月\d{1,2}日${CJK}|\d{1,2}月|\b(?:${WD} )?\d{1,2} ${MON}\b(?: \d{4})?|\b${MON} \d{4}\b|\b${MON}\b`;
-  if (!nameRe) nameRe = new RegExp(`(?<![\\p{L}\\d])(${knownNames().map(escRe).join('|')})(?![\\p{L}\\d])|(${DATES}|\\d+(?:[.,:]\\d+)*)`, 'gu');
+  if (!nameRe) nameRe = new RegExp(`(?<![\\p{L}\\d])(${[...new Set([...knownNames(), ...userNames])].sort((a, b) => b.length - a.length).map(escRe).join('|')})(?![\\p{L}\\d])|(${DATES}|\\d+(?:[.,:]\\d+)*)`, 'gu');
   const vals = [];
   const key = s.replace(nameRe, (m, name, n) => { vals.push(name ? ['name', name] : ['num', n]); return `{${vals.length - 1}}`; });
   return { key, vals };
 }
 
 const lookup = k => (dict && Object.prototype.hasOwnProperty.call(dict.s, k) ? dict.s[k] : null);
-const nameIn = v => dict?.names[v] ?? v;
+const nameIn = v => dict?.names[v] ?? (dict && lookup(v)) ?? v;
 const fill = (tpl, vals) => tpl.replace(/\{(\d+)\}/g, (m, i) => { const v = vals[+i]; return v ? (v[0] === 'name' ? nameIn(v[1]) : v[1]) : m; });
 
 /** "{0}: {1}, {2}, {3} reps" → "{0}: {1} reps" with the numbers joined, so one entry covers any number of sets. */
@@ -50,9 +50,21 @@ export function collapse(key, vals) {
   return { key: k, vals: out };
 }
 
+/**
+ * The user's own day and exercise names. They stay as typed, but count as names, so a sentence around them
+ * ("Next: Shoulders · tomorrow") still matches its entry. Words that are phrases in the dictionary are left out.
+ */
+export function setUserNames(list) {
+  const clean = [...new Set(list.map(n => plainText(String(n || '')).trim()))].filter(n => n.length > 2);
+  const key = clean.join('\u0001');
+  if (key !== userKey) { userKey = key; userNames = clean; nameRe = null; }
+}
+
 function one(core) {
   const exact = lookup(core);
   if (exact != null) return exact;
+  // A label with a closing full stop ("Floor and a chair.") uses the entry without it.
+  if (/[^.]\.$/.test(core)) { const t = one(core.slice(0, -1)); if (t != null) return t + (lang === 'zh' || lang === 'ja' ? '。' : '.'); }
   if (dict.names[core]) return dict.names[core];
   const { key, vals } = tokenize(core);
   const t = lookup(key);
