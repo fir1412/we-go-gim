@@ -182,7 +182,11 @@ function pickExercise(title, onPick, cur = null) {
 function exercises() {
   const inProg = new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
   let h = `<input class="inp" id="exq" type="search" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off">${cardioHint}
-    <a class="btn ghost" href="#/exercise/new">${ICON.plus} New exercise</a><ul class="box mus" id="exl">`;
+    <a class="btn ghost" href="#/exercise/new">${ICON.plus} New exercise</a>`;
+  // Exercises imported before the muscle guesser improved: offer the better guess, never change it silently.
+  const recheck = muscleRechecks();
+  if (recheck.length) h += `<div class="box pad"><p><b>Check muscles on ${recheck.length} imported exercise${recheck.length === 1 ? '' : 's'}</b></p><p class="fine">The app now reads exercise names better. These may count toward the wrong muscles on your levels and the 3D view.</p><ul class="recheck">${recheck.slice(0, 12).map(({ x, g }) => `<li><span class="grow" data-raw><b>${esc(x.name)}</b></span><small>${esc((x.muscles || []).join(', ') || '—')} → ${esc(g.join(', '))}</small><span class="row2"><button class="mini go" data-act="mus-fix" data-id="${esc(x.id)}">Use suggested</button><button class="mini" data-act="mus-keep" data-id="${esc(x.id)}">Keep</button></span></li>`).join('')}</ul>${recheck.length > 1 ? `<button class="btn ghost" data-act="mus-fix-all">Use suggested for all ${recheck.length}</button>` : ''}</div>`;
+  h += `<ul class="box mus" id="exl">`;
   for (const x of S.exercises) {
     h += `<li data-name="${esc(searchText(x))}"><a href="#/exercise/${esc(x.id)}"><span class="t">${esc(x.name)} ${inProg.has(x.id) ? pill('in programme', 'up') : ''}${x.unitUnclear ? pill('unit unclear', 'flat') : ''}${!(x.muscles || []).length ? pill('set muscles', 'down') : ''}</span><span class="d">${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</span></a></li>`;
   }
@@ -576,6 +580,9 @@ async function markBackup() { if (S.settings.lastBackup !== todayIso()) await sa
 const backupName = () => `wegogim-backup-${todayIso()}.json`;
 
 export const actions = {
+  async 'mus-fix'(el) { const x = S.exById[el.dataset.id]; if (x) await saveExercise({ ...x, muscles: guessMuscles(x.name), musclesKept: true }); },
+  async 'mus-keep'(el) { const x = S.exById[el.dataset.id]; if (x) await saveExercise({ ...x, musclesKept: true }); },
+  async 'mus-fix-all'() { for (const { x, g } of muscleRechecks()) await saveExercise({ ...x, muscles: g, musclesKept: true }); toast('Muscles updated', 'up'); },
   'setup-hide': () => saveSettings({ hideSetup: true }),
   async install() { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
   'sheet-close': () => closeSheet(),
@@ -1149,3 +1156,15 @@ export function exportCalendar() {
     toast('Open the downloaded file to add the reminders to your calendar', 'up');
   });
 }
+
+/** Imported exercises whose stored muscles differ from what the name now suggests (and not already kept). */
+function muscleRechecks() {
+  const out = [];
+  for (const x of S.exercises) {
+    if (!x.imported || x.musclesKept) continue;
+    const g = guessMuscles(x.name);
+    if (g.length && JSON.stringify([...g].sort()) !== JSON.stringify([...(x.muscles || [])].sort())) out.push({ x, g });
+  }
+  return out;
+}
+
