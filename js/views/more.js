@@ -535,7 +535,7 @@ const FAQ = [
   ['How do I change a day\'s colour?', 'More → Programme → tap a day → tap the colour dot. Pick a quick colour, any colour from the colour wheel, or type a hex code like #3FA7D6.'],
   ['Can I import from Hevy, Strong or other apps?', 'Yes. Export a CSV from the app, then More → Import old logs → Choose files. Notes, WhatsApp chats, Notion or Evernote exports, PDFs and spreadsheets saved as CSV work too.'],
   ['I train on different days each week. Can I stop the missed-workout banner?', 'Yes: More → Settings → Missed-workout reminders.'],
-  ['Levels and XP?', 'Progress → Levels. Every working set earns XP for the muscles it trains, and beating a best earns a bonus.'],
+  ['What are levels and XP?', 'XP means experience points. Every set you finish gives points to the muscles it works, and beating your best gives extra. More points take a muscle to a higher level. See them in Progress → Levels.'],
 ];
 function help() {
   let h = `<input class="inp" id="faqsearch" type="search" placeholder="Search help, e.g. superset, backup, kg" autocomplete="off" aria-label="Search help">

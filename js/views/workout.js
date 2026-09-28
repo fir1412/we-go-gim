@@ -130,7 +130,7 @@ function card(e, ei, grp, focusSi = -1) {
   const slot = e.slot;
   const exps = exposures(S.sessions, ex, { gymId: S.settings.gymId, before: S.draft.date });
   const last = exps[0];
-  const lastTxt = last ? `last ${setsText(ex, last.sets)} · ${fmtDate(last.date)}` : `no comparable log · ${unitLong(ex.unit)}`;
+  const lastTxt = last ? `last ${setsText(ex, last.sets)} · ${fmtDate(last.date)}` : `first time · ${unitLong(ex.unit)}`;
   let n = 0;
   const rows = e.sets.map((s, si) => {
     const label = s.warm ? 'W' : ++n;

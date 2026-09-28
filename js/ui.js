@@ -312,7 +312,7 @@ const TERMS = {
   plateau:    ['Stuck', 'Plateau'],
   plateauWatch: ['Stalling?', 'Plateau watch'],
   deload:     ['Lighter week', 'Deload'],
-  e1rm:       ['Est. 1-rep max', 'e1RM'],
+  e1rm:       ['Estimated 1-rep max', 'e1RM'],
   bw:         ['Bodyweight', 'BW'],
   pain:       ['Pain or discomfort', 'Pain or joint niggle'],
   sets:       ['sets', 'hard sets'],
@@ -320,7 +320,7 @@ const TERMS = {
   superset:   ['Pair (do back to back)', 'Superset'],
   compound:   ['big lifts', 'compounds'],
   weeklySets: ['Sets per muscle each week', 'Weekly sets per muscle'],
-  estMax:     ['est. 1-rep max', 'est. max'],
+  estMax:     ['estimated 1-rep max', 'est. max'],
 };
 const TIPS = {
   rir: 'How many more reps you could have done before failing. 0 = none left, 2 = you had 2 more in you.',

@@ -1,6 +1,7 @@
 import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from './state.js';
 import { setUnits, setBwLabel } from './engine.js';
-import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor } from './ui.js';
+import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording } from './ui.js';
+import { setPlain } from './plain.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
@@ -213,6 +214,7 @@ document.addEventListener('visibilitychange', () => { wake(); paintTimer(); });
 // ---- theme ------------------------------------------------------------------------
 export function applyTheme() {
   setWording(S.settings.wording || (S.settings.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain'));
+  setPlain(!expertWording());
   setUnits(S.settings.units || 'kg');
   setBwLabel(T('bw'));
   const t = S.settings.theme;

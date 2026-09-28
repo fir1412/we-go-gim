@@ -90,7 +90,7 @@ export function render(route) {
     const lastExp = S.sessions.find(s => s.date <= ctx.date && s.entries.some(e => e.exId === ex.id && e.sets.some(x => x.done && !x.warm)));
     const le = lastExp?.entries.find(e => e.exId === ex.id);
     const ls = le ? le.sets.filter(x => x.done && !x.warm) : [];
-    const lastTxt = ls.length ? `Last ${fmtLoad(ex, Math.max(...ls.map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${ls.map(x => x.r ?? '?').join('·')} · ${fmtDate(lastExp.date)}` : 'No comparable log yet';
+    const lastTxt = ls.length ? `Last ${fmtLoad(ex, Math.max(...ls.map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${ls.map(x => x.r ?? '?').join('·')} · ${fmtDate(lastExp.date)}` : 'First time: no past sets yet';
     const isOpen = open.has(i);
     const reps = sg.reps.slice(0, n || sg.reps.length);
     const load = sg.w == null ? (ex.unit === 'bw' ? T('bw') : expertWording() ? '?' : 'Find weight') : fmtLoad(ex, sg.w);
