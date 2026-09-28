@@ -163,6 +163,9 @@ function searchList(root, raw, sel) {
 }
 const cardioHint = `<p class="cardiohint fine" hidden>Walking, running, bikes and other cardio are logged under <a href="#/cardio">Insights → Cardio</a>, not as an exercise.</p>`;
 
+// "New exercise" from a programme picker: after saving, come back and use it there (add to the day, or swap).
+let pendingPick = null;
+
 /** Searchable exercise list in a sheet. Calls onPick(id). */
 function pickExercise(title, onPick, cur = null) {
   const inProg = new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
@@ -173,6 +176,7 @@ function pickExercise(title, onPick, cur = null) {
   el.querySelector('#pick-q').addEventListener('input', ev => searchList(el, ev.target.value, '.picklist li'));
   el.addEventListener('click', ev => {
     if (ev.target.closest('.cardiohint a')) { closeSheet(); return; }
+    if (ev.target.closest('a[href="#/exercise/new"]')) { pendingPick = onPick; return; }
     const b = ev.target.closest('[data-pick]');
     if (b) { closeSheet(); onPick(b.dataset.pick); }
   });
@@ -180,6 +184,7 @@ function pickExercise(title, onPick, cur = null) {
 
 // ---- exercise library -----------------------------------------------------------------------
 function exercises() {
+  pendingPick = null;
   const inProg = new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
   let h = `<input class="inp" id="exq" type="search" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off">${cardioHint}
     <a class="btn ghost" href="#/exercise/new">${ICON.plus} New exercise</a>`;
@@ -221,7 +226,7 @@ function exerciseEdit(id) {
     <label class="field"><span>Caution note (shown with suggestions)</span><input class="inp" id="ex-caution" value="${esc(ed.caution || '')}" data-input="ed" data-f="caution" placeholder="e.g. Lower back has flared here"></label>
     <button class="btn" data-act="ed-save" style="--c:var(--up)">${isNew ? 'Create exercise' : 'Save exercise'}</button>`;
   if (!isNew) h += `<a class="btn ghost" href="#/ex/${esc(ed.id)}">History and records (${n} session${n === 1 ? '' : 's'})</a><button class="linkbtn danger center" data-act="ed-del">Delete exercise</button>`;
-  return { title: isNew ? 'New exercise' : 'Edit exercise', sub: isNew ? 'Add to your library' : esc(ed.name), back: 'exercises', html: h, color: 'pull' };
+  return { title: isNew ? 'New exercise' : 'Edit exercise', sub: isNew ? 'Add to your library' : esc(ed.name), back: isNew && pendingPick ? 'program' : 'exercises', html: h, color: 'pull' };
 }
 
 // ---- gyms & equipment ---------------------------------------------------------------------------
@@ -748,6 +753,14 @@ export const actions = {
     await saveExercise(structuredClone(ed));
     toast(isNew ? 'Exercise created' : 'Exercise saved', 'up');
     edFor = null;
+    if (isNew && pendingPick) {
+      // Back to the programme, where the new exercise goes straight into the day it was made for.
+      const use = pendingPick, id = ed.id;
+      pendingPick = null;
+      go('program');
+      setTimeout(() => use(id), 0);
+      return;
+    }
     go(isNew ? 'exercises' : 'ex/' + ed.id);
   },
   async 'ed-del'() {
