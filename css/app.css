@@ -1007,3 +1007,126 @@ html[data-text="xl"] { font-size: 125%; }
 .badges .bt { display: grid; }
 .badges small { color: var(--mute); font-size: 0.72rem; }
 
+
+
+/* ==========================================================================================
+   Motion and feedback (js/fx.js adds the fx-* classes). Transform and opacity only, short, and
+   switched off by "reduce motion" through the global rule near the top of this file.
+   ========================================================================================== */
+:root { --fx-spring: cubic-bezier(.3, 1.5, .5, 1); --fx-out: cubic-bezier(.2, .8, .2, 1); }
+
+/* Press: everything tappable gives a little under the finger */
+button, a, summary, .li, label.filebtn { transition: background-color var(--press) ease-out, opacity var(--press) ease-out, filter var(--press) ease-out, color .2s ease, transform .18s var(--fx-out); }
+:is(button, summary, label.filebtn, .tabs a, a.btn, a.iconbtn, a.mini, a.chipbtn):active:not(:disabled) { transform: scale(.96); transition-duration: var(--press), var(--press), var(--press), .2s, 60ms; }
+:is(.li, .hist a, a.prbox, .foldbtn, .streak, .kpi-btn, .mus li a, .focus li > a, .lvlist button, .sug .head, .days a, .btn):active:not(:disabled) { transform: scale(.985); }
+.tabs a svg { transition: color .2s ease; }
+
+/* Screens slide in (direction follows the tab order), a little staggered */
+@keyframes fx-in { from { opacity: 0; transform: translate(var(--fx-dx, 0px), var(--fx-dy, 8px)); } }
+#screen > .fx-in:not(.lvup-banner) { animation: fx-in .28s var(--fx-out) backwards; }
+#screen > .fx-in:nth-child(2) { animation-delay: 30ms; }
+#screen > .fx-in:nth-child(3) { animation-delay: 60ms; }
+#screen > .fx-in:nth-child(4) { animation-delay: 85ms; }
+#screen > .fx-in:nth-child(5) { animation-delay: 110ms; }
+#screen > .fx-in:nth-child(6) { animation-delay: 130ms; }
+#screen > .fx-in:nth-child(n+7) { animation-delay: 150ms; }
+/* Bars fill up and numbers rise into place on arrival */
+@keyframes fx-grow { from { transform: scaleX(0); } }
+.fx-in .xpbar i, .fx-in .impbar i, .fx-in .prog i { transform-origin: left center; animation: fx-grow .8s .18s var(--fx-out) backwards; }
+@keyframes fx-rise { from { opacity: 0; transform: translateY(40%); } }
+.fx-in .kpi b, .fx-in .lvbadge b, .fx-in .hero .meta b { animation: fx-rise .45s var(--fx-out) backwards; }
+.fx-in .kpi:nth-child(2) b { animation-delay: 70ms; }
+.fx-in .kpi:nth-child(3) b { animation-delay: 140ms; }
+.fx-in .hero h2 { animation: fx-pop .5s .05s var(--fx-spring) backwards; }
+
+/* Sheets: spring up with a fading backdrop; slide away when closed; no replay when one swaps for another */
+@keyframes fx-sheet-in { from { transform: translateY(60%); opacity: .4; } }
+@keyframes fx-sheet-out { to { transform: translateY(50%); opacity: 0; } }
+@keyframes fx-fade-out { to { opacity: 0; } }
+.scrim { animation: fade .2s ease-out; }
+.sheet { animation: fx-sheet-in .32s cubic-bezier(.2, .9, .25, 1); }
+.scrim.fx-swap, .scrim.fx-swap .sheet { animation: none; }
+.fx-ghost { position: fixed; inset: 0; background: rgb(0 0 0 / .5); z-index: 49; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; animation: fx-fade-out .24s ease-in forwards; }
+.fx-ghost .sheet { animation: fx-sheet-out .24s cubic-bezier(.4, 0, 1, 1) forwards; }
+@keyframes fx-dialog-in { from { transform: scale(.95); opacity: 0; } }
+@keyframes fx-dialog-out { to { transform: scale(.96); opacity: 0; } }
+@media (min-width: 1000px) and (min-height: 520px) {
+  .sheet { animation-name: fx-dialog-in; animation-duration: .22s; }
+  .fx-ghost { align-items: center; padding: 24px; }
+  .fx-ghost .sheet { animation-name: fx-dialog-out; animation-duration: .18s; }
+}
+
+/* Toasts pop in and sink away */
+#toast { transform: translate(-50%, 16px) scale(.94); transition: opacity .18s ease-out, transform .34s var(--fx-spring); }
+#toast.on { transform: translate(-50%, 0) scale(1); }
+
+/* Toggles and choices pop when switched on */
+@keyframes fx-pop { 0% { transform: scale(.9); } 55% { transform: scale(1.07); } 100% { transform: none; } }
+.fx-pop:not(.check) { animation: fx-pop .34s var(--fx-spring); }
+
+/* Ticking a set: the check springs in with a ring, the row glows green, the bar grows */
+@keyframes fx-check { 0% { transform: scale(.3) rotate(-15deg); opacity: .3; } 60% { transform: scale(1.25) rotate(4deg); opacity: 1; } 100% { transform: none; } }
+@keyframes fx-ring-out { from { opacity: .9; transform: scale(.92); } to { opacity: 0; transform: scale(1.4); } }
+@keyframes fx-flash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+.check { position: relative; }
+.check.fx-pop svg { animation: fx-check .42s var(--fx-spring); }
+.check.fx-pop::after { content: ""; position: absolute; inset: -2px; border-radius: inherit; border: 2px solid var(--up); pointer-events: none; opacity: 0; animation: fx-ring-out .5s ease-out; }
+.set.fx-done { position: relative; isolation: isolate; }
+.set.fx-done::before { content: ""; position: absolute; inset: -3px -5px; z-index: -1; border-radius: 12px; background: color-mix(in srgb, var(--up) 22%, transparent); pointer-events: none; opacity: 0; animation: fx-flash .7s ease-out; }
+.prog { position: relative; }
+@keyframes fx-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.prog.fx-full::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .6), transparent); transform: translateX(-100%); animation: fx-sweep 1s .3s ease-out; pointer-events: none; }
+/* An exercise finished: the card gives a small cheer */
+@keyframes fx-cheer { 0% { transform: none; } 35% { transform: scale(1.02); } 100% { transform: none; } }
+.exc.fx-cheer { position: relative; animation: fx-cheer .6s var(--fx-spring); }
+.exc.fx-cheer::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 2px var(--up), 0 0 22px color-mix(in srgb, var(--up) 45%, transparent); pointer-events: none; opacity: 0; animation: fx-flash .8s ease-out; }
+.exc.fx-cheer .foldbtn .ok { animation: fx-check .5s .05s var(--fx-spring) backwards; }
+
+/* −/+ steppers: the value bumps */
+@keyframes fx-bump { 0% { transform: scale(1.2); } 100% { transform: none; } }
+.fx-bump { animation: fx-bump .26s var(--fx-spring); }
+
+/* Rest timer: a bar drains along the bottom, the count pulses in the last 5 seconds, and it flashes at zero */
+#timer { position: relative; overflow: hidden; }
+.fx-tbar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--c, var(--push)); transform-origin: left center; pointer-events: none; transition: opacity .2s; }
+#timer.fx-soon .fx-tbar { background: var(--flat); }
+#timer.over .fx-tbar { opacity: 0; }
+@keyframes fx-tick { 0%, 100% { transform: none; } 20% { transform: scale(1.12); } }
+#timer .num { display: inline-block; }
+#timer.fx-soon .num { animation: fx-tick 1s ease-in-out infinite; }
+@keyframes fx-blink { 0%, 50%, 100% { opacity: 0; } 18%, 68% { opacity: .5; } }
+#timer.fx-ring::before { content: ""; position: absolute; inset: 0; background: #fff; pointer-events: none; opacity: 0; animation: fx-blink 1.2s ease-out; }
+#timer.fx-ring .num { animation: fx-pop .5s var(--fx-spring); }
+
+/* Tab bar: the icon of a newly chosen tab hops */
+@keyframes fx-hop { 0% { transform: none; } 40% { transform: translateY(-4px) scale(1.14); } 70% { transform: translateY(1px) scale(.97); } 100% { transform: none; } }
+.tabs a svg.fx-hop { animation: fx-hop .45s var(--fx-out); }
+
+/* Personal bests and level-ups: a small burst of confetti, removed after a second */
+.fx-burst { position: fixed; width: 0; height: 0; z-index: 70; pointer-events: none; }
+.fx-burst i { position: absolute; left: -3px; top: -5px; width: 6px; height: 10px; border-radius: 2px; background: var(--k); opacity: 0; animation: fx-fly .9s cubic-bezier(.15, .7, .3, 1) forwards; }
+.fx-burst i.dot { width: 7px; height: 7px; border-radius: 50%; }
+@keyframes fx-fly {
+  0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(.4); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(var(--d) * -1)) rotate(var(--r)) scale(1); }
+}
+.prbox p svg { display: inline-block; }
+.fx-in .prbox p svg, .fx-in .lvup-banner b svg { animation: fx-check .6s .35s var(--fx-spring) backwards; }
+
+/* Week streak chip: a shine passes over it once, and a wrapped flame (.flame) wiggles */
+.streak { position: relative; overflow: hidden; }
+.streak::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--push) 22%, transparent) 50%, transparent 70%); transform: translateX(-100%); animation: fx-sweep 1.4s .5s ease-out; pointer-events: none; }
+@keyframes fx-wiggle { 0%, 100% { transform: none; } 20% { transform: rotate(-14deg) scale(1.15); } 45% { transform: rotate(10deg) scale(1.1); } 70% { transform: rotate(-5deg); } }
+.streak .flame, .streak svg { display: inline-block; transform-origin: 50% 90%; animation: fx-wiggle .9s .4s ease-in-out; }
+
+/* 3D atlas loading: a shimmer sweeps the placeholder (give an error message the class "fail" to stop it) */
+.atlas-msg { overflow: hidden; }
+.atlas-msg:not(.fail)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--ink) 7%, transparent) 50%, transparent 80%); transform: translateX(-100%); animation: fx-sweep 1.5s ease-in-out infinite; pointer-events: none; }
+.atlas-msg:not(.fail) { animation: fx-breathe 1.8s ease-in-out infinite; }
+@keyframes fx-breathe { 50% { opacity: .55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-burst, .fx-ghost { display: none; }
+  :is(button, summary, label.filebtn, .li, a):active { transform: none !important; }
+}
