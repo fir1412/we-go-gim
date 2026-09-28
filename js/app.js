@@ -8,6 +8,7 @@ import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
 import * as history from './views/history.js';
 import * as levels from './views/levels.js';
+import * as atlas from './views/atlas.js';
 import * as setup from './views/setup.js';
 import * as more from './views/more.js';
 import * as daily from './views/daily.js';
@@ -25,7 +26,7 @@ const ROUTES = {
   today: [today, 'today'], daily: [daily, 'today'], start: [today, 'today'],
   workout: [workout, 'workout'],
   insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
-  levels: [levels, 'insights'], measure: [insights, 'insights'],
+  levels: [levels, 'insights'], atlas: [atlas, 'insights'], measure: [insights, 'insights'],
   setup: [setup, 'more'],
   history: [history, 'history'], session: [history, 'history'],
   more: [more, 'more'], program: [more, 'more'], paste: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],

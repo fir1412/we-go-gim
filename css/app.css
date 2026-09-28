@@ -952,3 +952,29 @@ a.mini { text-decoration: none; display: inline-grid; place-items: center; color
 .wz-explbl { margin: 0; }
 .wz-expseg { display: flex; flex-wrap: wrap; }
 .wz-expseg button { flex: 1 1 30%; min-height: 44px; white-space: normal; line-height: 1.2; }
+
+/* ---- medical mode: 3D muscle atlas ---- */
+.atlas-open { display: flex; gap: 8px; justify-content: center; margin: 10px 0 4px; }
+.atlas-open svg { width: 18px; height: 18px; }
+.atlas { display: grid; gap: 10px; }
+.atlas-stage { position: relative; height: min(64vh, 560px); border-radius: 18px; overflow: hidden; touch-action: none;
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--card) 70%, var(--push) 8%), var(--bg) 75%); border: 1px solid var(--line); }
+.atlas-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.atlas-canvas:active { cursor: grabbing; }
+.atlas-msg { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--mute); padding: 16px; text-align: center; }
+.atlas-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.atlas-bones { display: inline-flex; gap: 6px; align-items: center; font-size: 0.85rem; color: var(--mute); }
+.atlas-how { margin: 0; }
+.atlas-q { width: 100%; }
+.atlas-results { list-style: none; margin: 0; padding: 4px; }
+.atlas-results .li small { color: var(--mute); }
+.atlas-head { display: flex; gap: 10px; align-items: flex-start; }
+.atlas-head h2 { margin: 0; font-size: 1.15rem; }
+.atlas-key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px 0 8px; vertical-align: -1px; }
+.atlas-key i:first-child { margin-left: 0; }
+.atlas-info .chips { margin: 4px 0 8px; }
+@media (min-width: 900px) {
+  .atlas { grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); align-items: start; }
+  .atlas-stage { grid-row: span 6; height: min(78vh, 760px); }
+}
+

@@ -512,6 +512,7 @@ function settings() {
       <p><b>Not medical advice.</b> Suggestions are general training guidance from your own logs. Stop and see a doctor for chest pain, fainting, unusual breathlessness, palpitations, numbness, or sharp or radiating pain.</p>
       <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it. Only feedback you choose to send leaves the phone.</p>
       <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
+      <p>3D view: three.js (MIT). 3D muscle model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas, CC BY-SA 4.0. Details in anatomy/ATTRIBUTION.txt.</p>
       <p class="links"><a href="https://github.com/fir1412/we-go-gim/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
     <p class="fine">we go gim ${APP_VERSION}. Heart-rate and weight sync with Health Connect needs the Android app wrapper; for now, log them here.</p>`;
   return { title: 'Settings', sub: 'Make it yours', back: 'more', html: h, color: 'rest' };

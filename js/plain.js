@@ -76,6 +76,8 @@ function walk(root) {
 function fix(n) {
   const p = n.parentElement;
   if (!p || p.closest('noscript')) return;
+  // Anatomical names (data-noplain) keep their Latin: no plain-English rules, but still translated.
+  if (p.closest('[data-noplain]')) { if (tr && !done.has(n.data)) { const t = tr(n.data); if (t !== n.data) { done.add(t); n.data = t; } } return; }
   // Labels on the body map keep their gym shorthand in English, but are still translated.
   if (p.closest(SKIP)) { if (tr && p.closest('.bodysvg text')) { const t = tr(n.data); if (t !== n.data) n.data = t; } return; }
   const t = conv(n.data);
