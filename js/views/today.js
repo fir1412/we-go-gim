@@ -1,6 +1,6 @@
 import { S, todayIso, dayForDate, setReadiness, startWorkout, suggestionCtx, isPoor, deloadActive, saveSettings, saveBody, discardDraft, refresh, trimmedCounts } from '../state.js';
 import { suggest, weekStart, addDays, daysBetween, deloadCheck, fmtLoad, unitShort, dowOf, estimateDay, planSec, SESSION_LENGTHS, toDisp, fromDisp, getUnits } from '../engine.js';
-import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, dowName, num, T, helpTip, expertWording } from '../ui.js';
+import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, dowName, dowLetter, num, T, helpTip, expertWording } from '../ui.js';
 import { dailyCard } from './daily.js';
 import { go } from '../app.js';
 
@@ -31,7 +31,7 @@ export function render(route) {
   for (let i = 0; i < 7; i++) {
     const d = addDays(ws, i), pd = dayForDate(d), done = S.sessions.some(s => s.date === d && !s.seed);
     h += `<a href="#/today/${d}" class="${d === t ? 'is-today' : ''} ${done ? 'is-done' : ''}" aria-current="${d === date ? 'date' : 'false'}" style="${kstyle(pd.color)}">
-      <span>${dowName(dowOf(d)).slice(0, 1)}</span><b>${+d.slice(8)}</b><span>${esc(pd.name.split(' ')[0])}</span></a>`;
+      <span>${dowLetter(dowOf(d))}</span><b>${+d.slice(8)}</b><span>${esc(pd.name.split(' ')[0])}</span></a>`;
   }
   h += `</div>`;
 
@@ -90,7 +90,7 @@ export function render(route) {
     const lastExp = S.sessions.find(s => s.date <= ctx.date && s.entries.some(e => e.exId === ex.id && e.sets.some(x => x.done && !x.warm)));
     const le = lastExp?.entries.find(e => e.exId === ex.id);
     const ls = le ? le.sets.filter(x => x.done && !x.warm) : [];
-    const lastTxt = ls.length ? `Last ${fmtLoad(ex, Math.max(...ls.map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${ls.map(x => x.r ?? '?').join('·')} · ${fmtDate(lastExp.date)}` : 'No comparable log yet';
+    const lastTxt = ls.length ? `Last ${fmtLoad(ex, Math.max(...ls.map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${ls.map(x => x.r ?? '?').join('·')} · ${fmtDate(lastExp.date)}` : 'First time: no past sets yet';
     const isOpen = open.has(i);
     const reps = sg.reps.slice(0, n || sg.reps.length);
     const load = sg.w == null ? (ex.unit === 'bw' ? T('bw') : expertWording() ? '?' : 'Find weight') : fmtLoad(ex, sg.w);

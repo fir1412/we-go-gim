@@ -3,6 +3,10 @@
 export const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 export const round = (x, step = 0.5) => Math.round(x / step) * step;
+/** The heaviest load (kg) and most reps (or seconds, for timed sets) a set can have; anything above is a typo or junk. */
+export const MAX_KG = 1500, MAX_REPS = 3600;
+/** Names without hidden control or direction characters (which can disguise text), trimmed and length-capped. */
+export const cleanText = (s, max = 80) => String(s ?? '').replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const fill = (n, v) => Array.from({ length: n }, () => v);
 const EPS = 1e-6;
@@ -16,7 +20,10 @@ export function e1rm(w, r) {
 export const isKg = u => u === 'kg' || u === 'kg/DB';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const shortDate = iso => `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]}`;
+let zhDates = false;
+/** Month names for dates inside suggestion text, set with the app language (ui.setDateLang). */
+export const setEngineMonths = names => { MONTHS.splice(0, 12, ...names); zhDates = /月/.test(names[0]); };
+export const shortDate = iso => (zhDates ? `${MONTHS[+iso.slice(5, 7) - 1]}${+iso.slice(8, 10)}日` : `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]}`);
 
 /** Working sets of an entry: done and not warm-up. */
 export function workSets(entry) {

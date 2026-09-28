@@ -55,6 +55,11 @@ export function openFeedback(version, preset = 'Idea') {
     if (x.dataset.fbX === 'cancel') return closeSheet();
     const message = sheet.querySelector('#fb-msg').value.trim();
     if (message.length < 3) return toast('Write a short message first', 'flat');
+    // Spam guard: one message a minute, ten a day (per phone).
+    const now = Date.now(), sent = (S.settings.feedbackSent || []).filter(t => now - t < 864e5);
+    if (sent.length && now - sent[sent.length - 1] < 60000) return toast('Thanks! Please wait a minute before sending another.', 'flat');
+    if (sent.length >= 10) return toast("That's the limit for today. Thank you for all the feedback!", 'flat');
+    await saveSettings({ feedbackSent: [...sent, now] });
     const item = { type, message, contact: sheet.querySelector('#fb-contact').value.trim(), info, at: new Date().toISOString() };
     x.disabled = true;
     try {
@@ -63,7 +68,7 @@ export function openFeedback(version, preset = 'Idea') {
       closeSheet();
       toast('Thanks! Feedback sent.', 'up');
     } catch {
-      await saveSettings({ feedbackQueue: [...(S.settings.feedbackQueue || []), item] });
+      await saveSettings({ feedbackQueue: [...(S.settings.feedbackQueue || []), item].slice(-20) });
       closeSheet();
       toast("You're offline. It'll send automatically when you're back online.", 'flat');
     }

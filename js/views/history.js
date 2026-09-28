@@ -1,6 +1,6 @@
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
 import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score } from '../engine.js';
-import { esc, num, fmtDate, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
+import { esc, num, fmtDate, fmtMonth, dowLetter, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 
 let editing = null; // session id being edited
@@ -9,7 +9,7 @@ let viewMonth = null; // 'YYYY-MM' being browsed; null means the current month
 
 /** '2026-09' + -1 → '2026-08' */
 const addMonths = (ym, n) => { const i = +ym.slice(0, 4) * 12 + (+ym.slice(5) - 1) + n; return `${Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}`; };
-const monthName = ym => `${MONTHS[+ym.slice(5) - 1]} ${ym.slice(0, 4)}`;
+const monthName = ym => fmtMonth(ym);
 
 export function render(route) {
   if (route.name === 'session') return detail(route.args[0]);
@@ -43,7 +43,7 @@ export function render(route) {
 
   // Month calendar, Monday first, with arrows and a picker to reach any month.
   const first = `${vm}-01`, days = new Date(+vm.slice(0, 4), +vm.slice(5), 0).getDate();
-  let g = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span class="h">${x}</span>`).join('');
+  let g = [1, 2, 3, 4, 5, 6, 0].map(i => `<span class="h">${dowLetter(i)}</span>`).join('');
   g += '<span class="pad" aria-hidden="true"></span>'.repeat((dowOf(first) + 6) % 7);
   for (let i = 0; i < days; i++) {
     const d = addDays(first, i), ss = on[d];
@@ -73,7 +73,7 @@ export function render(route) {
     if (m !== month) {
       if (month) h += `</ul>`;
       month = m;
-      h += `<p class="lbl">${MONTHS[+m.slice(5) - 1]} ${m.slice(0, 4)}</p><ul class="box hist">`;
+      h += `<p class="lbl">${fmtMonth(m)}</p><ul class="box hist">`;
     }
     const n = s.entries.reduce((a, e) => a + workSets(e).length, 0);
     const doneEx = s.entries.filter(e => workSets(e).length).length;
@@ -117,7 +117,7 @@ function recap(vm, list) {
   }
   const busiest = Object.entries(musc).sort((x, y) => y[1] - x[1])[0];
   const days = new Set(real.map(s => s.date)).size;
-  return `<section class="box recap"><p class="lbl">${esc(MONTHS[+vm.slice(5) - 1])} recap</p>
+  return `<section class="box recap"><p class="lbl">${esc(fmtMonth(vm))} recap</p>
     <div class="kpis"><div class="kpi"><b>${days}</b><span>day${days === 1 ? '' : 's'} trained</span></div><div class="kpi"><b>${sets}</b><span>working sets</span></div><div class="kpi"><b>${vol ? kfmt(toDisp(vol)) : '—'}</b><span>${getUnits()} lifted</span></div></div>
     <ul class="rlist">${bests ? `<li>${ICON.star}<span><b>${bests}</b> lift${bests === 1 ? '' : 's'} beat ${bests === 1 ? 'its' : 'their'} best before this month</span></li>` : ''}
     ${top ? `<li>${ICON.trendUp}<span>Most improved: <a href="#/ex/${esc(top.ex.id)}">${esc(top.ex.name)}</a>, up ${Math.round(top.g * 100)}%</span></li>` : ''}

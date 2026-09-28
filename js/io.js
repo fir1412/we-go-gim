@@ -1,8 +1,11 @@
 // Import / export: CSV, JSON backup, and a forgiving parser for free-text workout logs (pasted or from PDF).
+import { MAX_KG, MAX_REPS, cleanText } from './engine.js';
 
 // ---- CSV ------------------------------------------------------------------------------
 const CSV_COLS = ['date', 'session', 'exercise', 'unit', 'set', 'warmup', 'weight', 'reps', 'done', 'rir', 'pain', 'gym', 'note'];
 const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+/** Text that Excel or Sheets would run as a formula (=, +, -, @, tab, return) is kept as text with a leading apostrophe. */
+const safeText = v => { const s = String(v ?? ''); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; };
 
 export function toCSV(sessions, exById, gyms = []) {
   const gname = id => gyms.find(g => g.id === id)?.name || '';
@@ -12,7 +15,7 @@ export function toCSV(sessions, exById, gyms = []) {
       const ex = exById[e.exId];
       let n = 0;
       for (const set of e.sets || []) {
-        rows.push([s.date, s.name, ex?.name || e.exId, ex?.unit || '', set.warm ? 'W' : ++n, set.warm ? 1 : 0, set.w ?? '', set.r ?? '', set.done ? 1 : 0, e.rir ?? '', e.pain ? 1 : 0, gname(s.gymId), e.note || ''].map(q).join(','));
+        rows.push([s.date, safeText(s.name), safeText(ex?.name || e.exId), ex?.unit || '', set.warm ? 'W' : ++n, set.warm ? 1 : 0, set.w ?? '', set.r ?? '', set.done ? 1 : 0, safeText(e.rir ?? ''), e.pain ? 1 : 0, safeText(gname(s.gymId)), safeText(e.note || '')].map(q).join(','));
       }
     }
   }
@@ -95,7 +98,7 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
     const sess = map.get(key);
     const wn = cell('wnote');
     if (wn && !sess.notes.includes(wn)) sess.notes.push(wn);
-    const exName = cell('exercise').replace(/_+/g, ' ').trim();
+    const exName = cleanText(cell('exercise').replace(/_+/g, ' '));
     if (!exName) continue;
     // Whole sets in one cell: Jefit "logs" ("60x8,60x8") or "Set 1…" columns ("60x8", or reps with a weight column).
     if (perRowSets && !has('reps')) {
@@ -135,6 +138,10 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
     const note = cell('note');
     if (cell('pain') === '1' || (note && hasPain(note))) ent.pain = true;
     if (note && !ent.note.includes(note)) ent.note = ent.note ? ent.note + ' ' + note : note;
+  }
+  for (const s of map.values()) {
+    for (const e of s.entries) e.sets = e.sets.filter(x => !(+x.w > MAX_KG) && !(+x.r > MAX_REPS));
+    s.entries = s.entries.filter(e => e.sets.length);
   }
   return [...map.values()].filter(s => s.entries.length);
 }
@@ -704,6 +711,8 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
     // Continues the remark above: no blank line between, starts in lower case, and the one above didn't end a sentence.
     remark(row.l, false, !row.blank && !!last && /^[a-z0-9(]/.test(row.l) && !/[.!?]$/.test(last.text));
   }
+  // Loads or reps past any real lift are typos or junk: those sets are dropped.
+  for (const s of sessions) for (const e of s.entries) { e.exName = cleanText(e.exName); e.sets = e.sets.filter(x => !(+x.w > MAX_KG) && !(+x.r > MAX_REPS)); }
   const out = sessions.filter(s => s.entries.some(e => e.sets.length));
   for (const s of out) {
     s.entries = s.entries.filter(e => e.sets.length);

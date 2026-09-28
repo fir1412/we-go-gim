@@ -1,7 +1,8 @@
 import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits } from '../engine.js';
-import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf } from '../ui.js';
+import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
+import { LANGS, getLang } from '../i18n.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
@@ -488,10 +489,12 @@ function settings() {
   const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
   const wording = st.wording || (st.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain');
   const u = getUnits();
-  const h = `<div class="box pad stack">${seg('Theme', 'theme', st.theme, [['system', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}
+  const en = getLang() === 'en';
+  const h = `<div class="box pad stack">${langPicker(getLang(), LANGS)}
+      ${seg('Theme', 'theme', st.theme, [['system', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}
       ${seg('Weights', 'st-units', st.units === 'lb' ? 'lb' : 'kg', [['kg', 'kg'], ['lb', 'lb']])}
-      ${seg('Words', 'st-wording', wording, [['plain', 'Plain'], ['expert', 'Gym terms']])}
-      <p class="fine">${wording === 'expert' ? 'Gym terms: RIR, e1RM, calibrate, deload.' : 'Plain words: “reps left” instead of RIR, “find your weight” instead of calibrate.'} Weights are always stored in kg, so switching units never changes your history.</p></div>
+      ${en ? seg('Words', 'st-wording', wording, [['plain', 'Plain'], ['expert', 'Gym terms']]) : ''}
+      <p class="fine">${!en ? '' : wording === 'expert' ? 'Gym terms: RIR, e1RM, calibrate, deload. ' : 'Plain words: “reps left” instead of RIR, “find your weight” instead of calibrate. '}Weights are always stored in kg, so switching units never changes your history.</p></div>
     <div class="box pad stack">
       ${tg('timerSound', 'Rest timer sound', 'Two short beeps when rest is over')}
       ${tg('timerVibrate', 'Rest timer vibration', 'Buzz when rest is over')}
@@ -535,7 +538,7 @@ const FAQ = [
   ['How do I change a day\'s colour?', 'More → Programme → tap a day → tap the colour dot. Pick a quick colour, any colour from the colour wheel, or type a hex code like #3FA7D6.'],
   ['Can I import from Hevy, Strong or other apps?', 'Yes. Export a CSV from the app, then More → Import old logs → Choose files. Notes, WhatsApp chats, Notion or Evernote exports, PDFs and spreadsheets saved as CSV work too.'],
   ['I train on different days each week. Can I stop the missed-workout banner?', 'Yes: More → Settings → Missed-workout reminders.'],
-  ['Levels and XP?', 'Progress → Levels. Every working set earns XP for the muscles it trains, and beating a best earns a bonus.'],
+  ['What are levels and XP?', 'XP means experience points. Every set you finish gives points to the muscles it works, and beating your best gives extra. More points take a muscle to a higher level. See them in Progress → Levels.'],
 ];
 function help() {
   let h = `<input class="inp" id="faqsearch" type="search" placeholder="Search help, e.g. superset, backup, kg" autocomplete="off" aria-label="Search help">
@@ -828,6 +831,9 @@ export const actions = {
     // Same routing as the import tests: PDFs, CSVs from other apps, notes, chats, HTML and RTF exports; photos,
     // spreadsheets and archives are turned away with what to do instead.
     const kinds = new Map();
+    // A huge file would freeze the phone while it's read; real logs are far smaller.
+    const big = files.find(f => f.size > (/\.pdf$/i.test(f.name) ? 60 : 25) * 1024 * 1024);
+    if (big) return toast(`${big.name} is too big to import (${Math.round(big.size / 1048576)} MB). Split it into smaller files.`, 'down');
     for (const f of files) {
       const b = new Uint8Array(await f.slice(0, 4096).arrayBuffer());
       const r = routeFile(f.name, b.subarray(0, 16), decodeBytes(b));
