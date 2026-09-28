@@ -346,7 +346,7 @@ function body() {
 }
 
 // ---- cardio ------------------------------------------------------------------------
-const TYPES = ['Swim', 'Incline walk', 'Cycling', 'Run', 'Muay Thai', 'Other'];
+const TYPES = ['Treadmill', 'Incline walk', 'Run', 'Cycling', 'Rower', 'Swim', 'Muay Thai', 'Other'];
 const INT = [['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']];
 const cardioDraft = { type: 'Swim', intensity: 'easy' };
 
@@ -382,7 +382,7 @@ function cardio() {
   if (warn.length) h += `<div class="warn" style="--k:var(--down)"><b>Clash.</b><span>${warn.map(esc).join('; ')}. Hard cardio the day before legs costs leg performance. Move it after an upper day, or trim leg volume if Muay Thai becomes regular.</span></div>`;
 
   h += `<p class="lbl">Recent</p><ul class="box hist small">`;
-  for (const x of S.cardio.slice(0, 40)) h += `<li><div class="rowi"><span class="sw" style="--k:var(--${x.intensity === 'hard' ? 'down' : x.intensity === 'moderate' ? 'flat' : 'up'})"></span><span class="grow"><b>${esc(x.type)}</b> · ${esc(x.min)} min · ${esc(x.intensity)}<small>${fmtDate(x.date, { dow: true })}${x.note ? ' · ' + esc(x.note) : ''}</small></span><button class="iconbtn sm" data-act="cardio-del" data-id="${esc(x.id)}" aria-label="Delete cardio on ${fmtDate(x.date)}">×</button></div></li>`;
+  for (const x of S.cardio.slice(0, 40)) h += `<li><div class="rowi"><span class="sw" style="--k:var(--${x.intensity === 'hard' ? 'down' : x.intensity === 'moderate' ? 'flat' : 'up'})"></span><span class="grow"><b>${esc(x.type)}</b> · ${esc(x.min)} min${x.km ? ` · ${num(x.km)} km` : ''} · ${esc(x.intensity)}<small>${fmtDate(x.date, { dow: true })}${x.note ? ' · ' + esc(x.note) : ''}</small></span><button class="iconbtn sm" data-act="cardio-del" data-id="${esc(x.id)}" aria-label="Delete cardio on ${fmtDate(x.date)}">×</button></div></li>`;
   if (!S.cardio.length) h += `<li><div class="rowi"><span class="fine">No cardio logged yet.</span></div></li>`;
   h += `</ul>`;
   return { title: 'Cardio', sub: 'Swims, walks, rides, Muay Thai', back: 'insights', html: h, color: 'pull' };
@@ -401,8 +401,9 @@ export const actions = {
     toast(`Saved ${num(v)} ${U()} for ${fmtDate(date)}`, 'up');
   },
   async 'body-del'(el) {
-    if (!(await confirmSheet({ title: 'Delete this weigh-in?', ok: 'Delete', danger: true }))) return;
+    const rec = S.body.find(b => b.id === el.dataset.id);
     await deleteBody(el.dataset.id);
+    if (rec) toast(`Weigh-in on ${fmtDate(rec.date)} deleted`, 'ink', { undo: () => saveBody(rec) });
   },
   goal() {
     openSheet(`<h2 class="sh-title">Goal weight</h2><p class="sh-body">Optional. Leave it empty for no goal.</p><label class="field"><span>${U()}</span><input class="inp" id="goal-kg" type="number" inputmode="decimal" step="0.5" value="${+S.settings.goalKg ? bwDisp(S.settings.goalKg) : ''}" autofocus></label><button class="btn" data-act="goal-save">Save goal</button>`, { label: 'Goal weight' });
@@ -425,8 +426,9 @@ export const actions = {
     toast(`Logged ${min} min ${cardioDraft.type.toLowerCase()}`, 'up');
   },
   async 'cardio-del'(el) {
-    if (!(await confirmSheet({ title: 'Delete this cardio session?', ok: 'Delete', danger: true }))) return;
+    const rec = S.cardio.find(c => c.id === el.dataset.id);
     await deleteCardio(el.dataset.id);
+    if (rec) toast(`${rec.type} on ${fmtDate(rec.date)} deleted`, 'ink', { undo: () => saveCardio(rec) });
   },
 };
 

@@ -184,22 +184,30 @@ export function confirmSheet({ title, body = '', ok = 'Confirm', danger = false 
 
 let toastT, toastClearT, toastAt = 0;
 /** Short message in the shared live region. Longer text stays up longer; it clears itself and on navigation. */
-export function toast(msg, k = 'ink') {
+export function toast(msg, k = 'ink', { undo = null } = {}) {
   let el = $('#toast');
   if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
   el.textContent = msg;
+  el.classList.toggle('act', !!undo);
+  // Low-risk deletes act at once and offer Undo here, instead of asking "are you sure?" first.
+  if (undo) {
+    const b = document.createElement('button');
+    b.className = 'tundo'; b.type = 'button'; b.textContent = 'Undo';
+    b.addEventListener('click', () => { hideToast(); undo(); });
+    el.append(' ', b);
+  }
   el.style.setProperty('--k', `var(--${k})`);
   el.classList.add('on');
   toastAt = Date.now();
   clearTimeout(toastT); clearTimeout(toastClearT);
-  const ms = Math.min(7000, Math.max(2600, String(msg).length * 55));
+  const ms = undo ? 6000 : Math.min(7000, Math.max(2600, String(msg).length * 55));
   toastT = setTimeout(hideToast, ms);
 }
 export function hideToast() {
   const el = $('#toast');
   if (!el) return;
   clearTimeout(toastT);
-  el.classList.remove('on');
+  el.classList.remove('on', 'act');
   // Empty the live region once it has faded, so screen readers never find stale text.
   clearTimeout(toastClearT);
   toastClearT = setTimeout(() => { if (!el.classList.contains('on')) el.textContent = ''; }, 250);

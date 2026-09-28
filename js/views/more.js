@@ -491,8 +491,10 @@ function settings() {
     <div class="box pad stack">
       ${tg('timerSound', 'Rest timer sound', 'Two short beeps when rest is over')}
       ${tg('timerVibrate', 'Rest timer vibration', 'Buzz when rest is over')}
+      ${tg('restNotify', 'Notify when rest is over', 'A notification if the app is in the background or the screen is off. Some phones pause web apps after a while, so it can arrive late')}
       ${tg('wakeLock', 'Keep screen on during workouts', 'So you can glance at the next set')}
-      ${tg('autoWarmup', 'Add warm-up sets automatically', 'Ramp sets before the first working set of each exercise')}</div>
+      ${seg('Warm-up sets', 'st-warm', st.autoWarmup === true ? 'all' : st.autoWarmup === 'barbell' ? 'barbell' : 'off', [['off', 'Off'], ['barbell', 'Barbell'], ['all', 'All lifts']])}
+      <p class="fine">Ramp-up sets added before your first working set. Barbell: only barbell and Smith lifts, with plates per side shown for each.</p></div>
     <div class="box pad stack"><div class="row2"><label class="field"><span>Goal body weight (${u}, optional)</span><input class="inp" id="st-goal" type="number" inputmode="decimal" step="0.5" placeholder="Not set" value="${st.goalKg == null ? '' : esc(toDisp(st.goalKg))}"></label>
       <label class="field"><span>Height (cm, optional)</span><input class="inp" id="st-height" type="number" inputmode="numeric" placeholder="Not set" value="${st.heightCm == null ? '' : esc(st.heightCm)}"></label></div>
       <button class="btn ghost" data-act="st-save">Save</button></div>
@@ -888,7 +890,15 @@ export const actions = {
     const r = await checkForUpdates().catch(() => 'error');
     toast(r === 'updating' ? 'Update found. The app reloads when it is ready.' : r === 'latest' ? `You're on the latest version (${APP_VERSION})` : r === 'unsupported' ? 'Updates work once the app is opened from its website' : "Couldn't check right now. Try again later.", r === 'error' ? 'down' : 'up');
   },
-  'st-toggle': el => saveSettings({ [el.dataset.f]: el.checked }),
+  async 'st-toggle'(el) {
+    // Notifications need the phone's permission first; without it the switch stays off.
+    if (el.dataset.f === 'restNotify' && el.checked) {
+      const p = 'Notification' in window ? await Notification.requestPermission().catch(() => 'denied') : 'unsupported';
+      if (p !== 'granted') { el.checked = false; return toast(p === 'unsupported' ? 'This browser cannot show notifications' : 'Notifications are blocked. Allow them in your phone settings for this app.', 'flat'); }
+    }
+    await saveSettings({ [el.dataset.f]: el.checked });
+  },
+  'st-warm': el => saveSettings({ autoWarmup: el.dataset.v === 'all' ? true : el.dataset.v === 'barbell' ? 'barbell' : false }),
   // Units and wording apply straight away: saving settings repaints every screen.
   'st-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
   'st-wording': el => saveSettings({ wording: el.dataset.v === 'expert' ? 'expert' : 'plain' }),

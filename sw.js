@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever app files change.
-const VERSION = 'wegogim-v14';
+const VERSION = 'wegogim-v15';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/db.js', './js/seed.js', './js/engine.js', './js/ui.js', './js/io.js',
@@ -48,4 +48,14 @@ self.addEventListener('fetch', e => {
       }))
     );
   }
+});
+
+// Rest-over notification: tapping it brings the app back to the workout.
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    const c = list.find(x => x.url.startsWith(self.registration.scope));
+    if (c) { c.navigate?.(new URL('./#/workout', self.registration.scope).href).catch(() => {}); return c.focus(); }
+    return self.clients.openWindow('./#/workout');
+  }));
 });

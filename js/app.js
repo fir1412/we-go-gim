@@ -90,8 +90,8 @@ document.addEventListener('focusin', ev => {
 
 const GLOBAL = {
   tip: el => toast(TIP(el.dataset.k)),
-  'timer-add': () => { if (S.draft?.timer) { S.draft.timer.end += 30000; saveDraft(); paintTimer(); } },
-  'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); } },
+  'timer-add': () => { if (S.draft?.timer) { S.draft.timer.end += 30000; saveDraft(); paintTimer(); restNotice(); } },
+  'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
 // ---- rest timer ---------------------------------------------------------------------
@@ -102,6 +102,24 @@ export function startTimer(sec, label) {
   beeped = null;
   saveDraft();
   paintTimer();
+  restNotice();
+}
+
+// A system notification when rest ends while the app is in the background or the screen is off.
+// Best effort: the phone may pause a web app that has been in the background for a while.
+let noticeT = null;
+export function restNotice() {
+  clearTimeout(noticeT);
+  const t = S.draft?.timer;
+  if (!t || !S.settings.restNotify || !('Notification' in window) || Notification.permission !== 'granted') return;
+  noticeT = setTimeout(async () => {
+    if (document.visibilityState === 'visible' || S.draft?.timer?.end !== t.end) return;
+    try {
+      const reg = await navigator.serviceWorker?.ready;
+      const opts = { body: t.label, tag: 'rest', renotify: true, vibrate: [200, 100, 200], icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' };
+      if (reg?.showNotification) await reg.showNotification('Rest done. Next set.', opts); else new Notification('Rest done. Next set.', opts);
+    } catch {}
+  }, Math.max(0, t.end - Date.now()));
 }
 function paintTimer() {
   const el = $('#timer');

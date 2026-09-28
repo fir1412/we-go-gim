@@ -1,6 +1,6 @@
-import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise } from '../state.js';
+import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
 import { guessMuscles } from '../io.js';
-import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp } from '../engine.js';
+import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round } from '../engine.js';
 import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
@@ -83,12 +83,14 @@ export function render() {
   else if (d.readiness?.sleep === '<6' || d.readiness?.pain) h += `<div class="warn"><b>${esc(T('holdDay'))}.</b>${helpTip('hold')}<span>Same weights as last session. Stop 2–3 reps short of failure.</span></div>`;
   if (d.short) h += `<p class="fine">Short session (${d.short} min): fewer sets, main lifts first. Add sets with + Set if you have time.</p>`;
 
+  h += coach(done, all.length);
   const groups = groupLabels(d.entries.map(e => e.slot || {}));
   const focus = focusSet();
   d.entries.forEach((e, ei) => { h += card(e, ei, groups[ei], focus?.e === e ? focus.si : -1); });
   if (!d.entries.length) h += `<div class="empty"><b>No exercises yet.</b><p>Add the first one below.</p></div>`;
 
-  h += `<button class="btn ghost" data-act="add-ex">${ICON.plus} Add exercise</button>`;
+  for (const [ci, c] of (d.cardio || []).entries()) h += `<article class="box exc cardioc"><div class="rowi"><span class="sw" style="--k:var(--pull)"></span><span class="grow"><b>${esc(c.type)}</b> · ${c.min} min${c.km ? ` · ${num(c.km)} km` : ''} · ${esc(c.intensity)}<small>Cardio, added to your cardio log when you save</small></span><button class="mini" data-act="cardio-rm" data-i="${ci}" aria-label="Remove ${esc(c.type)}">Remove</button></div></article>`;
+  h += `<div class="row2"><button class="btn ghost" data-act="add-ex">${ICON.plus} Add exercise</button><button class="btn ghost" data-act="add-cardio">${ICON.plus} Add cardio</button></div>`;
   h += `<section class="box notesbox"><p class="lbl">Session notes</p>
     <div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([v, l]) => `<button data-act="feel" data-v="${v}" aria-pressed="${d.feel === v}" title="${l}">${v}</button>`).join('')}</div></div>
     <div class="rrow"><label for="hr">Peak heart rate</label><input class="inp sm" id="hr" type="number" inputmode="numeric" placeholder="bpm" value="${d.hr ?? ''}" data-input="hr"></div>
@@ -148,10 +150,11 @@ function card(e, ei, grp, focusSi = -1) {
       <p>${slot ? `${e.sg?.reps?.length || slot.sets}×${slot.lo}–${slot.hi} · ` : ''}${esc(lastTxt)}</p></div>
       <span class="hdr-r">${tag}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
     ${whyOpen ? `<p class="whyp">${esc(e.sg.why)} Aim for ${esc(rirWords(e.sg.rir))} on each set.${e.sg.t === 'cal' ? helpTip('calibrate') : ''}</p>` : ''}
+    ${startPick(e, ex, ei)}
     ${helper(e, ex)}
     <div class="sets">${rows}</div>
     ${e.note ? `<p class="enote">${esc(e.note)}</p>` : ''}
-    <div class="exf"><span class="rirlbl">${esc(T('rir'))}${helpTip('rir')}</span><div class="seg sm" role="group" aria-label="${esc(ex.name)}: ${esc(T('rirLong'))} on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="grow"></span>
+    <div class="exf"><span class="rirlbl">${esc(T('rir'))}${helpTip('rir')}</span><div class="seg sm" role="group" aria-label="${esc(ex.name)}: ${esc(T('rirLong'))} on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="grow"></span>${canWarm(e, ex) ? `<button class="mini" data-act="warm" data-e="${ei}" aria-label="Add warm-up sets to ${esc(ex.name)}">+ Warm-up</button>` : ''}
       <button class="mini" data-act="add-set" data-e="${ei}" aria-label="Add a set to ${esc(ex.name)}">+ Set</button><button class="mini" data-act="pain" data-e="${ei}" aria-pressed="${!!e.pain}" aria-label="${esc(ex.name)}: pain">Pain</button></div>
   </article>`;
 }
@@ -172,6 +175,86 @@ function helper(e, ex) {
   if (ex.unit === 'kg/DB' && eq.dumbbells?.length && !eq.dumbbells.includes(w)) {
     return `<p class="helper">No ${num(toDisp(w))} ${getUnits()} dumbbell in your list. Nearest: <b>${num(toDisp(nearestDumbbell(w, eq.dumbbells)))} ${getUnits()}</b></p>`;
   }
+  return '';
+}
+
+/** A barbell or Smith lift with no warm-ups yet and nothing ticked: offer to add them in one tap. */
+const canWarm = (e, ex) => (ex.equip === 'barbell' || ex.equip === 'smith') && !e.sets.some(s => s.warm || s.done) && +(e.sets[0]?.w) >= 40;
+
+// ---- first workouts: short hints that follow what you're doing ------------------------------
+function coach(done, total) {
+  if (S.settings.coachDone || S.draft.past || S.sessions.filter(s => !s.seed && !s.imported).length >= 2) return '';
+  const msg = !done
+    ? ['Your first sets are filled in', 'Do the set, then tap the tick. If you did a different weight or reps, change the numbers with − and + first. Tap the coloured tag for why this target.']
+    : done < total
+      ? ['Nice, keep going', 'The rest timer runs along the bottom: +30s for more rest, Skip when you are ready. The next set is highlighted.']
+      : ['All sets done', 'Tap Finish to see your summary and what to aim for next time.'];
+  return `<div class="box coach"><b>${msg[0]}</b><p>${msg[1]}</p><button class="linkbtn" data-act="coach-ok">Got it, hide tips</button></div>`;
+}
+
+// ---- starting weight for a brand-new lift -----------------------------------------------------------
+const BASE = { bbsquat: 40, squat: 40, frontsquat: 30, deadlift: 50, trapdl: 50, smithdl: 50, rdl: 40, hipthrust: 40, bbbench: 30, cgb: 25, ohp: 20, pushpress: 25, bbrow: 30, ezcurl: 15, skull: 15, snatch: 20, cleanjerk: 25, powerclean: 30, legpress: 80 };
+const LIGHT_DB = new Set(['dblat', 'dbreardelt', 'wristcurl', 'revwristcurl', 'dbfly']);
+const LIGHT_L = new Set(['lat', 'facepull', 'rdelt', 'glutekick']);
+/** A sensible first weight from how heavy the lifter says they go (0.6 light, 1 medium, 1.5 heavy), snapped to real equipment. */
+export function startGuess(ex, f = 1) {
+  const exp = S.settings.setupAnswers?.experience || S.settings.experience;
+  const k = f * (exp === 'new' ? 0.75 : exp === 'experienced' ? 1.35 : 1);
+  const legs = (ex.muscles || []).some(m => ['Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(m));
+  const eq = S.settings.equip;
+  if (ex.unit === 'L') return Math.max(1, Math.round((LIGHT_L.has(ex.id) ? 3 : 6) * k));
+  if (ex.unit === 'kg/DB') {
+    const main = (ex.muscles || [])[0];
+    const base = LIGHT_DB.has(ex.id) ? 4 : legs || main === 'Chest' || main === 'Back' ? 12 : 8;
+    return eq.dumbbells?.length ? nearestDumbbell(base * k, eq.dumbbells) : round(base * k, 2);
+  }
+  const base = BASE[ex.id] ?? (ex.equip === 'barbell' || ex.equip === 'smith' ? 30 : legs ? 40 : 25);
+  if (ex.equip === 'barbell' || ex.equip === 'smith') return Math.max(barFor(ex), round(base * k, 2.5));
+  return Math.max(5, round(base * k, 5));
+}
+function startPick(e, ex, ei) {
+  if (e.sg?.t !== 'cal' || ex.unit === 'bw' || e.sets.some(s => s.done || (!s.warm && +s.w > 0))) return '';
+  return `<div class="startw"><p><b>New lift.</b> How heavy do you usually go on this, or is it new to you?</p><div class="seg" role="group" aria-label="Starting weight for ${esc(ex.name)}">${[[0.6, 'Light / new'], [1, 'Medium'], [1.5, 'Heavy']].map(([v, l]) => `<button data-act="start-w" data-e="${ei}" data-v="${v}">${l}</button>`).join('')}</div><p class="fine">A starting weight is filled in for you. Or type your own below.</p></div>`;
+}
+
+// ---- supersets from the workout --------------------------------------------------------------------
+function pairItem(ei) {
+  const e = S.draft.entries[ei], nx = S.draft.entries[ei + 1];
+  if (e.slot?.group && S.draft.entries.filter(x => x.slot?.group === e.slot.group).length > 1) return `<button class="li" data-act="unpair" data-e="${ei}"><span><b>Unpair</b><small>Rest after each exercise again</small></span></button>`;
+  if (!nx) return '';
+  return `<button class="li" data-act="pair" data-e="${ei}"><span><b>Pair with ${esc(S.exById[nx.exId]?.name || 'the next exercise')}</b><small>${esc(T('superset'))}: do them back to back, rest after both</small></span></button>`;
+}
+
+// ---- cardio inside a workout ---------------------------------------------------------------------------
+const CW_TYPES = ['Treadmill', 'Bike', 'Rower', 'Stairs', 'Incline walk', 'Run', 'Swim', 'Other'];
+const cw = { type: 'Treadmill', intensity: 'moderate' };
+function cardioSheet() {
+  const keep = id => document.getElementById(id)?.value ?? '';
+  const min = keep('cw-min'), km = keep('cw-km');
+  openSheet(`<h2 class="sh-title">Add cardio</h2>
+    <div class="chips" role="group" aria-label="Type">${CW_TYPES.map(x => `<button class="mini" data-act="cw-type" data-v="${x}" aria-pressed="${cw.type === x}">${x}</button>`).join('')}</div>
+    <div class="row2"><label class="field"><span>Minutes</span><input class="inp" id="cw-min" type="number" inputmode="numeric" min="1" max="600" placeholder="20" value="${esc(min)}"></label>
+    <label class="field"><span>Distance (km, optional)</span><input class="inp" id="cw-km" type="number" inputmode="decimal" step="0.1" min="0" placeholder="—" value="${esc(km)}"></label></div>
+    <div class="rrow"><span>Intensity</span><div class="seg" role="group" aria-label="Intensity">${[['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']].map(([v, l]) => `<button data-act="cw-int" data-v="${v}" aria-pressed="${cw.intensity === v}">${l}</button>`).join('')}</div></div>
+    <button class="btn" data-act="cw-save">Add to workout</button>`, { label: 'Add cardio' });
+}
+
+// ---- early wins: the first few workouts show that the plan is working ---------------------------------
+function earlyWins(d) {
+  const before = S.sessions.filter(s => !s.seed && !s.imported).length;
+  if (before >= 5) return '';
+  const beat = [];
+  for (const e of d.entries) {
+    const ex = S.exById[e.exId], ws = workSets(e);
+    if (!ex || !ws.length) continue;
+    const last = exposures(S.sessions, ex, { gymId: d.gymId, before: d.date })[0];
+    if (!last) continue;
+    const now = score({ sets: ws }, ex.unit), then = score(last, ex.unit);
+    const repsNow = ws.reduce((a, s) => a + (+s.r || 0), 0), repsThen = last.sets.reduce((a, s) => a + (+s.r || 0), 0);
+    if ((now != null && then != null && now > then + 1e-6) || (ex.unit === 'bw' && repsNow > repsThen)) beat.push(ex.name);
+  }
+  if (beat.length) return `<div class="box prbox win"><p class="lbl">You beat last time</p><p>${ICON.trendUp}${esc(beat.slice(0, 4).join(', '))}${beat.length > 4 ? ` and ${beat.length - 4} more` : ''}.</p><p class="fine">That is how it works: every session starts from your last one and asks for a little more where you earned it.</p></div>`;
+  if (!before) return `<div class="box prbox win"><p class="lbl">First workout logged</p><p class="fine">Next time every set is filled in from today, with a small step up where you earned it. Beat it and you will see it here.</p></div>`;
   return '';
 }
 
@@ -224,6 +307,7 @@ function summary(d) {
   let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
+  h += earlyWins(d);
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
   const before = muscleXP(S.sessions, S.exById, d.date);
@@ -309,6 +393,7 @@ export const actions = {
     openSheet(`<h2 class="sh-title">${esc(ex.name)}</h2><div class="list">
       <button class="li" data-act="warm" data-e="${ei}"><span><b>${hasWarm ? 'Remove warm-up sets' : 'Add warm-up sets'}</b>${hasWarm ? '' : '<small>Ramp up to your first working set</small>'}</span></button>
       <button class="li" data-act="swap" data-e="${ei}"><span><b>Swap exercise</b><small>Machine taken? Keeps the set count and rep range</small></span></button>
+      ${pairItem(ei)}
       <button class="li" data-act="note" data-e="${ei}"><span><b>${e.note ? 'Edit note' : 'Add note'}</b><small>Grip, seat setting, how it felt</small></span></button>
       <button class="li" data-act="del-set" data-e="${ei}"><span><b>Remove last set</b></span></button>
       <button class="li" data-act="move" data-e="${ei}" data-d="-1" ${ei === 0 ? 'disabled' : ''}><span><b>Move up</b></span></button>
@@ -382,7 +467,8 @@ export const actions = {
   'del-set'(el) {
     const e = E(el); closeSheet();
     if (e.sets.length <= 1) return toast('Keep at least one set, or remove the exercise', 'flat');
-    e.sets.pop(); commit();
+    const gone = e.sets.pop(); commit();
+    toast('Last set removed', 'ink', { undo: () => { e.sets.push(gone); commit(); } });
   },
   move(el) {
     const i = +el.dataset.e, j = i + +el.dataset.d, a = S.draft.entries;
@@ -390,11 +476,50 @@ export const actions = {
     if (j < 0 || j >= a.length) return;
     [a[i], a[j]] = [a[j], a[i]]; commit();
   },
-  async remove(el) {
+  remove(el) {
     const i = +el.dataset.e; closeSheet();
-    const e = S.draft.entries[i];
-    if (e.sets.some(s => s.done) && !(await confirmSheet({ title: 'Remove this exercise?', body: 'Its ticked sets will be lost.', ok: 'Remove', danger: true }))) return;
-    S.draft.entries.splice(i, 1); commit();
+    const [e] = S.draft.entries.splice(i, 1); commit();
+    toast(`${S.exById[e.exId]?.name || 'Exercise'} removed`, 'ink', { undo: () => { S.draft?.entries.splice(i, 0, e); commit(); } });
+  },
+  pair(el) {
+    const i = +el.dataset.e, es = S.draft.entries, a = es[i], b = es[i + 1];
+    closeSheet();
+    if (!b) return;
+    const used = new Set(es.map(x => x.slot?.group).filter(Boolean));
+    const g = a.slot?.group || b.slot?.group || 'ABCDEFGH'.split('').find(x => !used.has(x)) || 'Z';
+    for (const x of [a, b]) x.slot = { ...(x.slot || { exId: x.exId, sets: x.sets.filter(s => !s.warm).length, lo: 8, hi: 12 }), group: g };
+    commit();
+    toast(`${S.exById[a.exId].name} and ${S.exById[b.exId].name} paired: rest after both`, 'upper');
+  },
+  unpair(el) {
+    const e = E(el), g = e.slot?.group;
+    closeSheet();
+    if (!g) return;
+    const same = S.draft.entries.filter(x => x.slot?.group === g);
+    for (const x of same.length <= 2 ? same : [e]) x.slot = { ...x.slot, group: '' };
+    commit();
+  },
+  'start-w'(el) {
+    const e = E(el), ex = S.exById[e.exId];
+    const w = startGuess(ex, +el.dataset.v);
+    for (const s of e.sets) if (!s.done && !s.warm) s.w = w;
+    commit();
+    toast(`Starting at ${fmtLoad(ex, w)}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}. Adjust with − and + if it feels off.`, 'up');
+  },
+  'coach-ok': () => saveSettings({ coachDone: true }),
+  'add-cardio'() { cardioSheet(); },
+  'cw-type'(el) { cw.type = el.dataset.v; cardioSheet(); },
+  'cw-int'(el) { cw.intensity = el.dataset.v; cardioSheet(); },
+  'cw-save'() {
+    const min = parseInt(document.getElementById('cw-min')?.value, 10);
+    const km = parseFloat(document.getElementById('cw-km')?.value);
+    if (!(min > 0 && min <= 600)) return toast('Enter minutes between 1 and 600', 'flat');
+    (S.draft.cardio ||= []).push({ type: cw.type, min, intensity: cw.intensity, ...(km > 0 && km < 500 ? { km } : {}) });
+    closeSheet(); commit();
+  },
+  'cardio-rm'(el) {
+    const i = +el.dataset.i, [c] = S.draft.cardio.splice(i, 1); commit();
+    toast(`${c.type} removed`, 'ink', { undo: () => { S.draft?.cardio.splice(i, 0, c); commit(); } });
   },
   feel(el) { S.draft.feel = S.draft.feel === +el.dataset.v ? null : +el.dataset.v; commit(); },
   hr(el) {

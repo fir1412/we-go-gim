@@ -120,8 +120,14 @@ function entryFromSlot(slot, ctx) {
   const ex = S.exById[slot.exId];
   const sg = suggest(slot, ex, ctx);
   const sets = sg.reps.map(r => ({ w: sg.w, r, done: false }));
-  if (S.settings.autoWarmup && sg.w) sets.unshift(...warmup(sg.w, ex, S.settings.equip));
+  if (wantsWarmup(ex) && sg.w) sets.unshift(...warmup(sg.w, ex, S.settings.equip));
   return { uid: uid('e'), exId: ex.id, slot: { ...slot }, sg: { t: sg.t, why: sg.why, rir: sg.rir, w: sg.w, reps: sg.reps, inc: sg.inc }, sets, rir: null, pain: false, note: '' };
+}
+
+/** Auto warm-ups: true = every kg lift, 'barbell' = barbell and Smith lifts only, false = off. */
+export function wantsWarmup(ex) {
+  const a = S.settings.autoWarmup;
+  return a === true || (a === 'barbell' && (ex.equip === 'barbell' || ex.equip === 'smith'));
 }
 
 /** Readiness to store with a workout: only what the user actually told us (null when nothing was tapped). */
@@ -205,10 +211,12 @@ export async function commitDraft() {
     // so they don't teach the rest-time estimate.
     start: d.past ? null : d.start, end: d.past ? null : Date.now(), minutes: d.past ? d.minutes ?? null : undefined,
     readiness: d.readiness, deload: !!d.deload, ...(d.past ? { backfilled: true } : {}),
-    hr: d.hr, feel: d.feel, note: d.note,
+    hr: d.hr, feel: d.feel, note: d.note, ...(d.cardio?.length ? { cardio: d.cardio.map(c => ({ type: c.type, min: c.min, intensity: c.intensity, ...(c.km ? { km: c.km } : {}) })) } : {}),
     entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sug: e.sg?.t || null, sets: e.sets.map(s => ({ w: s.w, r: s.r, done: !!s.done, ...(s.warm ? { warm: true } : {}), ...(s.at && !d.past ? { at: s.at } : {}) })), rir: e.rir, pain: e.pain, note: e.note })),
   };
   await saveSession(sess);
+  // Cardio done in the workout also lands in the cardio log.
+  for (const c of d.cardio || []) await saveCardio({ id: uid('c'), date: d.date, type: c.type, min: c.min, intensity: c.intensity, ...(c.km ? { km: c.km } : {}), note: '', sessionId: sess.id });
   S.draft = null;
   await saveDraft();
   return sess;

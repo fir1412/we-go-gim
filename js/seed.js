@@ -141,7 +141,7 @@ export const DEFAULT_SETTINGS = {
   timerSound: true,
   timerVibrate: true,
   wakeLock: true,
-  autoWarmup: false,
+  autoWarmup: 'barbell', // false | 'barbell' | true
   deloadUntil: null,
   units: 'kg', // 'kg' | 'lb': loads are always stored in kg
 };
