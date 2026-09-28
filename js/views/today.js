@@ -5,6 +5,7 @@ import { dailyCard } from './daily.js';
 import { go } from '../app.js';
 import { syncRawNames } from '../i18n.js';
 import { todayGame, gameOn } from '../gamify.js';
+import { learnCard } from './learn.js';
 
 const open = new Set();
 let openDate = null;
@@ -37,6 +38,7 @@ export function render(route) {
       <span>${dowLetter(dowOf(d))}</span><b>${+d.slice(8)}</b><span class="dn">${esc(pd.name)}</span></a>`;
   }
   h += `</div>`;
+  if (date === t) h += learnCard();
   if (date === t && gameOn()) h += todayGame(t);
 
   const doneHere = S.sessions.filter(s => s.date === date && !s.seed);
@@ -109,8 +111,10 @@ export function render(route) {
   const pastNoLog = date < t && !doneHere.length;
   if (pastNoLog) h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="log-day" data-date="${date}">Log this day</button><button class="btn" data-act="start" data-date="${date}">Do ${esc(day.name)} today</button></div></div>`;
   else if (doneToday && !resume) h += `<button class="btn ghost" data-act="pick-day">Train again today</button>`;
+  else if (date < t && doneHere.length && !resume) h += `<a class="btn ghost" href="#/session/${esc(doneHere[0].id)}">See this workout</a>`;
   else if (!pastNoLog) h += `<div class="cta"><button class="btn" data-act="start" data-date="${date}">${resume ? 'Resume workout' : isToday ? `Start ${esc(day.name)} <small>· sets pre-filled</small>` : `Do ${esc(day.name)} today <small>· sets pre-filled</small>`}</button></div>`;
 
+  if (/^rest$/i.test(day.name)) h = h.replaceAll(`Start ${esc(day.name)} <small>`, 'Start this workout <small>').replaceAll(`Do ${esc(day.name)} today`, 'Do this workout today');
   return { title: isToday ? 'Today' : fmtDate(date, { dow: true }), sub: sub(t, gym), right: bwBtn(lastBw), html: h, color: day.color };
 }
 
@@ -195,7 +199,7 @@ export const actions = {
   },
   'pick-day'() {
     const days = S.program.days.filter(d => d.slots.length);
-    openSheet(`<h2 class="sh-title">Which workout?</h2><div class="list">${days.map(d => `<button class="li" data-act="start-day" data-dow="${d.dow}" style="${kstyle(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${esc(d.sub || '')} · ${d.slots.length} exercises</small></span></button>`).join('')}</div>`, { label: 'Pick a workout' });
+    openSheet(`<h2 class="sh-title">Which workout?</h2><div class="list">${days.map(d => `<button class="li" data-act="start-day" data-dow="${d.dow}" style="${kstyle(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${esc(d.sub || '')} · ${d.slots.length === 1 ? '1 exercise' : d.slots.length + ' exercises'}</small></span></button>`).join('')}</div>`, { label: 'Pick a workout' });
   },
   async 'start-day'(el) {
     const day = S.program.days.find(d => d.dow === +el.dataset.dow);

@@ -1,14 +1,15 @@
 import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
 import * as db from '../db.js';
-import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay } from '../engine.js';
+import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, MAX_KG, MAX_REPS } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
 import { LANGS, getLang, syncRawNames } from '../i18n.js';
 import { trainingIcs, googleCalendarUrl } from '../calendar.js';
 import { translate } from '../i18n.js';
 import { plainText } from '../plain.js';
-import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
+import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap, importExtras, loadForeignNames } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { filterList } from '../search.js';
+import { learnProgress } from '../learn.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
 import { parseSplitText, weeklyVolume } from '../split.js';
@@ -71,6 +72,7 @@ function home() {
     ${row('settings', ICON.gear, 'Settings', 'Theme, kg or lb, wording, rest timer, goal', 'rest')}
     ${canInstall() ? `<button class="li mrow" data-act="install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Install the app</b><small>Home-screen icon, full screen, works offline</small></span>${ICON.chev}</button>` : ''}
     ${isIOS() && !standalone() ? `<button class="li mrow" data-act="ios-install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Add to Home Screen</b><small>Install on iPhone: full screen, works offline</small></span>${ICON.chev}</button>` : ''}
+    ${row('learn', ICON.levels, 'Learn the app', `What each feature does · ${learnProgress(S.settings).n} of ${learnProgress(S.settings).total} missions`, 'push')}
     ${row('help', ICON.help, 'Help', 'How do I…? Answers to common questions', 'legs')}
     <button class="li mrow" data-act="feedback" style="--k:var(--push)"><i class="mic">${ICON.chat || ICON.more}</i><span><b>Send feedback</b><small>Report a bug or suggest an idea</small></span>${ICON.chev}</button>
     </div>
@@ -106,7 +108,7 @@ function program() {
     const d = p.days[di], open = openDays.has(dow);
     const nSets = d.slots.reduce((a, s) => a + (+s.sets || 0), 0);
     h += `<section class="box pday2" style="${kstyle(d.color)}">
-      <button class="pdh" data-act="p-open" data-dow="${dow}" aria-expanded="${open}"><b class="dlab">${dowName(dow)}</b><span class="grow"><b>${esc(d.name)}</b><small>${d.slots.length ? `${d.slots.length} exercises · ${nSets} sets${d.sub ? ' · ' + esc(d.sub) : ''}` : esc(d.sub || 'Rest day')}</small></span>${ICON.chev}</button>`;
+      <button class="pdh" data-act="p-open" data-dow="${dow}" aria-expanded="${open}"><b class="dlab">${dowName(dow)}</b><span class="grow"><b>${esc(d.name)}</b><small>${d.slots.length ? `${d.slots.length === 1 ? '1 exercise' : d.slots.length + ' exercises'} · ${nSets} sets${d.sub ? ' · ' + esc(d.sub) : ''}` : esc(d.sub || 'Rest day')}</small></span>${ICON.chev}</button>`;
     if (open) {
       h += `<div class="pdb"><div class="pdn"><input class="inp" id="pn-${di}" value="${esc(d.name)}" data-input="p-day" data-d="${di}" data-f="name" aria-label="Name for ${dowName(dow, true)}" enterkeyhint="done">
         <button class="sw big" data-act="p-color" data-d="${di}" style="${kstyle(d.color)}" aria-label="Change colour for ${dowName(dow, true)}"></button></div>
@@ -218,10 +220,10 @@ function exerciseEdit(id) {
   const isNew = id === 'new';
   const n = isNew ? 0 : exposures(S.sessions, ed).length;
   let h = `<label class="field"><span>Name</span><input class="inp" id="ex-name" value="${esc(ed.name)}" data-input="ed" data-f="name" placeholder="e.g. Hack squat" autofocus></label>
-    <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${UNITS.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="unit" data-v="${v}" aria-pressed="${ed.unit === v}">${l}</button>`).join('')}</div></div>
+    <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${UNITS.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="unit" data-v="${v}" aria-pressed="${ed.unit === v}">${l.replace(/\bkg\b/, getUnits())}</button>`).join('')}</div></div>
     ${ed.unitUnclear ? `<div class="warn"><b>Unit unclear.</b><span>Old logs mixed per-side and total. Choosing a unit above clears this flag.</span></div>` : ''}
     <div class="field"><span>Equipment</span><div class="chips" role="group" aria-label="Equipment">${EQUIP.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="equip" data-v="${v}" aria-pressed="${ed.equip === v}">${l}</button>`).join('')}</div></div>
-    <div class="row2"><label class="field"><span>Weight jump ${ed.unit === 'L' ? '(levels)' : ed.unit === 'kg/DB' ? '(kg per dumbbell)' : '(kg)'}</span><input class="inp" id="ex-inc" type="number" inputmode="decimal" step="0.25" min="0.25" value="${ed.inc}" data-input="ed" data-f="inc" aria-describedby="inc-help"></label>
+    <div class="row2"><label class="field"><span>Weight jump ${ed.unit === 'L' ? '(levels)' : ed.unit === 'kg/DB' ? `(${getUnits()} per dumbbell)` : `(${getUnits()})`}</span><input class="inp" id="ex-inc" type="number" inputmode="decimal" step="0.25" min="0.25" value="${ed.unit === 'L' ? ed.inc : toDisp(ed.inc)}" data-input="ed" data-f="inc" aria-describedby="inc-help"></label>
     <label class="field"><span>Rest between sets (s)</span><input class="inp" id="ex-rest" type="number" inputmode="numeric" step="15" min="15" max="600" value="${ed.rest}" data-input="ed" data-f="rest"></label></div>
     <p class="fine" id="inc-help">How much weight gets added when every set reaches the top of its rep range. Use the smallest increase your gym allows: e.g. 2.5 kg for dumbbells, the plate size on a machine, 1 level on a cable.</p>
     <div class="field"><span>Muscles · tap in order, first is the main one</span><div class="chips" role="group" aria-label="Muscles">${MUSCLES.map(m => { const i = (ed.muscles || []).indexOf(m); return `<button class="mini" data-act="ed-muscle" data-v="${m}" aria-pressed="${i >= 0}">${i === 0 ? '★ ' : ''}${m}</button>`; }).join('')}</div></div>
@@ -246,13 +248,15 @@ function gyms() {
 }
 
 function equip() {
-  const e = S.settings.equip;
-  const h = `<label class="field"><span>Dumbbells available (kg, comma separated)</span><textarea class="inp" id="eq-db" rows="3">${esc(e.dumbbells.join(', '))}</textarea></label>
+  const e = S.settings.equip, u = getUnits(), d = kg => toDisp(kg);
+  const h = `<label class="field"><span>Dumbbells available (${u}, comma separated)</span><textarea class="inp" id="eq-db" rows="3">${esc(e.dumbbells.map(d).join(', '))}</textarea></label>
     <p class="fine">Load increases jump to the next dumbbell you actually have; the workout screen warns when a weight isn't on your rack.</p>
-    <label class="field"><span>Plates per side (kg)</span><input class="inp" id="eq-pl" value="${esc(e.plates.join(', '))}"></label>
-    <div class="row2"><label class="field"><span>Barbell (kg)</span><input class="inp" id="eq-bar" type="number" inputmode="decimal" step="0.5" value="${e.barKg}"></label>
-    <label class="field"><span>Smith bar (kg)</span><input class="inp" id="eq-smith" type="number" inputmode="decimal" step="0.5" value="${e.smithBarKg ?? e.barKg}"></label></div>
+    <label class="field"><span>Plates per side (${u})</span><input class="inp" id="eq-pl" value="${esc(e.plates.map(d).join(', '))}"></label>
+    <div class="row2"><label class="field"><span>Barbell (${u})</span><input class="inp" id="eq-bar" type="number" inputmode="decimal" step="0.5" value="${d(e.barKg)}"></label>
+    <label class="field"><span>Smith bar (${u})</span><input class="inp" id="eq-smith" type="number" inputmode="decimal" step="0.5" value="${d(e.smithBarKg ?? e.barKg)}"></label></div>
     <p class="fine">Smith bars are often counterbalanced to 5–15 kg. Check the label on yours.</p>
+    <label class="field"><span>EZ bar (${u})</span><input class="inp" id="eq-ez" type="number" inputmode="decimal" step="0.5" placeholder="Not sure" value="${e.ezBarKg ? d(e.ezBarKg) : ''}" aria-describedby="ez-help"></label>
+    <p class="fine" id="ez-help">The curvy bar for curls and skull crushers, often 7–10 kg. Leave it blank if you don't know: the app then skips the empty-bar warm-up and plate maths for it.</p>
     <button class="btn" data-act="eq-save" style="--c:var(--up)">Save equipment</button>`;
   return { title: 'Equipment', sub: 'For load and plate suggestions', back: 'more', html: h, color: 'upper' };
 }
@@ -296,6 +300,7 @@ async function withUndo(what, fn) {
 // imp: {sessions, skipped, source, dropped, sameFiles, groups, gOf: {gk(entry): groupIndex}, filter, show, sessShow, replaceSeed, raw}
 // Spellings of one lift ("Pullup", "Pull ups", "pull-up") form one group, matched and imported together.
 let imp = null;
+let impText = ''; // pasted text kept for "Start over"
 let impBusy = null; // {file, i, n, page, pages} while files are being read
 const COLOR_WORDS = [[/push|chest/i, 'push'], [/pull|back/i, 'pull'], [/leg.*b\b|hinge|glute/i, 'legsb'], [/leg|squat/i, 'legs'], [/arm|bicep|tricep/i, 'arms'], [/upper|shoulder/i, 'upper']];
 const progIds = () => new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
@@ -346,7 +351,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
   groups.forEach((g, i) => { for (const n of g.variants) gOf[n + (g.unit === 'L' ? '|L' : '')] = i; });
   // The level-based twin of a lift logged in kilos too gets its own name.
   for (const g of groups) if (g.unit === 'L' && byKey.has(g.key.replace(/ ·L$/, ''))) g.label += ' (levels)';
-  imp = { sessions: r.sessions, skipped: r.skipped || 0, source, dropped, sameFiles: 0, groups, gOf, filter: groups.some(g => !g.target) ? 'new' : 'all', show: 40, sessShow: 25, replaceSeed: true, raw };
+  imp = { sessions: r.sessions, skipped: r.skipped || 0, future: r.future || 0, impossible: r.impossible || 0, badYears: r.badYears || [], source, dropped, sameFiles: 0, groups, gOf, filter: groups.some(g => !g.target) ? 'new' : 'all', show: 40, sessShow: 25, replaceSeed: true, raw };
 }
 const gk = e => e.exName + (e.unit === 'L' ? '|L' : '');
 const unitClass = u => (u === 'L' ? 'L' : 'w'); // cable levels vs weights (bodyweight counts as a weight)
@@ -370,7 +375,7 @@ function importer() {
         <p>Dates, exercise names and sets written like <b>25kg x 8 x 4</b>, <b>25 kg 8,8,6</b>, <b>15kg 8 8 7</b>, <b>3x8 @ 25</b>, <b>L9 x 12</b> or <b>BW 6,6,6</b>. Remarks about pain, sleep and effort are kept as notes, never as exercises.</p>
         <p>Pick several files at once if you like. Older and newer copies of the same log are fine: repeated sessions are removed.</p></details>
       ${impOptions()}
-      <label class="field"><span>Or paste text</span><textarea class="inp mono" id="imp-text" rows="7" placeholder="21/9/2026 Push&#10;Flat DB bench&#10;25kg x 8 x 4&#10;Incline DB press 25 kg 8,8,6&#10;left shoulder pinged on the last set"></textarea></label>
+      <label class="field"><span>Or paste text</span><textarea class="inp mono" id="imp-text" rows="7" placeholder="21/9/2026 Push&#10;Flat DB bench&#10;25kg x 8 x 4&#10;Incline DB press 25 kg 8,8,6&#10;left shoulder pinged on the last set">${esc(impText)}</textarea></label>
       <div class="row2"><label class="field"><span>Year for dates without one</span><input class="inp" id="imp-year" type="number" inputmode="numeric" value="${todayIso().slice(0, 4)}"></label><button class="btn ghost" data-act="imp-parse">Read pasted text</button></div>
       <p class="fine">Reading a PDF needs internet the first time.</p>
       <section class="box pad stack impres"><p class="lbl">Moving from another phone?</p><p class="fine">A backup file from this app brings back everything at once: sessions, programme, exercises and settings.</p>
@@ -390,9 +395,13 @@ function importer() {
   const nOwn = imp.sessions.filter(s => s.dupOwn).length;
   if (nOwn) facts.push(`<b>${nOwn}</b> session${nOwn === 1 ? ' is' : 's are'} already in the app and left unticked`);
   if (imp.skipped) facts.push(`${imp.skipped} line${imp.skipped === 1 ? '' : 's'} before the first date skipped`);
+  if (imp.future) facts.push(`<b>${imp.future}</b> line${imp.future === 1 ? '' : 's'} dated after tomorrow left out`);
+  if (imp.badYears?.length && imp.sessions.length) facts.push(`<b>${imp.badYears.length}</b> date${imp.badYears.length === 1 ? '' : 's'} with an impossible year skipped (${esc(imp.badYears[0])})`);
+  if (imp.impossible) facts.push(`<b>${imp.impossible}</b> line${imp.impossible === 1 ? '' : 's'} left out because the weight or reps can't be real (over ${MAX_KG} kg or ${MAX_REPS} reps)`);
   if (facts.length) h += `<ul class="impfacts">${facts.map(f => `<li>${f}</li>`).join('')}</ul>`;
   if (!imp.sessions.length) {
     h += `<div class="warn"><b>Nothing found.</b><span>No dated lines with sets were recognised. Each workout needs a date line (e.g. 21/9/2026 or 21 Sep) followed by sets (e.g. 25kg x 8).</span></div>`;
+    if (imp.badYears.length) h += `<div class="warn"><b>Check the year.</b><span>${imp.badYears.length === 1 ? 'A date' : `${imp.badYears.length} dates`} with an impossible year (${esc(imp.badYears[0])}) ${imp.badYears.length === 1 ? 'was' : 'were'} skipped: only years from 1991 to 2099 are read. Fix the year and read the text again.</span></div>`;
     if (imp.raw) h += `<details class="box pad"><summary class="lbl">Text that was read</summary><pre class="rawtxt">${esc(imp.raw.slice(0, 4000))}${imp.raw.length > 4000 ? '\n…' : ''}</pre></details>`;
   } else {
     // Exercises: one row per lift (all its spellings), busiest first. Tap a row to change what it becomes.
@@ -657,7 +666,11 @@ export const actions = {
   'p-add'(el) {
     const di = +el.dataset.d;
     pickExercise(`Add to ${S.program.days[di].name}`, async id => {
-      await editProgram(p => { p.days[di].slots.push({ exId: id, sets: 3, lo: 8, hi: 12, group: '' }); });
+      await editProgram(p => {
+        const d = p.days[di];
+        if (!d.slots.length && /^rest$/i.test(d.name)) Object.assign(d, { name: 'Workout', sub: '', color: d.color === 'rest' ? 'push' : d.color });
+        d.slots.push({ exId: id, sets: 3, lo: 8, hi: 12, group: '' });
+      });
       slotSheet(di, S.program.days[di].slots.length - 1);
     });
   },
@@ -725,7 +738,8 @@ export const actions = {
   ed(el) {
     const f = el.dataset.f;
     if (f === 'perGym') ed.perGym = el.checked;
-    else if (f === 'inc' || f === 'rest') ed[f] = num(el.value, ed[f]);
+    else if (f === 'rest') ed.rest = num(el.value, ed.rest);
+    else if (f === 'inc') { const v = num(el.value, toDisp(ed.inc)); ed.inc = ed.unit === 'L' ? v : v === toDisp(ed.inc) ? ed.inc : fromDisp(v); }
     else ed[f] = el.value.trim();
     if (f === 'name' && ed._auto && ed.name) { autoFill(); refresh(); }
   },
@@ -755,7 +769,7 @@ export const actions = {
     if (!ed.name) return toast('Give the exercise a name', 'down');
     if (!ed.muscles?.length) return toast('Pick at least one muscle', 'down');
     if (!(ed.inc > 0)) return toast('Weight jump must be above 0', 'down');
-    if (ed.inc > (ed.unit === 'L' ? 10 : 50)) return toast(ed.unit === 'L' ? 'Weight jump can be at most 10 levels' : 'Weight jump can be at most 50 kg', 'down');
+    if (ed.inc > (ed.unit === 'L' ? 10 : 50)) return toast(ed.unit === 'L' ? 'Weight jump can be at most 10 levels' : `Weight jump can be at most ${toDisp(50)} ${getUnits()}`, 'down');
     if (!(ed.rest >= 15 && ed.rest <= 600)) return toast('Choose a rest time from 15 to 600 seconds', 'down');
     if (S.exercises.some(x => x.name.toLowerCase() === ed.name.toLowerCase() && x.id !== ed.id)) return toast('An exercise with that name exists', 'down');
     const isNew = !ed.id;
@@ -807,15 +821,21 @@ export const actions = {
   },
   // equipment
   async 'eq-save'() {
-    const list = id => document.getElementById(id).value.split(/[,\s]+/).map(Number).filter(x => x > 0).sort((a, b) => a - b);
+    // Typed in the display unit. A number left as shown keeps its exact stored kg (no drift from kg -> lb -> kg).
+    const old = S.settings.equip, known = [...old.dumbbells, ...old.plates, old.barKg, old.smithBarKg].filter(x => x != null);
+    const back = v => known.find(k => toDisp(k) === v) ?? fromDisp(v);
+    const list = id => document.getElementById(id).value.split(/[,\s]+/).map(Number).filter(x => x > 0).map(back).sort((a, b) => a - b);
     const dumbbells = [...new Set(list('eq-db'))], plates = [...new Set(list('eq-pl'))].sort((a, b) => b - a);
-    const barKg = num(document.getElementById('eq-bar').value, 20), smithBarKg = num(document.getElementById('eq-smith').value, barKg);
+    const barKg = back(num(document.getElementById('eq-bar').value, toDisp(20))), smithBarKg = back(num(document.getElementById('eq-smith').value, toDisp(barKg)));
+    const ezRaw = document.getElementById('eq-ez').value.trim(), ezBarKg = ezRaw === '' ? null : back(num(ezRaw, 0));
     if (!plates.length) return toast('Add at least one plate size', 'down');
-    if (!(barKg >= 5 && barKg <= 50)) return toast('Barbell must be between 5 and 50 kg', 'down');
-    if (!(smithBarKg >= 0 && smithBarKg <= 50)) return toast('Smith bar must be between 0 and 50 kg', 'down');
-    if (dumbbells.some(x => x > 150)) return toast('Dumbbells can be at most 150 kg', 'down');
-    if (plates.some(x => x > 50)) return toast('Plates can be at most 50 kg', 'down');
-    await saveSettings({ equip: { dumbbells, plates, barKg, smithBarKg } });
+    const u = getUnits(), lim = kg => toDisp(kg);
+    if (!(barKg >= 4.5 && barKg <= 50)) return toast(`Barbell must be between ${lim(4.5)} and ${lim(50)} ${u}`, 'down');
+    if (!(smithBarKg >= 0 && smithBarKg <= 50)) return toast(`Smith bar must be between 0 and ${lim(50)} ${u}`, 'down');
+    if (ezBarKg != null && !(ezBarKg >= 2 && ezBarKg <= 40)) return toast(`EZ bar must be between ${lim(2)} and ${lim(40)} ${u}, or blank`, 'down');
+    if (dumbbells.some(x => x > 150)) return toast(`Dumbbells can be at most ${lim(150)} ${u}`, 'down');
+    if (plates.some(x => x > 50)) return toast(`Plates can be at most ${lim(50)} ${u}`, 'down');
+    await saveSettings({ equip: { dumbbells, plates, barKg, smithBarKg, ...(ezBarKg != null ? { ezBarKg } : {}) } });
     toast('Equipment saved', 'up');
   },
   // data
@@ -876,7 +896,7 @@ export const actions = {
     try { sessions = sessionsFromCSV(text, { lb: impLb(), dateOrder: impOpt.order, lang: S.settings.lang, today: todayIso() }); }
     catch (e) { return toast(e.message, 'down'); }
     // Rows dated after tomorrow are left out and counted with the skipped lines.
-    prepImport({ sessions, skipped: sessions.future || 0 }, f.name);
+    prepImport({ sessions, future: sessions.future || 0 }, f.name);
     go('import');
   },
   'rm-seed': async () => {
@@ -914,14 +934,14 @@ export const actions = {
     // exported twice collapse to one session per date. An exact copy (same name and size) isn't read twice.
     const seen = new Set();
     const todo = files.filter(f => { const k = sessionNameFromFile(f.name) + '|' + f.size; if (seen.has(k)) return false; seen.add(k); return true; });
-    let text = '', all = [], skipped = 0, last = 0;
+    let text = '', all = [], skipped = 0, future = 0, impossible = 0, badYears = [], last = 0;
     const paint = force => { const now = Date.now(); if (force || now - last > 120) { last = now; refresh(); } };
     try {
       for (let i = 0; i < todo.length; i++) {
         const f = todo[i];
         impBusy = { file: f.name, i, n: todo.length, page: 0, pages: 0 };
         paint(true);
-        const opts = { year, sessionName: sessionNameFromFile(f.name), lb: impLb(), dateOrder: impOpt.order };
+        const opts = { year, sessionName: sessionNameFromFile(f.name), lb: impLb(), dateOrder: impOpt.order, today: todayIso() };
         let r;
         if (kinds.get(f) === 'pdf') {
           const t = await pdfToText(f, (page, pages) => { impBusy.page = page; impBusy.pages = pages; paint(); });
@@ -935,7 +955,7 @@ export const actions = {
           r.skipped ||= 0;
         }
         for (const s of r.sessions) { s.fileTime = f.lastModified; s.file = f.name; }
-        all.push(...r.sessions); skipped += r.skipped;
+        all.push(...r.sessions); skipped += r.skipped; future += r.future || 0; impossible += r.impossible || 0; badYears.push(...(r.badYears || []));
       }
     } catch (err) {
       impBusy = null; refresh();
@@ -943,15 +963,19 @@ export const actions = {
     }
     impBusy = null;
     const { sessions, dropped } = dedupeSessions(all);
-    prepImport({ sessions, skipped }, src, text, dropped);
+    prepImport({ sessions, skipped, future, impossible, badYears }, src, text, dropped);
     imp.sameFiles = files.length - todo.length;
     refresh();
   },
-  'imp-parse'() {
+  async 'imp-parse'() {
     const text = document.getElementById('imp-text').value;
     if (!text.trim()) return toast('Paste some text first', 'flat');
     const year = +document.getElementById('imp-year').value || +todayIso().slice(0, 4);
-    prepImport(parseLogText(text, S.exercises, { year, lb: impLb(), dateOrder: impOpt.order }), 'Pasted text', text);
+    impText = text;
+    // Chinese, Japanese and Malay lift names are matched once their dictionaries are in (the first paste loads them).
+    await loadForeignNames();
+    // Sessions dated after tomorrow are left out and counted, as in CSV files.
+    prepImport(parseLogText(text, S.exercises, { year, lb: impLb(), dateOrder: impOpt.order, today: todayIso() }), 'Pasted text', text);
     refresh();
   },
   'imp-on'(el) { imp.sessions[+el.dataset.s].skip = !el.checked; refresh(); },
@@ -982,7 +1006,8 @@ export const actions = {
     else for (const g of imp.groups) g.target = g.suggested;
     refresh();
   },
-  'imp-cancel'() { imp = null; refresh(); },
+  // The pasted text stays in the box, so it can be fixed and read again.
+  'imp-cancel'() { impText = imp?.source === 'Pasted text' ? imp.raw : ''; imp = null; refresh(); },
   async 'imp-save'() {
     const sel = imp.sessions.filter(s => !s.skip);
     if (!sel.length) return toast('Select at least one session', 'flat');
@@ -1003,9 +1028,10 @@ export const actions = {
       newEx.push(ex); gid.set(gi, ex.id);
     }
     const sessions = sel.map(s => ({
-      id: uid('imp'), date: s.date, name: s.name, color: s.color || 'upper', gymId: S.settings.gymId,
+      // A heart rate and gym from the log are kept (the gym when one here has that name).
+      id: uid('imp'), date: s.date, name: s.name, color: s.color || 'upper', gymId: S.settings.gymId, hr: null, ...importExtras(s, S.settings.gyms),
       entries: s.entries.filter(e => gid.has(imp.gOf[gk(e)])).map(e => ({ exId: gid.get(imp.gOf[gk(e)]), sets: e.sets.map(x => ({ w: x.w, r: x.r, done: x.done !== false, ...(x.warm ? { warm: true } : {}) })), rir: e.rir ?? null, pain: !!e.pain, note: e.note || '' })),
-      readiness: null, feel: null, hr: null, note: [...(s.dateWas ? [`Date written as ${s.dateWas} in the log.`] : []), ...s.notes].join(' · '), imported: true,
+      readiness: null, feel: null, note: [...(s.dateWas ? [`Date written as ${s.dateWas} in the log.`] : []), ...s.notes].join(' · '), imported: true,
     })).filter(s => s.entries.length);
     const dates = new Set(sessions.map(s => s.date));
     const seedIds = imp.replaceSeed ? S.sessions.filter(x => x.seed && dates.has(x.date)).map(x => x.id) : [];
@@ -1015,7 +1041,7 @@ export const actions = {
     for (const id of seedIds) await db.del('sessions', id);
     await load();
     const noMuscle = newEx.filter(x => !x.muscles.length).length;
-    imp = null;
+    imp = null; impText = '';
     toast(`Imported ${sessions.length} session${sessions.length === 1 ? '' : 's'}${newEx.length ? ` and ${newEx.length} new exercise${newEx.length === 1 ? '' : 's'}${noMuscle ? `; ${noMuscle === 1 ? '1 needs its' : `${noMuscle} need their`} muscles set under Exercises` : ''}` : ''}`, 'up');
     go('history');
   },

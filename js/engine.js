@@ -215,10 +215,10 @@ export function setUnits(u) { UNITS = u === 'lb' ? 'lb' : 'kg'; }
 export const getUnits = () => UNITS;
 /** Label used for bodyweight loads ("BW" in gym terms, "Bodyweight" in plain wording). */
 export function setBwLabel(s) { BW_LABEL = s || 'BW'; }
-/** kg -> display number (lb rounded to 0.5). Blank/invalid values pass through. */
+/** kg -> display number (lb rounded to 0.5, kg to 0.01 so loads entered in lb never show as 13.381). Blank/invalid values pass through. */
 export function toDisp(kg) {
   if (kg == null || kg === '' || !Number.isFinite(+kg)) return kg;
-  return UNITS === 'lb' ? Math.round(+kg / LB_KG * 2) / 2 : +kg;
+  return UNITS === 'lb' ? Math.round(+kg / LB_KG * 2) / 2 : Math.round(+kg * 100) / 100;
 }
 /** Display number -> kg (lb converted, kept to 3 decimals). Blank becomes null. */
 export function fromDisp(v) {
@@ -231,6 +231,100 @@ export function stepDisp(kg) {
   return UNITS === 'lb' ? Math.max(2.5, Math.round(+kg / LB_KG / 2.5) * 2.5) : +(+kg).toFixed(2);
 }
 const dispNum = kg => String(+(+toDisp(kg)).toFixed(2));
+const kg2 = x => Math.round(x * 100) / 100;
+/** A load typed or stepped on screen -> kg to store, rounded to 0.01 kg (still shows as the same lb number). */
+export function kgFromDisp(v) {
+  const kg = fromDisp(v);
+  return typeof kg === 'number' && Number.isFinite(kg) ? kg2(kg) : kg;
+}
+
+/**
+ * One −/+ step on a load (kg in, kg out) for the workout screen.
+ * Dumbbells with a rack listed step to the next dumbbell the user owns. In lb, the step is a tidy lb step and
+ * the result is stored to 0.01 kg. In kg, a load left over from lb (off the 0.25 kg grid) snaps to the step grid.
+ * Cable levels step plainly. Never below 0.
+ */
+export function stepLoad(w, ex, dir, { step = ex?.inc || 2.5, dumbbells = null } = {}) {
+  const cur = Math.max(0, +w || 0), d = dir < 0 ? -1 : 1;
+  if (ex?.unit === 'kg/DB' && dumbbells?.length) {
+    const rack = [...new Set(dumbbells.map(Number).filter(x => x > 0))].sort((a, b) => a - b);
+    const nx = d > 0 ? rack.find(x => x > cur + KG_TOL) : rack.filter(x => x < cur - KG_TOL).pop();
+    if (nx != null) return nx;
+  }
+  if (ex?.unit === 'L') return Math.max(0, +(cur + step * d).toFixed(2));
+  if (UNITS === 'lb') return Math.max(0, kgFromDisp(Math.max(0, (+toDisp(cur) || 0) + stepDisp(step) * d)));
+  const offGrid = Math.abs(cur * 4 - Math.round(cur * 4)) > 0.01;
+  if (offGrid && step > 0) {
+    const n = d > 0 ? Math.floor(cur / step + EPS) + 1 : Math.ceil(cur / step - EPS) - 1;
+    return Math.max(0, +(n * step).toFixed(2));
+  }
+  return Math.max(0, +(cur + step * d).toFixed(2));
+}
+
+/** Bars that are not the Olympic bar: their weight varies (EZ bar about 7 to 10 kg, trap bar 20 to 30 kg). */
+const ODD_BAR_IDS = new Set(['ezcurl', 'trapdl', 'skull']); // skull crushers are usually done with an EZ bar
+const ODD_BAR_NAME = /\b(ez|trap|hex)\b/i;
+export const isOddBar = ex => ex?.equip === 'barbell' && !/\b(straight|olympic)\b/i.test(ex.name || '') && (ODD_BAR_IDS.has(ex.id) || ODD_BAR_NAME.test(ex.name || ''));
+/**
+ * Bar weight in kg for plate maths and warm-ups: the Smith bar, the Olympic bar, 0 for non-barbell lifts,
+ * and null (unknown) for EZ and trap bars unless the user set `equip.ezBarKg`.
+ */
+export function barKgFor(ex, equip) {
+  if (ex?.equip === 'smith') return +(equip?.smithBarKg ?? equip?.barKg ?? 20);
+  if (ex?.equip !== 'barbell') return 0;
+  if (isOddBar(ex)) {
+    const trap = ex.id === 'trapdl' || /\b(trap|hex)\b/i.test(ex.name || '');
+    return !trap && +equip?.ezBarKg > 0 ? +equip.ezBarKg : null;
+  }
+  return +(equip?.barKg ?? 20);
+}
+
+// ---- stale drafts and rest timers (a draft left overnight, or the phone clock changed) --------------------
+export const STALE_DRAFT_MS = 12 * 3600000, MAX_REST_MS = 3600000;
+/** Minutes since a workout started, and whether the start is too long ago (or in the future) to count as a clock. */
+export function draftClock(start, now = Date.now()) {
+  if (!(+start > 0)) return { mins: 0, stale: false };
+  const ms = now - start;
+  return { mins: Math.max(0, Math.floor(ms / 60000)), stale: ms > STALE_DRAFT_MS || ms < -60000 };
+}
+/** A rest timer ending more than an hour from now (the clock went back) or with no valid end: treat it as closed. */
+export function timerStale(t, now = Date.now()) {
+  if (!t) return false;
+  return !Number.isFinite(+t.end) || +t.end - now > MAX_REST_MS;
+}
+
+/**
+ * Move a workout entry up (dir -1) or down (dir 1) without splitting a superset: all members of its group
+ * move together, and a single exercise jumps over a whole superset. Returns a new array, or null when it
+ * can't move. A superset that is already split is joined up at its first member.
+ */
+export function moveEntry(entries, i, dir) {
+  const a = entries || [], e = a[i];
+  if (!e) return null;
+  const key = x => x?.slot?.group || null;
+  const size = g => (g ? a.filter(x => key(x) === g).length : 0);
+  const unit = x => (size(key(x)) > 1 ? a.filter(y => key(y) === key(x)) : [x]);
+  const block = unit(e);
+  const start = a.indexOf(block[0]);
+  const rest = a.filter(x => !block.includes(x));
+  let at = a.slice(0, start).filter(x => !block.includes(x)).length;
+  const split = block.some((x, k) => a.indexOf(x) !== start + k);
+  if (!split) {
+    if (dir < 0) {
+      if (at === 0) return null;
+      const g = key(rest[at - 1]);
+      at--;
+      if (size(g) > 1) while (at > 0 && key(rest[at - 1]) === g) at--;
+    } else {
+      if (at >= rest.length) return null;
+      const g = key(rest[at]);
+      at++;
+      if (size(g) > 1) while (at < rest.length && key(rest[at]) === g) at++;
+    }
+  }
+  rest.splice(at, 0, ...block);
+  return rest;
+}
 
 // lb mode: loads are worked out in lb and stored back as kg (3 decimals), which always shows as the same lb.
 /** Barbell totals move in 5 lb (a 2.5 lb plate per side); dumbbells and machines use the same 5 lb grid. */
@@ -397,7 +491,7 @@ export function volume(ex, sets) {
 export function warmup(w, ex, equip) {
   if (!isKg(ex.unit) || !(w > 0)) return [];
   const barbell = ex.equip === 'barbell' || ex.equip === 'smith';
-  const bar = barbell ? (ex.equip === 'smith' ? (equip?.smithBarKg ?? equip?.barKg ?? 20) : (equip?.barKg ?? 20)) : 0;
+  const bar = barbell ? (barKgFor(ex, equip) || 0) : 0; // an EZ or trap bar of unknown weight: no empty-bar set
   const steps = w >= 40 ? [[0.4, 8], [0.6, 5], [0.8, 3]] : w >= 15 ? [[0.5, 8], [0.75, 4]] : [[0.6, 8]];
   const out = [];
   // Barbell and Smith lifts start with the empty bar.

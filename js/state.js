@@ -2,6 +2,7 @@
 import * as db from './db.js';
 import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY, MUSCLE_UPDATES } from './seed.js';
 import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec, cleanText, MAX_KG, MAX_REPS, validIso, dedupeDays, addDays } from './engine.js';
+import { cleanLearn } from './learn.js';
 
 export const S = {
   backend: null,
@@ -242,7 +243,8 @@ async function doCommit() {
     id: d.id, date: d.date, name: d.name, color: d.color, gymId: d.gymId,
     // A backfilled past workout has no real clock: keep only the duration typed in, and drop tick times
     // so they don't teach the rest-time estimate.
-    start: d.past ? null : d.start, end: d.past ? null : Date.now(), minutes: d.past ? d.minutes ?? null : undefined,
+    // A draft left open for over 12 hours (or a changed clock) has no believable length: keep the date, not the hours.
+    ...(() => { const stale = !d.past && !(Date.now() - d.start >= 0 && Date.now() - d.start <= 12 * 3600e3); return { start: d.past || stale ? null : d.start, end: d.past || stale ? null : Date.now(), minutes: d.past ? d.minutes ?? null : stale ? null : undefined }; })(),
     readiness: d.readiness, deload: !!d.deload, ...(d.past ? { backfilled: true } : {}),
     hr: d.hr, feel: d.feel, note: d.note, ...(d.cardio?.length ? { cardio: d.cardio.map(c => ({ type: c.type, min: c.min, intensity: c.intensity, ...(c.km ? { km: c.km } : {}) })) } : {}),
     entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sug: e.sg?.t || null, sets: e.sets.map(s => ({ w: s.w, r: s.r, done: !!s.done, ...(s.warm ? { warm: true } : {}), ...(s.at && !d.past ? { at: s.at } : {}) })), rir: e.rir, pain: e.pain, note: e.note })),
@@ -379,6 +381,8 @@ export function sanitizeBackup(data) {
     for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience', 'textSize', 'remindAt']) if (k in s && typeof s[k] !== 'string') delete s[k];
     if ('streakPauses' in s) s.streakPauses = cleanPauses(s.streakPauses);
     if ('equip' in s) { const q = cleanEquip(s.equip); if (q) s.equip = q; else delete s.equip; }
+    if ('learn' in s) s.learn = cleanLearn(s.learn);
+    if ('learnHidden' in s) s.learnHidden = s.learnHidden === true;
     if ('atlasSens' in s) s.atlasSens = Math.max(0.3, Math.min(2, numOr(s.atlasSens, 1)));
     if ('dayStart' in s) s.dayStart = Math.max(0, Math.min(6, numOr(s.dayStart, 0)));
     if ('remindAt' in s && !/^\d{2}:\d{2}$/.test(s.remindAt)) delete s.remindAt;
@@ -432,6 +436,7 @@ function cleanEquip(e) {
   if ('plates' in e) { const p = nums(e.plates, 0.25, 100, 20); if (p.length) out.plates = p.sort((a, b) => b - a); }
   if ('dumbbells' in e) { const d = nums(e.dumbbells, 0.5, 200, 100); if (d.length) out.dumbbells = d.sort((a, b) => a - b); }
   for (const k of ['barKg', 'smithBarKg']) if (k in e) { const v = num(e[k]); if (v != null && v >= 0 && v <= 100) out[k] = v; }
+  if ('ezBarKg' in e) { const v = num(e.ezBarKg); if (v != null && v >= 2 && v <= 40) out.ezBarKg = v; }
   return out;
 }
 

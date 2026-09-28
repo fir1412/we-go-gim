@@ -24,7 +24,7 @@ export function dailyCard(date = todayIso(), { link = true } = {}) {
   if (!shown.length) return link ? `<section class="box dailycard"><div class="cap"><b>Daily targets</b><a class="linkbtn" href="#/daily">Set targets</a></div></section>` : '';
   const tiles = shown.map(([k, label, unit, , c]) => {
     const v = d[k] ?? (k === 'sleep' ? null : 0), pct = t[k] ? Math.min(1, v / t[k]) : 0, hit = t[k] && v >= t[k];
-    return `<button class="dtile ${hit ? 'hit' : ''}" data-act="daily-open" data-k="${k}" style="--k:var(--${c})" aria-label="${esc(`${label}: ${v == null ? 'not logged' : fmt(k, v)} of ${withUnit(k, t[k])}${hit ? ', target reached' : ''}. Tap to add`)}">
+    return `<button class="dtile ${hit ? 'hit' : ''}" data-act="daily-open" data-k="${k}" style="--k:var(--${c})" aria-label="${esc(`${label} ${fmt(k, v)}/${fmt(k, t[k])}${unit ? ' ' + unit : ''}${v == null ? ', not logged' : ''}${hit ? ', target reached' : ''}. Tap to add`)}">
       <span class="dt-l">${label}${hit ? ICON.check : ''}</span><b class="num">${fmt(k, v)}<small>/${fmt(k, t[k])}${unit ? ' ' + unit : ''}</small></b><i class="dt-bar"><i style="width:${(pct * 100).toFixed(0)}%"></i></i></button>`;
   }).join('');
   return `<section class="box dailycard"><div class="cap"><b>Today's targets</b>${link ? `<a class="linkbtn" href="#/daily">Last 7 days</a>` : ''}</div><div class="dtiles">${tiles}</div></section>`;

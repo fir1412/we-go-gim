@@ -13,6 +13,7 @@ import * as atlas from './views/atlas.js';
 import * as setup from './views/setup.js';
 import * as more from './views/more.js';
 import * as daily from './views/daily.js';
+import * as learnView from './views/learn.js';
 import './fx.js'; // motion and touch feedback (self-starting)
 
 const TABS = [
@@ -29,6 +30,7 @@ const ROUTES = {
   workout: [workout, 'workout'],
   insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
   levels: [levels, 'insights'], atlas: [atlas, 'insights'], measure: [insights, 'insights'],
+  learn: [learnView, 'more'],
   setup: [setup, 'more'],
   history: [history, 'history'], session: [history, 'history'],
   more: [more, 'more'], program: [more, 'more'], paste: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
@@ -43,6 +45,7 @@ export function parseRoute() {
 export const go = path => { location.hash = '#/' + path; };
 
 let current = null, lastKey = '';
+let touring = false; // while the quick tour moves between screens
 
 function render() {
   try { renderRoute(); } catch (e) { console.error(e); recovery(e); }
@@ -64,6 +67,7 @@ function renderRoute() {
   }
   const [view, tab] = ROUTES[route.name];
   current = { view, route };
+  if (!touring) learnView.learnFrom({ route: route.name }); // "Learn the app" missions done by visiting a screen (the tour's own visits don't count)
   const out = view.render(route) || {};
   const key = route.name + '/' + route.args.join('/');
   const sc = $('#screen');
@@ -104,8 +108,9 @@ function dispatch(kind, ev) {
   if (!el) return;
   if (kind !== 'click' && !el.matches('input,select,textarea')) return;
   const name = el.dataset[attr];
-  const fn = current?.view.actions?.[name] || GLOBAL[name] || daily.actions?.[name]; // daily tiles also live on Today
+  const fn = current?.view.actions?.[name] || GLOBAL[name] || daily.actions?.[name] || learnView.actions[name]; // daily tiles and the learn card also live on Today
   if (!fn) return;
+  if (kind === 'click') learnView.learnFrom({ act: name });
   if (kind === 'click') ev.preventDefault();
   Promise.resolve(fn(el, ev, current.route)).catch(err => { console.error(err); toast(err.message || 'Something went wrong', 'down'); });
 }
@@ -260,8 +265,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.8.2';
+export const APP_VERSION = '1.8.3';
 const WHATS_NEW = {
+  '1.8.3': ['Learn the app: 10 short missions that show what each feature does. Skip any time and find them under More', 'Pounds work everywhere: Equipment, the exercise editor, and + and − step to the dumbbells you own', 'Set your EZ bar weight in Equipment', 'Imports keep gym and heart rate, and say why lines were left out'],
   '1.8.2': ['Exercise search finds what you mean as you type: words in any order, “pullup” or “pull-up”, best matches first', 'New users always start at the welcome screen, and a new exercise made from your programme goes straight back to it', 'Turn speed slider for the 3D muscle view', 'Many fixes from testing: safer imports and edits, long names wrap, no double saves'],
   '1.8.1': ['Prefer a plain log? Streaks, quests and badges can now be turned off in Settings'],
   '1.8.0': ['Medical mode: every muscle in 3D. Tap a muscle to see the exercises that train it', 'Day streaks, daily quests and badges. Rest days never break your streak', 'Reminders on training days through your phone calendar', '90 more exercises, a more detailed body map, and Traditional Chinese (繁體中文)', 'Import notes and spreadsheets written in Malay, Chinese or Japanese'],
@@ -351,7 +357,8 @@ const TOUR = [
 /** Walk through the tabs. The sheet stays open while the screen behind it changes, so the tour adds one history entry, not one per step. */
 export function showTour(start = 0, { onDone } = {}) {
   let i = Math.min(Math.max(0, start), TOUR.length - 1);
-  const sheet = openSheet('', { label: 'Quick tour', onClose: () => { if (!S.settings.tourDone) saveSettings({ tourDone: true }); onDone?.(); } });
+  touring = true;
+  const sheet = openSheet('', { label: 'Quick tour', onClose: () => { touring = false; if (!S.settings.tourDone) saveSettings({ tourDone: true }); onDone?.(); } });
   const show = tab => {
     if (parseRoute().name !== tab) { window.history.replaceState(window.history.state, '', '#/' + tab); render(); }
     const c = $('#app').style.getPropertyValue('--c');
@@ -373,7 +380,7 @@ export function showTour(start = 0, { onDone } = {}) {
   sheet.addEventListener('click', async e => {
     const b = e.target.closest('[data-t]'); if (!b) return;
     const t = b.dataset.t;
-    if (t === 'next' && i === TOUR.length - 1) { show('today'); closeSheet(); return; }
+    if (t === 'next' && i === TOUR.length - 1) { show('today'); closeSheet(); learnView.learnTourDone(); return; }
     if (t === 'next') i++;
     else if (t === 'back') i--;
     else if (t === 'install') { await promptInstall(); paint(); return; }
@@ -414,6 +421,7 @@ function onboarding() {
   }
   if (seen === APP_VERSION) return;
   const done = () => { if (S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION }); };
+  if (!seen && S.sessions.some(s => !s.seed)) return done(); // someone with real workouts (a restored backup) already knows the app
   if (!seen) showTour(0, { onDone: done }); else showWhatsNew(seen, done);
 }
 

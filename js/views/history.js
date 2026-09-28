@@ -212,7 +212,7 @@ export const actions = {
     const days = S.program.days.filter(d => d.slots.length);
     openSheet(`<h2 class="sh-title">Log a past workout</h2>
       <label class="field"><span>Date</span><input class="inp" id="past-date" type="date" value="${y}" max="${y}"></label>
-      <div class="field"><span>Workout</span><div class="list box" id="past-days">${days.map(d => `<button class="li" data-act="log-past-go" data-dow="${d.dow}" style="${kstyle(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${d.slots.length} exercises from your programme</small></span>${ICON.chev}</button>`).join('')}
+      <div class="field"><span>Workout</span><div class="list box" id="past-days">${days.map(d => `<button class="li" data-act="log-past-go" data-dow="${d.dow}" style="${kstyle(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${d.slots.length === 1 ? '1 exercise' : d.slots.length + ' exercises'} from your programme</small></span>${ICON.chev}</button>`).join('')}
       <button class="li" data-act="log-past-go" data-dow="-1"><i class="sw"></i><span><b>Empty workout</b><small>Add exercises yourself</small></span>${ICON.chev}</button></div></div>
       <p class="fine">Sets are pre-filled from your history up to that date. It counts for History, Insights and XP like any other workout.</p>`, { label: 'Log a past workout' });
   },

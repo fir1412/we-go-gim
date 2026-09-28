@@ -3,6 +3,7 @@
 // from the workout history, so it survives backups and can't drift.
 import { S, todayIso, dayForDate } from './state.js';
 import { addDays, exposures, score, workSets, muscleXP, MUSCLES, validIso } from './engine.js';
+import { learnProgress } from './learn.js';
 
 /** Streaks, quests and badges can be switched off in Settings (on by default). */
 export const gameOn = () => S.settings.gamify !== false;
@@ -105,6 +106,7 @@ const BADGES = [
   ['lv5', '📈', 'Level 5 muscle', 'One muscle reached level 5.'],
   ['lv10', '🚀', 'Level 10 muscle', 'One muscle reached level 10.'],
   ['allmuscles', '🧩', 'Whole body', 'Every muscle group trained at least once.'],
+  ['explorer', '🧭', 'Explorer', 'Every mission in Learn the app done.'],
 ];
 
 /** Every badge with the date it was earned (null if not yet). */
@@ -120,6 +122,8 @@ export function badges(t = todayIso()) {
     if (u.level >= 10 && !got.lv10) got.lv10 = u.date;
   }
   if (MUSCLES.every(m => xp.muscles[m]?.xp > 0)) got.allmuscles = MUSCLES.map(m => xp.muscles[m].events?.[0]?.date).filter(Boolean).sort().pop() || t;
+  const learned = learnProgress(S.settings || {});
+  if (learned.all) got.explorer = learned.last;
   return BADGES.map(([id, icon, name, about]) => ({ id, icon, name, about, date: got[id] || null }));
 }
 

@@ -1,6 +1,6 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
 import { guessMuscles } from '../io.js';
-import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round, MAX_KG, MAX_REPS } from '../engine.js';
+import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, kgFromDisp, getUnits, score, round, MAX_KG, MAX_REPS, stepLoad, barKgFor, draftClock, timerStale, moveEntry } from '../engine.js';
 import { esc, fmtDate, fmtTime, chip, chipText, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer, canInstall } from '../app.js';
 import { groupLabels } from './today.js';
@@ -17,7 +17,9 @@ const FEEL = [[1, 'Drained'], [2, 'Low'], [3, 'OK'], [4, 'Good'], [5, 'Great']];
 const openWhy = new Set();
 const openDone = new Set();
 
-const lastAt = e => Math.max(0, ...e.sets.map(s => s.at || 0));
+/** Local calendar date (YYYY-MM-DD) of a timestamp. */
+const localIso = ms => { const t = new Date(ms); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+const lastAt = e =>Math.max(0, ...e.sets.map(s => s.at || 0));
 const pending = e => e.sets.findIndex(s => !s.done);
 
 /** The set to do next after working on `e`: superset partner first, then `e` itself, then the next unfinished exercise. */
@@ -78,7 +80,10 @@ export function render() {
   const d = S.draft;
   if (!d) return empty();
   if (d.summary) return summary(d);
-  const mins = Math.max(0, Math.floor((Date.now() - d.start) / 60000));
+  // A draft left overnight (or a phone clock change) shows when it started, not "3671 min in".
+  const clock = draftClock(d.start);
+  if (timerStale(d.timer)) { d.timer = null; saveDraft(); }
+  const clockTxt = clock.stale ? `Started ${fmtDate(localIso(d.start), { dow: true })}, ${fmtTime(d.start)}` : `${clock.mins} min in`;
   const all = d.entries.flatMap(e => e.sets.filter(s => !s.warm)), done = all.filter(s => s.done).length;
   const left = estimateRemaining(d.entries, S.exById, S.sessions, Date.now(), d.start);
   const finishAt = fmtTime(Date.now() + left * 1000);
@@ -111,7 +116,7 @@ export function render() {
     <button class="linkbtn danger center" data-act="discard">Discard workout</button>`;
   return {
     // The bar is sticky, so the clock and time left stay visible while scrolling.
-    title: d.name, sub: d.past ? `Past workout · ${fmtDate(d.date, { dow: true })}` : `${d.date !== todayIso() ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${mins} min in · ${left ? `~${Math.round(left / 60)} min left · done ${finishAt}` : 'last sets'}`, color: d.color,
+    title: d.name, sub: d.past ? `Past workout · ${fmtDate(d.date, { dow: true })}` : `${d.date !== todayIso() && !clock.stale ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${clockTxt} ·${left ? `~${Math.round(left / 60)} min left · done ${finishAt}` : 'last sets'}`, color: d.color,
     right: `<button class="mini go" data-act="finish">Finish</button>`, html: h,
   };
 }
@@ -158,7 +163,7 @@ function card(e, ei, grp, focusSi = -1) {
       <span class="hdr-r">${tag}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
     ${whyOpen ? `<p class="whyp">${esc(e.sg.why)} Aim for ${esc(rirWords(e.sg.rir))} on each set.${e.sg.t === 'cal' ? helpTip('calibrate') : ''}</p>` : ''}
     ${startPick(e, ex, ei)}
-    ${helper(e, ex)}
+    <div class="hlpw" id="hp-${e.uid}">${helper(e, ex)}</div>
     <div class="sets">${rows}</div>
     ${e.note ? `<p class="enote" data-raw>${esc(e.note)}</p>` : ''}
     <div class="exf"><span class="rirlbl">${esc(T('rir'))}${helpTip('rir')}</span><div class="seg sm" role="group" aria-label="${esc(ex.name)}: ${esc(T('rirLong'))} on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="grow"></span>${canWarm(e, ex) ? `<button class="mini" data-act="warm" data-e="${ei}" aria-label="Add warm-up sets to ${esc(ex.name)}">+ Warm-up</button>` : ''}
@@ -174,6 +179,7 @@ function helper(e, ex) {
   const eq = S.settings.equip;
   if (ex.equip === 'barbell' || ex.equip === 'smith') {
     const bar = barFor(ex);
+    if (bar == null) return ''; // EZ or trap bar: its weight varies, so no bar warning or plate maths
     const p = platesPerSide(w, bar, eq.plates);
     const U = getUnits(), wt = `${num(toDisp(w))} ${U}`;
     // In lb, a 20 kg bar is the 45 lb bar the plate maths uses (not 44 lb).
@@ -181,7 +187,7 @@ function helper(e, ex) {
     if (!p.ok) return `<p class="helper">${w < bar ? `Below the ${barTxt} ${U} bar.` : `Can't make ${wt} exactly with your plates (${num(toDisp(p.rem), 2)} ${U}/side short).`}</p>`;
     return `<p class="helper">${wt}: <b>${p.plates.length ? p.plates.join(' + ') + ' ' + (p.unit || 'kg') : 'empty bar'}</b>${p.plates.length ? ' per side' : ''} on the ${barTxt} ${U} bar</p>`;
   }
-  if (ex.unit === 'kg/DB' && eq.dumbbells?.length && !eq.dumbbells.includes(w)) {
+  if (ex.unit === 'kg/DB' && eq.dumbbells?.length && !eq.dumbbells.some(d => toDisp(d) === toDisp(w))) {
     return `<p class="helper">No ${num(toDisp(w))} ${getUnits()} dumbbell in your list. Nearest: <b>${num(toDisp(nearestDumbbell(w, eq.dumbbells)))} ${getUnits()}</b></p>`;
   }
   return '';
@@ -218,7 +224,7 @@ export function startGuess(ex, f = 1) {
     return eq.dumbbells?.length ? nearestDumbbell(base * k, eq.dumbbells) : round(base * k, 2);
   }
   const base = BASE[ex.id] ?? (ex.equip === 'barbell' || ex.equip === 'smith' ? 30 : legs ? 40 : 25);
-  if (ex.equip === 'barbell' || ex.equip === 'smith') return Math.max(barFor(ex), round(base * k, 2.5));
+  if (ex.equip === 'barbell' || ex.equip === 'smith') return Math.max(barFor(ex) || 0, round(base * k, 2.5));
   return Math.max(5, round(base * k, 5));
 }
 function startPick(e, ex, ei) {
@@ -267,11 +273,12 @@ function earlyWins(d) {
   return '';
 }
 
-const barFor = ex => ex.equip === 'smith' ? (S.settings.equip.smithBarKg ?? S.settings.equip.barKg) : S.settings.equip.barKg;
+/** Bar weight in kg: Olympic or Smith bar; null for an EZ or trap bar of unknown weight (no plate maths then). */
+const barFor = ex => barKgFor(ex, S.settings.equip);
 
 /** Short plate list for the rest-timer bar, e.g. " · 20+5/side". Empty when it doesn't apply. */
 function platesShort(ex, w) {
-  if (!(ex.equip === 'barbell' || ex.equip === 'smith') || !(+w > 0)) return '';
+  if (!(ex.equip === 'barbell' || ex.equip === 'smith') || !(+w > 0) || barFor(ex) == null) return '';
   const p = platesPerSide(+w, barFor(ex), S.settings.equip.plates);
   return p.ok ? ` · ${p.plates.length ? p.plates.join('+') + '/side' : 'empty bar'}` : '';
 }
@@ -313,7 +320,8 @@ function summary(d) {
   // A short or partial workout isn't compared with a full one: no red percentage for showing up.
   const partial = tot && done < tot / 2;
   const pct = lv && !partial ? Math.round((v / lv - 1) * 100) : null;
-  const mins = d.past ? d.minutes : Math.max(1, Math.round((Date.now() - d.start) / 60000));
+  // A stale draft's clock is meaningless (days, or negative): leave the length out rather than show "3671 min".
+  const mins = d.past ? d.minutes : draftClock(d.start).stale ? null : Math.max(1, Math.round((Date.now() - d.start) / 60000));
   const planned = d.plannedSec ? Math.round(d.plannedSec / 60) : null;
   let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
@@ -378,9 +386,13 @@ export const actions = {
     if (v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
     if (f === 'w') {
       const ex = S.exById[e.exId];
-      const kg = v == null ? null : conv(ex) ? fromDisp(v) : v;
+      let kg = v == null ? null : conv(ex) ? kgFromDisp(v) : v;
+      // 22 lb typed is the 10 kg dumbbell on the rack: store the rack weight, not 9.98 kg.
+      const rackDb = kg != null && ex.unit === 'kg/DB' ? (S.settings.equip?.dumbbells || []).find(d => toDisp(d) === toDisp(kg)) : null;
+      if (rackDb != null) kg = rackDb;
       const old = s.w; s.w = kg; carry(e, si, old, kg);
       paintLater(e, ex, si);
+      paintHelper(e, ex);
     } else s.r = v == null ? null : Math.round(v);
     saveDraft();
   },
@@ -426,8 +438,8 @@ export const actions = {
       <a class="li" href="${esc(howToUrl(ex))}" target="_blank" rel="noopener noreferrer"><span><b>How to do it</b><small>Opens a video search in your browser</small></span></a>
       <a class="li" href="#/atlas/x/${esc(ex.id)}"><span><b>See the muscles in 3D</b><small>Main muscles and helpers</small></span></a>
       <button class="li" data-act="del-set" data-e="${ei}"><span><b>Remove last set</b></span></button>
-      <button class="li" data-act="move" data-e="${ei}" data-d="-1" ${ei === 0 ? 'disabled' : ''}><span><b>Move up</b></span></button>
-      <button class="li" data-act="move" data-e="${ei}" data-d="1" ${ei === S.draft.entries.length - 1 ? 'disabled' : ''}><span><b>Move down</b></span></button>
+      <button class="li" data-act="move" data-e="${ei}" data-d="-1" ${moveEntry(S.draft.entries, ei, -1) ? '' : 'disabled'}><span><b>Move up</b></span></button>
+      <button class="li" data-act="move" data-e="${ei}" data-d="1" ${moveEntry(S.draft.entries, ei, 1) ? '' : 'disabled'}><span><b>Move down</b></span></button>
       <button class="li danger" data-act="remove" data-e="${ei}"><span><b>Remove from workout</b></span></button></div>`, { label: ex.name });
   },
   warm(el) {
@@ -501,10 +513,11 @@ export const actions = {
     toast('Last set removed', 'ink', { undo: () => { e.sets.push(gone); commit(); } });
   },
   move(el) {
-    const i = +el.dataset.e, j = i + +el.dataset.d, a = S.draft.entries;
+    // A superset moves as one block, so a move never splits A1 and A2.
+    const moved = moveEntry(S.draft.entries, +el.dataset.e, +el.dataset.d);
     closeSheet();
-    if (j < 0 || j >= a.length) return;
-    [a[i], a[j]] = [a[j], a[i]]; commit();
+    if (!moved) return;
+    S.draft.entries = moved; commit();
   },
   remove(el) {
     const i = +el.dataset.e; closeSheet();
@@ -592,6 +605,11 @@ function focusField(f, e, si) {
 function paintLater(e, ex, si) {
   e.sets.forEach((x, j) => { if (j > si) { const inp = document.getElementById(`w-${e.uid}-${j}`); if (inp && document.activeElement !== inp) inp.value = shown(ex, x.w); } });
 }
+/** Refresh the plate / dumbbell helper line in place after a weight is typed or stepped. */
+function paintHelper(e, ex) {
+  const box = document.getElementById(`hp-${e.uid}`);
+  if (box) box.innerHTML = helper(e, ex);
+}
 
 /** One −/+ step. Weights step in the display unit (kg: the exercise's jump; lb: the same jump in tidy lb). */
 function bumpOnce(el) {
@@ -601,14 +619,13 @@ function bumpOnce(el) {
   if (!s) return;
   if (el.dataset.f === 'w') {
     const old = s.w;
-    if (conv(ex) && getUnits() === 'lb') {
-      const d = Math.max(0, (+toDisp(s.w) || 0) + stepDisp(stepFor(ex)) * dir);
-      s.w = fromDisp(d);
-    } else s.w = Math.max(0, +((+s.w || 0) + stepFor(ex) * dir).toFixed(2));
+    // Dumbbells step to the next one on the user's rack (kg or lb); lb loads are stored to 0.01 kg.
+    s.w = stepLoad(s.w, ex, dir, { step: stepFor(ex), dumbbells: S.settings.equip?.dumbbells });
     carry(e, si, old, s.w);
     const inp = document.getElementById(`w-${e.uid}-${si}`);
     if (inp) inp.value = shown(ex, s.w);
     paintLater(e, ex, si);
+    paintHelper(e, ex);
   } else {
     s.r = Math.max(0, (+s.r || 0) + dir);
     const inp = document.getElementById(`r-${e.uid}-${si}`);
@@ -646,6 +663,11 @@ if (typeof document !== 'undefined') {
   });
   for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, endHold);
   document.addEventListener('contextmenu', ev => { if (ev.target.closest?.('[data-act="bump"]')) ev.preventDefault(); });
+  // A rest timer more than an hour away (the phone clock went back) is closed on any screen, not shown as 3656:29.
+  setInterval(() => { if (S.draft?.timer && timerStale(S.draft.timer)) { S.draft.timer = null; saveDraft(); } }, 1000);
+  // The toast sits above the rest timer bar: CSS reads the bar's height from --timer-h.
+  const tm = document.getElementById('timer');
+  if (tm && typeof ResizeObserver === 'function') new ResizeObserver(() => document.documentElement.style.setProperty('--timer-h', `${tm.hidden ? 0 : tm.offsetHeight}px`)).observe(tm);
 }
 
 function carry(e, si, old, now) {
@@ -679,12 +701,22 @@ function restAfter(e, ex, s) {
 function showNext(e) {
   const nx = nextUp(e);
   if (!nx) return;
-  const row = document.getElementById(`w-${nx.e.uid}-${nx.si}`)?.closest('.set');
-  const sc = document.getElementById('screen');
-  if (!row || !sc) return;
-  const r = row.getBoundingClientRect(), v = sc.getBoundingClientRect();
-  const timerH = document.getElementById('timer')?.offsetHeight || 0;
-  if (r.top < v.top + 60 || r.bottom > v.bottom - timerH - 12) row.scrollIntoView({ block: 'center', behavior: smooth() });
+  // Measure after the rest timer has been laid out: on the first tick it appears in this same frame and
+  // shrinks the screen, which would otherwise leave the next set under it.
+  const run = () => {
+    const row = document.getElementById(`w-${nx.e.uid}-${nx.si}`)?.closest('.set');
+    const sc = document.getElementById('screen');
+    if (!row || !sc) return;
+    const r = row.getBoundingClientRect(), v = sc.getBoundingClientRect();
+    const tm = document.getElementById('timer');
+    // The visible bottom is the top of the timer bar when it overlaps the screen (desktop grid, or a fixed bar).
+    const tTop = tm && !tm.hidden ? tm.getBoundingClientRect().top : Infinity;
+    const bottom = Math.min(v.bottom, tTop > v.top ? tTop : v.bottom);
+    if (r.top >= v.top + 60 && r.bottom <= bottom - 12) return;
+    const target = sc.scrollTop + (r.top - v.top) - Math.max(0, (bottom - v.top - r.height) / 2);
+    sc.scrollTo({ top: Math.max(0, target), behavior: smooth() });
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(run)); else run();
 }
 
 function pickExercise(ei) {

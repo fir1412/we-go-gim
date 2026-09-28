@@ -433,6 +433,10 @@ export function parseSplitText(text) {
     if (!pct && m[3] && DIST_AFTER.test(rest)) { skipped.push(line); notAdded.push(line); continue; }
     const sets = Math.max(1, Math.min(10, +m[2]));
     let lo = m[3] ? +m[3] : null, hi = m[4] ? +m[4] : lo;
+    // "Curl 3 x 0", "3 x 10000": reps a set can't have. Said on the review instead of saved. Holds in seconds
+    // ("Plank 3 x 120 seconds") may run longer.
+    const maxReps = secs || /^(?:s|secs?|seconds?)\b/i.test(rest) ? 600 : 100;
+    if (lo != null && (Math.min(lo, hi) < 1 || Math.max(lo, hi) > maxReps)) { skipped.push(line); notAdded.push(`${line} · reps must be between 1 and ${maxReps}`); continue; }
     // "5+" means the last set goes for as many reps as you can.
     if (/^\+/.test(rest)) rest = `${hi}+ ${rest.slice(1).trim()}`.trim();
     const open = /failure|amrap|\bmax\b/i.test(rest);

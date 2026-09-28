@@ -202,6 +202,20 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
   return out;
 }
 
+/**
+ * What an imported session keeps besides its sets: a heart rate a person can have (30–250, rounded) and the
+ * gym, when one of `gyms` has the same name. Anything else is left out. Returns {hr?, gymId?}.
+ */
+export function importExtras(s, gyms) {
+  const out = {};
+  if (typeof s?.hr === 'number' && s.hr >= 30 && s.hr <= 250) out.hr = Math.round(s.hr);
+  const key = v => String(v ?? '').trim().toLowerCase();
+  const name = key(s?.gym);
+  const g = name && Array.isArray(gyms) ? gyms.find(x => x && typeof x.id === 'string' && key(x.name) === name) : null;
+  if (g) out.gymId = g.id;
+  return out;
+}
+
 /** An assisted lift: a negative load on it is the machine's help, not a typo. */
 const ASSISTED_RE = /\bassist(?:ed|ance)?\b|\bgravitron\b/i;
 
@@ -407,16 +421,16 @@ export function importFile(name, bytes, exercises, opts = {}) {
   if (route.kind === 'reject' || route.kind === 'backup' || route.kind === 'pdf') return { ...route, sessions: [] };
   if (route.kind === 'csv') {
     const fallbackDate = findDate(String(name).replace(/[_]+/g, ' '), opts.year || new Date().getFullYear(), 'ymd');
-    try { return { kind: 'csv', sessions: sessionsFromCSV(text, { ...opts, fallbackDate }) }; }
+    try { const sessions = sessionsFromCSV(text, { ...opts, fallbackDate }); return { kind: 'csv', sessions, future: sessions.future || 0 }; }
     catch (e) {
       // A CSV that isn't a set-by-set log (one row per exercise, or a coach's sheet) still reads as text lines.
       const r = parseLogText(text.replace(/[,;\t]+/g, ' '), exercises, { sessionName: sessionNameFromFile(name), ...opts });
-      return r.sessions.length ? { kind: 'text', sessions: r.sessions, skipped: r.skipped } : { kind: 'reject', message: e.message, sessions: [] };
+      return r.sessions.length ? { kind: 'text', sessions: r.sessions, skipped: r.skipped, future: r.future, impossible: r.impossible, badYears: r.badYears } : { kind: 'reject', message: e.message, sessions: [] };
     }
   }
   const plain = route.kind === 'html' ? htmlToText(text) : route.kind === 'rtf' ? rtfToText(text) : text;
   const r = parseLogText(plain, exercises, { sessionName: sessionNameFromFile(name), ...opts });
-  return { kind: route.kind, sessions: r.sessions, skipped: r.skipped };
+  return { kind: route.kind, sessions: r.sessions, skipped: r.skipped, future: r.future, impossible: r.impossible, badYears: r.badYears || [] };
 }
 
 /** Excel stores dates as day numbers (46286 = 21 Sep 2026); a CSV saved from it can keep them. */
@@ -449,6 +463,14 @@ const NOT_DAY = String.raw`(?!\s*(?:x\s*\d|[x×]\b|reps?\b|sets?\b|rir\b|rpe\b|k
 const RE_DMY = new RegExp(String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+${MONTH}(?![a-z])(?:,?\s*(\d{4}|\d{2})\b)?`, 'i');
 const RE_MDY = new RegExp(String.raw`\b${MONTH}(?![a-z])\s+(\d{1,2})(?:st|nd|rd|th)?\b${NOT_DAY}(?:,?\s*(\d{4})\b)?`, 'i');
 const RE_DM = new RegExp(String.raw`^\s*(\d{1,2})[/.](\d{1,2})\b(?![/.]\d)${NOT_DAY}`);
+/** Years on date-shaped text that the reader skips (outside 1991–2099), e.g. "21/9/9999": shown so "Nothing found" has a reason. */
+export function badYearsIn(text) {
+  const out = new Set();
+  const res = [/\b(\d{4})[-/.]\d{1,2}[-/.]\d{1,2}\b/g, /\b\d{1,2}[-/.]\d{1,2}[-/.](\d{4})\b/g, /(\d{4})\s*年\s*\d{1,2}\s*月/g,
+    new RegExp(String.raw`\b\d{1,2}(?:st|nd|rd|th)?\s+${MONTH}(?![a-z]),?\s*(\d{4})\b`, 'gi'), new RegExp(String.raw`\b${MONTH}(?![a-z])\s+\d{1,2}(?:st|nd|rd|th)?,?\s*(\d{4})\b`, 'gi')];
+  for (const re of res) for (const m of String(text || '').matchAll(re)) { const y = +m[m.length - 1]; if (!(y > 1990 && y < 2100)) out.add(String(y)); }
+  return [...out].slice(0, 10);
+}
 export const MONTH_RE = new RegExp(String.raw`\b${MONTH}(?![a-z])`, 'gi');
 
 /** Find a date in a line. Numeric dates are day first (Malaysian/UK style) unless order is 'mdy' (US). Returns {iso, index}. */
@@ -771,6 +793,10 @@ export function matchExercise(name, exercises, { prefer = null, unit = null } = 
   const sq = rawToks(name).join('');
   const qEq = equipOf(aw);
   if (qEq.has('smith')) qEq.delete('machine'); // "Squat smith machine"
+  // "Bench press 60kg" (a load in plain kilos, no equipment named) is the barbell bench, even when the programme
+  // has the dumbbell one: 60 kg per dumbbell would double the load. With no unit known the programme still wins,
+  // and kilos per dumbbell ("each") point to dumbbells.
+  const plainBench = unit === 'kg' && ar.has('bench') && !qEq.size;
   let best = null;
   for (const ex of exercises) {
     let c = libCache.get(ex.name);
@@ -796,6 +822,7 @@ export function matchExercise(name, exercises, { prefer = null, unit = null } = 
     if (prefer?.has(ex.id)) sc += 0.12; // the programme's own lifts win a close call
     if (unit && ex.unit === unit) sc += 0.03;
     if (unit === 'kg/DB' && ex.equip === 'db') sc += 0.1; // "20kg each": a dumbbell lift unless the name says otherwise
+    if (plainBench && ex.equip === 'barbell') sc += 0.15;
     if (!best || sc > best.score) best = { ex, score: sc };
   }
   return best;
@@ -943,10 +970,12 @@ export function normalizeLog(text, exercises = []) {
  * - A line without sets names an exercise only when sets follow it and it doesn't read like a remark.
  *   Everything else ("Lazy", a remark wrapped onto its own line) is a note.
  */
-export function parseLogText(text, exercises, { year = new Date().getFullYear(), sessionName = 'Imported', dateOrder = 'auto', lb = false } = {}) {
+export function parseLogText(text, exercises, { year = new Date().getFullYear(), sessionName = 'Imported', dateOrder = 'auto', lb = false, today = null } = {}) {
   loadForeignNames();
   const sessions = [];
-  let sess = null, ent = null, skipped = 0;
+  // impossible: set lines whose load or reps no real lift has (they are dropped below, and counted).
+  let sess = null, ent = null, skipped = 0, impossible = 0;
+  const tooBig = x => +x.w > MAX_KG || +x.r > MAX_REPS;
   const rows = [];
   let blank = true;
   const lines = normalizeLog(text, exercises);
@@ -1009,8 +1038,9 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
   };
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    if (sess && row.kind !== 'date') sess.lines++;
     if (row.kind === 'date') {
-      sess = { date: row.date, name: sessionName, entries: [], notes: [] };
+      sess = { date: row.date, name: sessionName, entries: [], notes: [], lines: 1 };
       let label = row.l.replace(CJK_HEAD_RE, (m, p) => ` ${CJK_PART[p]} day `).replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\b(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|isnin|selasa|rabu|khamis|jumaat|sabtu|ahad)\b/gi, '').replace(/\b\d+(st|nd|rd|th)?\b/gi, '').replace(MONTH_RE, '').replace(/\s+/g, ' ').trim();
       // "push 1" under a file called "Monday Push 1" says nothing new.
       const known = new Set(sessionName.toLowerCase().split(/\W+/).concat('day', 'session', 'workout'));
@@ -1056,6 +1086,7 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       // "Assisted pull up -20kg x 8": the machine's help, kept negative (on other lifts the minus sign is dropped).
       const assist = ASSISTED_RE.test(ent.exName) && /(?:^|[\s(:])[-−]\s*\d/.test(row.l);
       if (si.bare && (bwLift || (lib === null && exercises.length && guessNewExercise(ent.exName, { loaded: false }).equip === 'bw'))) got = Array.from({ length: si.bare.k }, () => ({ w: 0, r: si.bare.r }));
+      if (got.some(tooBig)) impossible++;
       const bwSets = got !== si.sets || (bwLift && got.every(s => s.w == null || s.w === 0));
       ent.sets.push(...got.map(s => ({ ...s, ...(bwName || bwSets ? { w: 0 } : assist && +s.w > 0 ? { w: -s.w } : {}), done: true })));
       if (bwName || bwSets) ent.unit = 'bw';
@@ -1087,6 +1118,7 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       if (extra) addNote(ent, extra);
       // Lines between the name and its sets describe the set-up ("... L dip on" / "bench instead").
       for (let k = i + 1; k < j; k++) addNote(ent, rows[k].l);
+      sess.lines += j - 1 - i;
       i = j - 1;
       continue;
     }
@@ -1100,8 +1132,8 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
     remark(row.l, false, !row.blank && !!last && /^[a-z0-9(]/.test(row.l) && !/[.!?]/.test(last.text.slice(-1)));
   }
   // Loads or reps past any real lift are typos or junk: those sets are dropped.
-  for (const s of sessions) for (const e of s.entries) { e.exName = cleanText(e.exName); e.sets = e.sets.filter(x => !(+x.w > MAX_KG) && !(+x.r > MAX_REPS)); }
-  const out = sessions.filter(s => s.entries.some(e => e.sets.length));
+  for (const s of sessions) for (const e of s.entries) { e.exName = cleanText(e.exName); e.sets = e.sets.filter(x => !tooBig(x)); }
+  let out = sessions.filter(s => s.entries.some(e => e.sets.length));
   for (const s of out) {
     s.entries = s.entries.filter(e => e.sets.length);
     for (const e of s.entries) {
@@ -1115,7 +1147,12 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
     }
   }
   fixDateTypos(out);
-  return { sessions: out, skipped };
+  // As with CSV files: sessions dated after tomorrow can't have happened. Left out, and their lines counted.
+  let future = 0;
+  const tomorrow = today && validIso(today) ? isoOf(t(today) + DAY) : null;
+  if (tomorrow) out = out.filter(s => (s.date > tomorrow ? (future += s.lines, false) : true));
+  for (const s of sessions) delete s.lines;
+  return { sessions: out, skipped, future, impossible, badYears: badYearsIn(text) };
 }
 
 // Day headings: "Chest day", "Push & pull day", and in Chinese and Japanese "胸の日", "脚の日", "背中トレ", "腿日".
