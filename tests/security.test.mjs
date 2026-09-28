@@ -72,3 +72,16 @@ test('pdf.js is pinned: integrity on the script, a checked worker, and a CSP tha
   assert.match(html, /script-src 'self' https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/pdf\.js\/3\.11\.174\/;/);
   assert.doesNotMatch(html, /script-src 'self' https:\/\/cdnjs\.cloudflare\.com;/);
 });
+
+// CVE-2024-4367 (pdf.js < 4.2.67 runs code from a crafted PDF font) needs eval: both guards must stay.
+test('pdf.js 3.11.174 stays safe from CVE-2024-4367: eval off in getDocument and no unsafe-eval in the CSP', () => {
+  const src = readFileSync(new URL('../js/io.js', import.meta.url), 'utf8');
+  assert.match(src, /getDocument\(\{[^}]*isEvalSupported: false/);
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(html, /unsafe-eval/);
+});
+
+test('the app refuses to run inside another site\'s frame', () => {
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  assert.match(src, /if \(window\.top !== window\.self\)/);
+});

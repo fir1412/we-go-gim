@@ -224,8 +224,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.6.1';
+export const APP_VERSION = '1.6.2';
 const WHATS_NEW = {
+  '1.6.2': ['Security fixes: backup files are checked field by field, the PDF reader is verified before it runs, and very long pasted lines no longer slow the app down'],
   '1.6.1': ['New app icon: a tuxedo kitten with its dumbbells'],
   '1.6.0': [
     'Works on tablets and computers: a wider layout, and on big screens a side menu and centred pop-ups',
@@ -408,6 +409,11 @@ export async function promptInstall() {
 
 // ---- boot -----------------------------------------------------------------------------
 async function boot() {
+  // Never run inside another site's frame (clickjacking): GitHub Pages can't send frame-ancestors, so stop here.
+  if (window.top !== window.self) {
+    $('#screen').innerHTML = `<div class="empty"><b>we go gim can't run inside another page.</b><p><a href="${esc(location.href)}" target="_top" rel="noopener">Open it on its own</a></p></div>`;
+    return;
+  }
   $('#tabs').innerHTML = TABS.map(([k, l, i]) => `<a href="#/${k}" data-tab="${k}">${i}<span>${l}</span><i class="dot"></i></a>`).join('');
   try {
     await load();
