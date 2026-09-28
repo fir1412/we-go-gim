@@ -291,8 +291,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.3';
+export const APP_VERSION = '1.9.4';
 const WHATS_NEW = {
+  '1.9.4': ['Exercise details no longer repeat the unit after the progress range (“88.7 kg each”, not “kg each kg per dumbbell”)'],
   '1.9.3': ['Numbers you type are saved as you type, so nothing is lost if the phone locks mid-set', 'The rest timer’s “Next” updates when you skip an exercise', 'A finished exercise shows its name in full: the target tag makes room for the ^ button', 'The backup reminder on Today no longer hides behind other notices', 'Tip: swipe an exercise card left to skip it'],
   '1.9.2': ['Swipe an exercise card left to skip it. Its sets stop counting and the time left updates. Undo from the card, or use Skip exercise in the ⋮ menu', 'Calendar reminders use the same wording as the app: gym terms stay gym terms'],
   '1.9.1': ['When rest is over, the timer counts up (+0:45) so you can see how long you have been resting. It is never saved as data', 'Weights with a comma (42,5) type in properly', 'A finished exercise you opened again can be folded back with the ^ button', 'Back from an exercise’s details returns to where you were, like your workout'],
