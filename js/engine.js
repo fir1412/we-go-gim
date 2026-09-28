@@ -107,19 +107,74 @@ export function score(exp, unit) {
   return w * 1000 + reps.reduce((a, b) => a + b, 0);
 }
 
-/** Progress status from exposures (newest first).
- *  plateau: three comparable exposures without beating the best before them.
- *  watch: two in a row without improvement. */
-export function trend(exps, unit) {
-  const sc = recentWindow(exps).map(e => score(e, unit)).filter(v => v != null).reverse(); // oldest -> newest
+/** Machines and cables differ from gym to gym and rep-max formulas don't carry over to them, so only free
+ *  weights (barbell, Smith, dumbbells) get an estimated one-rep max. The name check covers imported lifts
+ *  whose equipment was guessed as "machine". */
+export function hasEstMax(ex) {
+  if (!ex || !isKg(ex.unit) || ex.perGym || ex.equip === 'cable') return false;
+  return ex.equip !== 'machine' || /\b(barbell|smith|dumbbells?|db|ez)\b/i.test(ex.name || '');
+}
+
+/** Machine loads in kg: the top load, with the reps done at it as a tie-breaker that never moves the kg shown. */
+function loadScore(exp) {
+  const { w, reps } = topLoad(exp);
+  if (!reps.length || reps.some(r => r == null)) return null;
+  return w + Math.min(999, reps.reduce((a, b) => a + b, 0)) / 1e4;
+}
+
+/** The number a lift's trend is judged (and shown) on: estimated max for free weights, top load for kg machines,
+ *  level/bodyweight load plus reps otherwise. */
+export function trendScore(exp, ex) {
+  return isKg(ex.unit) && !hasEstMax(ex) ? loadScore(exp) : score(exp, ex.unit);
+}
+
+/** How much lower (or higher) the latest number must be than the first one in the window to count as a real change. */
+export const TREND_BAND = 0.05;
+
+/**
+ * Progress status from exposures (newest first). `unitOrEx` is a unit ('kg', 'L', …) or an exercise, which
+ * scores machines on their load instead of an estimated max.
+ * The label always agrees with the numbers shown: `from` is the first comparable exposure in the recent window
+ * and `to` the latest, and `scores` runs from `from` to `to`.
+ *  down: latest clearly lower than the start (more than TREND_BAND).  up: latest clearly higher, or higher and not stalled.
+ *  plateau / watch (also in `stall`, used for advice): three / two comparable exposures without beating the best
+ *  before them, while the numbers stay within the band.  flat: otherwise.
+ */
+export function trend(exps, unitOrEx) {
+  const fn = typeof unitOrEx === 'object' && unitOrEx ? e => trendScore(e, unitOrEx) : e => score(e, unitOrEx);
+  const pts = recentWindow(exps).map(e => ({ e, v: fn(e) })).filter(p => p.v != null).reverse(); // oldest -> newest
+  const sc = pts.map(p => p.v);
   const n = sc.length;
-  if (n < 2) return { status: n ? 'new' : 'none', scores: sc };
+  const base = { scores: sc, n, from: n ? sc[0] : null, to: n ? sc[n - 1] : null, fromExp: n ? pts[0].e : null, toExp: n ? pts[n - 1].e : null };
+  if (n < 2) return { ...base, status: n ? 'new' : 'none', stall: null };
   const bestBefore = k => Math.max(...sc.slice(0, n - k));
-  if (n >= 4 && Math.max(...sc.slice(-3)) <= bestBefore(3) + EPS) return { status: 'plateau', scores: sc };
-  if (n >= 3 && Math.max(...sc.slice(-2)) <= bestBefore(2) + EPS) return { status: 'watch', scores: sc };
-  if (sc[n - 1] > Math.max(...sc.slice(0, n - 1)) + EPS) return { status: 'up', scores: sc };
-  if (sc[n - 1] < sc[n - 2] - EPS) return { status: 'down', scores: sc };
-  return { status: 'flat', scores: sc };
+  const stall = n >= 4 && Math.max(...sc.slice(-3)) <= bestBefore(3) + EPS ? 'plateau'
+    : n >= 3 && Math.max(...sc.slice(-2)) <= bestBefore(2) + EPS ? 'watch' : null;
+  const from = sc[0], to = sc[n - 1];
+  let status;
+  if (to < from * (1 - TREND_BAND) - EPS) status = 'down';
+  else if (to > from * (1 + TREND_BAND) + EPS) status = 'up';
+  else if (stall) status = stall;
+  else if (to > from + EPS) status = 'up';
+  else status = 'flat';
+  return { ...base, status, stall };
+}
+
+/** "82 → 67.2 kg", "L12 × 10·10 → L11 × 12·12", "Bodyweight + 20 kg → Bodyweight + 25 kg" for a trend from
+ *  trend() or muscleTrends(). Uses the same two exposures the status was judged on. */
+export function trendRange(ex, tr) {
+  if (!tr?.fromExp || !tr.toExp) return '';
+  const num = (v, alt) => (typeof v === 'number' ? v : alt);
+  const d1 = kg => String(+(+toDisp(kg)).toFixed(1));
+  if (hasEstMax(ex)) return `${d1(num(tr.from, tr.fromScore))} → ${d1(num(tr.to, tr.toScore))}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}`;
+  const a = topLoad(tr.fromExp), b = topLoad(tr.toExp);
+  const u = isKg(ex.unit) && unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : '';
+  // Same load at both ends (or bodyweight with nothing added): the reps tell the story.
+  if (Math.abs(a.w - b.w) < EPS) {
+    const side = x => `${fmtLoad(ex, x.w)}${u} × ${x.reps.map(r => r ?? '?').join('·')}`;
+    return `${side(a)} → ${side(b)}`;
+  }
+  return `${fmtLoad(ex, a.w)} → ${fmtLoad(ex, b.w)}${u}`;
 }
 
 /** Next load reachable with the available dumbbells (at or above target). */
@@ -256,11 +311,11 @@ export function suggest(slot, ex, ctx) {
   }
   const next = prev.map(x => clamp(x + 1, lo, hi));
   const tr = trend(exps, ex.unit);
-  if (tr.status === 'plateau' || tr.status === 'watch') {
-    const why = tr.status === 'plateau'
+  if (tr.stall) {
+    const why = tr.stall === 'plateau'
       ? `No gain in load or clean reps for 3 comparable sessions. Check sleep, effort and exercise order; if it stays flat, a deload or a variation swap is reasonable.${caution}`
       : `Two sessions without beating your best on this lift. One more flat session confirms a plateau. Log RIR on every set.${caution}`;
-    return { t: 'plat', status: tr.status, w, reps: next, rir: '1-2', why };
+    return { t: 'plat', status: tr.stall, w, reps: next, rir: '1-2', why };
   }
   return { t: 'reps', w, reps: next, rir: '1-3', why: `Last time ${lastReps.join('·')} at ${fmtLoad(ex, w)}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}. Keep the load and add a rep per set until all ${n} sets reach ${hi}, then add ${ex.unit === 'L' ? ex.inc || 1 : stepDisp(ex.inc || 1)}${unitWord}.${caution}` };
 }
@@ -344,14 +399,17 @@ function muscleTrendsRaw(sessions, exercises) {
     let best = null;
     for (const ex of exercises) {
       if ((ex.muscles || [])[0] !== m) continue;
-      const exps = exposures(sessions, ex).filter(e => score(e, ex.unit) != null);
+      const exps = exposures(sessions, ex).filter(e => trendScore(e, ex) != null);
       if (exps.length < 2) continue;
       if (!best || exps[0].date > best.exps[0].date || (exps[0].date === best.exps[0].date && exps.length > best.exps.length)) best = { ex, exps };
     }
     if (!best) continue;
-    const exps = best.exps.slice(0, 8);
-    const tr = trend(exps, best.ex.unit);
-    out.push({ muscle: m, ex: best.ex, status: tr.status, scores: tr.scores, from: topLoad(exps[exps.length - 1]), to: topLoad(exps[0]), n: exps.length });
+    // from/to/scores/n all come from the same window the status is judged on, so the label matches the numbers.
+    const tr = trend(best.exps.slice(0, 8), best.ex);
+    out.push({
+      muscle: m, ex: best.ex, status: tr.status, stall: tr.stall, scores: tr.scores,
+      from: topLoad(tr.fromExp), to: topLoad(tr.toExp), fromScore: tr.from, toScore: tr.to, fromExp: tr.fromExp, toExp: tr.toExp, n: tr.n,
+    });
   }
   return out;
 }
@@ -388,7 +446,7 @@ export function deloadCheck(sessions, exercises, today) {
     const exps = exposures(upto, ex);
     if (exps.length < 4 || daysBetween(exps[0].date, today) > 14) continue;
     active++;
-    if (trend(exps.slice(0, 8), ex.unit).status === 'plateau') stuck.push(ex.name);
+    if (trend(exps.slice(0, 8), ex.unit).stall === 'plateau') stuck.push(ex.name);
   }
   // Accessories stall all the time; only a broad stall (3+ lifts and 30%+ of what you train) points to fatigue.
   const broad = stuck.length >= 3 && stuck.length >= 0.3 * active;
@@ -420,41 +478,86 @@ export function weeklyRate(points) {
  * a changed load is reported as the load step, not as better/worse strength.
  */
 export function compareExposure(exps, i, unit) {
-  const cur = exps[i], prev = exps[i + 1];
+  const cur = exps[i];
   if (!cur) return null;
+  // The same exercise logged twice in one workout is not "the session before": compare with earlier workouts only.
+  const same = e => e === cur || (cur.sessionId != null && e.sessionId === cur.sessionId);
+  const earlier = exps.slice(i + 1).filter(e => !same(e));
+  const prev = earlier[0];
   const sc = score(cur, unit);
-  const older = exps.slice(i + 1).map(e => score(e, unit)).filter(v => v != null);
+  const older = earlier.map(e => score(e, unit)).filter(v => v != null);
   const pr = sc != null && older.length > 0 && sc > Math.max(...older) + EPS;
   if (!prev) return { dir: 'first', text: 'first log', pr: false };
   const a = topLoad(cur), b = topLoad(prev);
   const unitWord = unit === 'L' ? ' lvl' : ' ' + UNITS;
   if (Math.abs(a.w - b.w) > EPS) {
     const d = unit === 'L' ? +(a.w - b.w).toFixed(2) : +(toDisp(a.w) - toDisp(b.w)).toFixed(2);
-    return { dir: d > 0 ? 'up' : 'down', kind: 'load', text: `${d > 0 ? '+' : ''}${d}${unitWord}`, pr, prevDate: prev.date };
+    return { dir: d > 0 ? 'up' : 'down', kind: 'load', text: `${d > 0 ? '+' : ''}${d}${unitWord}`, pr, prevDate: prev.date, prevSessionId: prev.sessionId };
   }
   // Reps are compared set by set over the sets both sessions have; a different set count is reported separately.
   const k = Math.min(a.reps.length, b.reps.length);
   const sum = r => r.slice(0, k).reduce((x, y) => x + (y || 0), 0);
   const d = sum(a.reps) - sum(b.reps), ds = a.reps.length - b.reps.length;
   const setTxt = ds ? `${ds > 0 ? '+' : '−'}${Math.abs(ds)} set${Math.abs(ds) === 1 ? '' : 's'}` : '';
-  if (!d && !ds) return { dir: 'same', kind: 'reps', text: 'same as last', pr, prevDate: prev.date };
+  if (!d && !ds) return { dir: 'same', kind: 'reps', text: 'same as last', pr, prevDate: prev.date, prevSessionId: prev.sessionId };
   const repTxt = d ? `${d > 0 ? '+' : ''}${d} rep${Math.abs(d) === 1 ? '' : 's'}` : 'same reps';
   const dir = d ? (d > 0 ? 'up' : 'down') : ds > 0 ? 'up' : 'down';
-  return { dir, kind: d ? 'reps' : 'sets', text: setTxt ? `${repTxt} · ${setTxt}` : repTxt, pr, prevDate: prev.date };
+  return { dir, kind: d ? 'reps' : 'sets', text: setTxt ? `${repTxt} · ${setTxt}` : repTxt, pr, prevDate: prev.date, prevSessionId: prev.sessionId };
 }
 
-/** Personal records per exercise: heaviest load and best e1RM. */
-export function personalBests(exps, unit) {
-  let heavy = null, best = null;
-  for (const e of exps) for (const s of e.sets) {
-    if (s.r == null) continue;
-    if (!heavy || +s.w > heavy.w) heavy = { w: +s.w, r: +s.r, date: e.date };
-    if (isKg(unit)) {
-      const v = e1rm(+s.w, +s.r);
-      if (v && (!best || v > best.v)) best = { v, w: +s.w, r: +s.r, date: e.date };
+/** A best more than this many times the next-best workout's is treated as a typing or import slip. */
+export const OUTLIER_RATIO = 1.5;
+/** ...and more than this many kg above it: small loads (5 vs 3 kg added to a pull-up) differ by big ratios for real. */
+export const OUTLIER_MIN_GAP = 10;
+
+/** Drop the top value when it stands alone far above the next-best value (one step only, so a second
+ *  look never eats into real bests). cands: [{v, key, ...}] one per workout; every workout at the dropped value goes. A value from the newest workout is never dropped (a real jump shows
+ *  there first, and a fresh typo is easy to spot and fix). */
+function dropOutliers(cands, newestKey) {
+  const list = [...cands].sort((a, b) => b.v - a.v);
+  const top = list[0], next = list.find(c => c.v < top?.v - EPS);
+  if (!top || !next || !(next.v > 0) || !(top.v > OUTLIER_RATIO * next.v + EPS) || top.v - next.v <= OUTLIER_MIN_GAP) return { top: top || null, ignored: [] };
+  const out = list.filter(c => c.v >= top.v - EPS);
+  if (out.some(c => c.key === newestKey)) return { top, ignored: [] };
+  return { top: list[out.length], ignored: out };
+}
+
+/**
+ * Personal records per exercise: heaviest load and best estimated max (e1RM).
+ * `unitOrEx` is a unit or an exercise; with an exercise, machines and cables get no estimated max (see hasEstMax).
+ * A workout whose best is more than OUTLIER_RATIO × the next-best workout's is left out and listed in `ignored`
+ * (the stored log is untouched).
+ */
+export function personalBests(exps, unitOrEx) {
+  const ex = typeof unitOrEx === 'object' && unitOrEx ? unitOrEx : null;
+  const unit = ex ? ex.unit : unitOrEx;
+  const wantMax = ex ? hasEstMax(ex) : isKg(unit);
+  const heavyBy = new Map(), bestBy = new Map();
+  exps.forEach((e, i) => {
+    const key = e.sessionId ?? `#${i}`;
+    for (const s of e.sets) {
+      if (s.r == null || !(+s.r > 0)) continue;
+      const h = heavyBy.get(key);
+      if (!h || +s.w > h.w) heavyBy.set(key, { v: +s.w, key, w: +s.w, r: +s.r, date: e.date });
+      if (wantMax) {
+        const v = e1rm(+s.w, +s.r);
+        const b = bestBy.get(key);
+        if (v && (!b || v > b.v)) bestBy.set(key, { v, key, w: +s.w, r: +s.r, date: e.date });
+      }
     }
+  });
+  const newest = exps.length ? (exps[0].sessionId ?? '#0') : null;
+  // Cable/machine levels are small numbers that differ per gym (7 vs 4 is normal), so they're not filtered.
+  const H = unit === 'L' ? { top: [...heavyBy.values()].sort((a, b) => b.v - a.v)[0] || null, ignored: [] } : dropOutliers([...heavyBy.values()], newest), B = dropOutliers([...bestBy.values()], newest);
+  const strip = c => ({ w: c.w, r: c.r, date: c.date });
+  const heavy = H.top && { w: H.top.w, r: H.top.r, date: H.top.date };
+  const best = B.top && { v: B.top.v, w: B.top.w, r: B.top.r, date: B.top.date };
+  const seen = new Set(), ignored = [];
+  for (const c of [...H.ignored, ...B.ignored]) {
+    const k = `${c.key}|${c.w}|${c.r}`;
+    if (!seen.has(k)) { seen.add(k); ignored.push(strip(c)); }
   }
-  return { heavy, best };
+  return { heavy, best, ignored };
 }
 
 // ---- XP & levels -------------------------------------------------------------------

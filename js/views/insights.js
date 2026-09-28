@@ -2,6 +2,7 @@ import { S, todayIso, dayForDate, suggestionCtx, saveBody, deleteBody, saveCardi
 import {
   muscleTrends, exposures, trend, topLoad, score, isKg, suggest, deloadCheck, weekStart, addDays,
   daysBetween, weeklyRate, personalBests, compareExposure, fmtLoad, unitLong, unitShort, workSets, MUSCLES, estimateDay, toDisp, getUnits, LB_KG,
+  hasEstMax, trendRange,
 } from '../engine.js';
 import { esc, fmtDate, pill, chip, spark, lineChart, barChart, STATUS, ICON, toast, confirmSheet, openSheet, closeSheet, num, cvar, kstyle, GLYPH_ICON, T, helpTip, expertWording } from '../ui.js';
 import { weeklyVolume, baseSets } from '../split.js';
@@ -136,7 +137,7 @@ function focusItems(t) {
   const legHr = S.sessions.filter(s => s.hr >= 150 && /leg/i.test(s.name) && s.date <= t && daysBetween(s.date, t) <= 28);
   if (legHr.length) items.push({ k: 'legs', ic: '♥', title: 'Leg days push your heart rate', text: `Peak ${Math.max(...legHr.map(s => s.hr))} bpm recently. Rest 2–3 min between squat sets and stop 1–3 reps short of failure.` });
 
-  const tr = muscleTrends(S.sessions, S.exercises).filter(x => x.status === 'up' && isKg(x.ex.unit) && x.scores.length >= 2);
+  const tr = muscleTrends(S.sessions, S.exercises).filter(x => x.status === 'up' && hasEstMax(x.ex) && x.scores.length >= 2);
   if (tr.length) {
     const best = tr.map(x => ({ x, g: x.scores[x.scores.length - 1] / x.scores[0] - 1 })).sort((a, b) => b.g - a.g)[0];
     if (best.g > 0.02) items.push({ k: 'up', ic: '↑', title: `${best.x.muscle}: ${best.x.ex.name} up ${Math.round(best.g * 100)}%${best.g > 0.6 ? ' (mostly calibration)' : ''}`, text: `Estimated max across your last ${best.x.n} sessions.${best.g > 0.6 ? ' A jump this big usually includes load calibration (early weights were light), so treat it as a new baseline rather than pure strength.' : ' Keep adding reps before adding load.'}`, ex: best.x.ex.id });
@@ -145,7 +146,8 @@ function focusItems(t) {
   if (ready) {
     const ws = weeklyVolume(S.program, S.exById), lo = minSets();
     const low = ['Chest', 'Back', 'Quads', 'Hamstrings', 'Side delts'].filter(m => (ws[m] || 0) < lo);
-    if (low.length) items.push({ k: 'upper', ic: '≡', title: 'Room to grow', text: `${low.map(m => `${m} ${num(ws[m] || 0)}`).join(', ')} sets a week in your plan (helpers count half). Around ${lo} or more suits most people: add a set or two if these lag, or keep it while recovery is the limit.` });
+    // One line per muscle and one fixed sentence, so each piece reads (and translates) on its own.
+    if (low.length) items.push({ k: 'upper', ic: '≡', title: 'Room to grow', lines: low.map(m => `${m} — ${num(ws[m] || 0)} sets a week`), text: `These are from your plan, where helper muscles count half. Around ${lo} or more suits most people: add a set or two if these lag, or keep it while recovery is the limit.` });
   }
   return items.slice(0, 7);
 }
@@ -167,7 +169,7 @@ function overview() {
   const f = focusItems(t);
   h += `<p class="lbl">Watch-outs and wins</p>`;
   h += f.length
-    ? `<ul class="box focus">${f.map(i => `<li>${i.ex ? `<a href="#/ex/${esc(i.ex)}">` : '<div>'}<span class="ic" style="--k:var(--${i.k})">${GLYPH_ICON[i.ic] || esc(i.ic)}</span><span><b>${esc(i.title)}</b>${esc(i.text)}</span>${i.ex ? '</a>' : '</div>'}</li>`).join('')}</ul>`
+    ? `<ul class="box focus">${f.map(i => `<li>${i.ex ? `<a href="#/ex/${esc(i.ex)}">` : '<div>'}<span class="ic" style="--k:var(--${i.k})">${GLYPH_ICON[i.ic] || esc(i.ic)}</span><span><b>${esc(i.title)}</b>${(i.lines || []).map(l => `<span style="display:block">${esc(l)}</span>`).join('')}${i.lines ? `<span style="display:block">${esc(i.text)}</span>` : esc(i.text)}</span>${i.ex ? '</a>' : '</div>'}</li>`).join('')}</ul>`
     : `<div class="box pad"><p class="fine">Nothing needs attention. Keep logging.</p></div>`;
 
   h += `<p class="lbl">By muscle · lead lift</p>${tr.length ? tally : ''}`;
@@ -176,9 +178,8 @@ function overview() {
     h += `<ul class="box mus">`;
     for (const x of tr) {
       const [label, k] = STATUS[x.status] || STATUS.flat;
-      const d = isKg(x.ex.unit)
-        ? `${x.ex.name}: ${T('estMax')} ${num(toDisp(x.scores[0]))} → ${num(toDisp(x.scores[x.scores.length - 1]))} ${unitShort(x.ex.unit)}`
-        : `${x.ex.name}: ${fmtLoad(x.ex, x.from.w)} → ${fmtLoad(x.ex, x.to.w)}`;
+      // The numbers come from the same two sessions the status was judged on (see engine trend()).
+      const d = `${x.ex.name}: ${hasEstMax(x.ex) ? T('estMax') + ' ' : ''}${trendRange(x.ex, x)}`;
       h += `<li><a href="#/ex/${esc(x.ex.id)}"><span class="t">${esc(x.muscle)} ${pill(label, k)}</span><span class="d">${esc(d)} · ${plural(x.n, 'session')}</span>${spark(x.scores, k)}</a></li>`;
     }
     h += `</ul>`;
@@ -221,13 +222,15 @@ export const progressNav = on => `<nav class="subnav" aria-label="Progress views
 function lifts() {
   const rows = S.exercises.map(ex => {
     const exps = exposures(S.sessions, ex);
-    return { ex, exps, tr: trend(exps.slice(0, 8), ex.unit) };
+    return { ex, exps, tr: trend(exps.slice(0, 8), ex) };
   }).sort((a, b) => (b.exps[0]?.date || '').localeCompare(a.exps[0]?.date || '') || a.ex.name.localeCompare(b.ex.name));
   let h = `<input class="inp" id="liftsearch" type="search" placeholder="Search exercises" autocomplete="off" aria-label="Search exercises"><ul class="box mus" id="liftlist">`;
   for (const { ex, exps, tr } of rows) {
     const [label, k] = STATUS[tr.status] || STATUS.none;
-    const pb = personalBests(exps, ex.unit);
-    const d = !exps.length ? 'Never logged' : isKg(ex.unit) && pb.best ? `Best ${T('estMax')} ${num(toDisp(pb.best.v))} ${unitShort(ex.unit)} · ${plural(exps.length, 'session')}` : `Top ${fmtLoad(ex, pb.heavy?.w ?? 0)} · ${plural(exps.length, 'session')}`;
+    const pb = personalBests(exps, ex);
+    const rec = hasEstMax(ex) && pb.best ? `Best ${T('estMax')} ${num(toDisp(pb.best.v))} ${unitShort(ex.unit)}` : `Top ${fmtLoad(ex, pb.heavy?.w ?? 0)}${isKg(ex.unit) && unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}`;
+    // With a trend, show the two numbers the status label is based on first, so they always agree.
+    const d = !exps.length ? 'Never logged' : `${tr.n >= 2 ? trendRange(ex, tr) + ' · ' : ''}${rec} · ${plural(exps.length, 'session')}`;
     h += `<li data-name="${esc(ex.name.toLowerCase())}"><a href="#/ex/${esc(ex.id)}"><span class="t">${esc(ex.name)} ${pill(label, k)}</span><span class="d">${esc(d)}</span>${tr.scores.length > 1 ? spark(tr.scores, k) : ''}</a></li>`;
   }
   h += `</ul>`;
@@ -246,13 +249,13 @@ function exDetail(id) {
   const ex = S.exById[id];
   if (!ex) return { title: 'Not found', back: 'insights', html: `<div class="empty"><b>This exercise doesn't exist.</b></div>` };
   const exps = exposures(S.sessions, ex);
-  const tr = trend(exps.slice(0, 8), ex.unit);
+  const tr = trend(exps.slice(0, 8), ex);
   const [label, k] = STATUS[tr.status] || STATUS.none;
-  const pb = personalBests(exps, ex.unit);
-  const kg = isKg(ex.unit);
+  const pb = personalBests(exps, ex);
+  const kg = hasEstMax(ex); // machines and cables: no estimated max, their chart shows the top load
   const metric = kg ? exMetric : 'load';
 
-  let h = `<div class="rrow"><span>${pill(label, k)} ${esc(unitLong(ex.unit))}${ex.perGym ? ' · compared per gym' : ''}</span><a class="linkbtn" href="#/exercise/${esc(ex.id)}">Edit exercise</a></div>`;
+  let h = `<div class="rrow"><span>${pill(label, k)}${tr.n >= 2 ? ` <b class="num">${esc(trendRange(ex, tr))}</b>` : ''} ${esc(unitLong(ex.unit))}${ex.perGym ? ' · compared per gym' : ''}</span><a class="linkbtn" href="#/exercise/${esc(ex.id)}">Edit exercise</a></div>`;
   if (ex.caution) h += `<div class="warn" style="--k:var(--down)"><b>Note.</b><span>${esc(ex.caution)}</span></div>`;
   if (ex.unitUnclear) h += `<div class="warn"><b>Unit unclear.</b><span>Old entries mix per-side and total load. Set the unit under Edit exercise.</span></div>`;
 
@@ -262,17 +265,21 @@ function exDetail(id) {
     <div class="kpi"><b>${kg && pb.best ? num(toDisp(pb.best.v)) : '—'}</b><span>best ${esc(T('estMax'))} ${helpTip('estMax')}${kg && pb.best ? ` · ${fmtDate(pb.best.date)}` : ''}</span></div>
     <div class="kpi"><b>${pb.heavy ? esc(fmtLoad(ex, pb.heavy.w)) : '—'}</b><span>heaviest${pb.heavy ? ` × ${pb.heavy.r}` : ''}</span></div>
     <div class="kpi"><b>${exps.length}</b><span>sessions</span></div></div>`;
+  // Records leave out a lone value far above every other workout (usually a typo or an import slip); the log keeps it.
+  for (const x of pb.ignored.slice(0, 3)) h += `<p class="fine">${esc(`Left out of records as a likely typo: ${fmtLoad(ex, x.w)}${isKg(ex.unit) && unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''} × ${x.r} on ${fmtDate(x.date)}.`)}</p>`;
 
   if (exps.length) {
     const chron = [...exps].reverse();
+    // Pull-ups and dips done with added weight lately chart the added weight; plain bodyweight lifts chart total reps.
+    const bwAdded = ex.unit === 'bw' && !!tr.fromExp && (topLoad(tr.fromExp).w > 0 || topLoad(tr.toExp).w > 0);
     let series;
     if (metric === 'e1rm') series = chron.map(e => ({ date: e.date, v: score(e, ex.unit) })).filter(p => p.v != null).map(p => ({ ...p, v: toDisp(p.v) }));
     else if (metric === 'vol') series = chron.map(e => ({ date: e.date, v: e.sets.reduce((a, s) => a + (+s.w || 0) * (+s.r || 0) * (ex.unit === 'kg/DB' ? 2 : 1), 0) })).filter(p => p.v > 0).map(p => ({ ...p, v: Math.round(toDisp(p.v)) }));
-    else series = chron.map(e => ({ date: e.date, v: ex.unit === 'bw' ? e.sets.reduce((a, s) => a + (+s.r || 0), 0) : ex.unit === 'L' ? topLoad(e).w : toDisp(topLoad(e).w) }));
-    const unitLbl = metric === 'load' && ex.unit === 'bw' ? 'reps' : metric === 'load' && ex.unit === 'L' ? 'level' : U();
+    else series = chron.map(e => ({ date: e.date, v: ex.unit === 'bw' && !bwAdded ? e.sets.reduce((a, s) => a + (+s.r || 0), 0) : ex.unit === 'L' ? topLoad(e).w : toDisp(topLoad(e).w) }));
+    const unitLbl = metric === 'load' && ex.unit === 'bw' ? (bwAdded ? U() : 'reps') : metric === 'load' && ex.unit === 'L' ? 'level' : U();
     h += `<div class="box chart">`;
     if (kg) h += `<div class="seg sm" role="group" aria-label="Chart metric">${[['e1rm', expertWording() ? 'e1RM' : 'Est. max'], ['load', 'Top load'], ['vol', expertWording() ? 'Volume' : 'Total lifted']].map(([v, l]) => `<button data-act="metric" data-v="${v}" aria-pressed="${metric === v}">${l}</button>`).join('')}</div>`;
-    else h += `<div class="cap"><b>${ex.unit === 'bw' ? 'Total reps' : 'Top level'}</b></div>`;
+    else h += `<div class="cap"><b>${ex.unit === 'bw' ? (bwAdded ? 'Top load' : 'Total reps') : ex.unit === 'L' ? 'Top level' : 'Top load'}</b></div>`;
     h += lineChart(series, { k: 'legs', unit: unitLbl, label: `${ex.name} over time` });
     if (metric === 'e1rm') h += `<p class="fine">${expertWording() ? 'Epley estimate from your best set each session.' : 'Estimated from your best set each session.'} A trend, not a tested max.</p>`;
     if (metric === 'vol') h += `<p class="fine">${esc(T('volume'))}: weight × reps added up${ex.unit === 'kg/DB' ? ', counting both dumbbells' : ''}.</p>`;
@@ -283,8 +290,9 @@ function exDetail(id) {
     exps.slice(0, 40).forEach((e, i) => {
       const sc = score(e, ex.unit);
       // vs the previous session at the same gym for machines/cables; across gyms the change isn't meaningful
-      const prev = exps[i + 1];
-      const cmp = prev && ex.perGym && S.sessions.find(x => x.id === e.sessionId)?.gymId !== S.sessions.find(x => x.id === prev.sessionId)?.gymId ? null : compareExposure(exps, i, ex.unit);
+      // (compareExposure skips a second entry of the same lift in the same workout)
+      let cmp = compareExposure(exps, i, ex.unit);
+      if (cmp?.prevSessionId && ex.perGym && S.sessions.find(x => x.id === e.sessionId)?.gymId !== S.sessions.find(x => x.id === cmp.prevSessionId)?.gymId) cmp = null;
       const tag = cmp && cmp.dir !== 'first' ? `<small class="dl" style="--k:var(--${cmp.dir === 'up' ? 'up' : cmp.dir === 'same' ? 'mute' : cmp.kind === 'load' ? 'flat' : 'down'})">${cmp.pr ? '★ ' : ''}${esc(cmp.text)}</small>` : '';
       h += `<tr><td><a href="#/session/${esc(e.sessionId)}">${fmtDate(e.date)}${e.approx ? '*' : ''}</a></td><td>${esc(groupSets(e.sets, ex))}${e.pain ? ' ' + pill('pain', 'down') : ''}${tag}</td>${kg ? `<td class="num">${sc ? num(toDisp(sc)) : '—'}</td>` : ''}${hasRir ? `<td>${esc(e.rir ?? '')}</td>` : ''}</tr>`;
     });
