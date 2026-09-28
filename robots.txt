@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /we-go-gim/
+Disallow: /we-go-gim/tests/
+Sitemap: https://fir1412.github.io/we-go-gim/sitemap.xml

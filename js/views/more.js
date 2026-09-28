@@ -269,11 +269,11 @@ function data() {
       <p class="fine">One file with everything: sessions, programme, exercises, weigh-ins, cardio and settings. If the phone is lost or the browser data is cleared, this file is the only copy.</p>
       <button class="btn" data-act="backup-share">${ICON.upload} Share backup (Drive, WhatsApp, email)</button>
       <button class="btn ghost" data-act="backup-dl">${ICON.save} Save backup file</button>
-      <label class="btn ghost filebtn">Restore from backup<input type="file" id="restore-file" data-input="restore"></label></section>`;
+      <label class="btn ghost filebtn">Restore from backup<input type="file" id="restore-file" accept=".json,application/json" data-input="restore"></label></section>`;
   if (undoMeta) h += `<div class="warn" style="--k:var(--upper)"><b>Undo copy</b><span>Your data from before ${WHAT[undoMeta.what] || 'the last change'} (${fmtDate(undoMeta.at, { year: true })}, ${plural(Number(undoMeta.n), 'session')}) is kept on this phone. <button class="linkbtn" data-act="undo-restore">Put it back</button></span></div>`;
   h += `<section class="box pad stack"><p class="lbl">Spreadsheet</p><p class="fine">One row per set. Opens in Google Sheets or Excel.</p>
       <div class="row2"><button class="btn ghost" data-act="csv-dl">Export CSV</button>
-      <label class="btn ghost filebtn">Import CSV<input type="file" id="csv-file" data-input="csv-in"></label></div></section>
+      <label class="btn ghost filebtn">Import CSV<input type="file" id="csv-file" accept=".csv,.tsv,.txt,text/csv,text/plain" data-input="csv-in"></label></div></section>
     <section class="box pad stack"><p class="lbl">Start fresh</p>
       ${nSeed ? `<button class="btn ghost" data-act="rm-seed">Remove the ${nSeed} sample sessions</button>` : ''}
       <button class="btn danger" data-act="reset">Erase everything</button></section>`;
@@ -362,7 +362,7 @@ function importer() {
   }
   if (!imp) {
     h = `<p class="fine">Bring in old workouts from PDFs, notes, or a Hevy, Strong or spreadsheet CSV. You check everything before it's saved.</p>
-      <label class="btn filebtn">${ICON.upload} Choose files<input type="file" id="imp-file" multiple data-input="imp-file"></label>
+      <label class="btn filebtn">${ICON.upload} Choose files<input type="file" id="imp-file" multiple accept=".pdf,.csv,.tsv,.txt,.md,.json,.html,.htm,.xml,.rtf,application/pdf,text/*,application/json" data-input="imp-file"></label>
       <details class="box pad help"><summary class="lbl">What formats work?</summary>
         <p>Dates, exercise names and sets written like <b>25kg x 8 x 4</b>, <b>25 kg 8,8,6</b>, <b>15kg 8 8 7</b>, <b>3x8 @ 25</b>, <b>L9 x 12</b> or <b>BW 6,6,6</b>. Remarks about pain, sleep and effort are kept as notes, never as exercises.</p>
         <p>Pick several files at once if you like. Older and newer copies of the same log are fine: repeated sessions are removed.</p></details>
@@ -371,7 +371,7 @@ function importer() {
       <div class="row2"><label class="field"><span>Year for dates without one</span><input class="inp" id="imp-year" type="number" inputmode="numeric" value="${todayIso().slice(0, 4)}"></label><button class="btn ghost" data-act="imp-parse">Read pasted text</button></div>
       <p class="fine">Reading a PDF needs internet the first time.</p>
       <section class="box pad stack impres"><p class="lbl">Moving from another phone?</p><p class="fine">A backup file from this app brings back everything at once: sessions, programme, exercises and settings.</p>
-      <label class="btn ghost filebtn">${ICON.save} Restore a backup<input type="file" id="imp-restore" data-input="restore"></label></section>`;
+      <label class="btn ghost filebtn">${ICON.save} Restore a backup<input type="file" id="imp-restore" accept=".json,application/json" data-input="restore"></label></section>`;
     return { title: 'Import logs', sub: 'PDFs, notes or CSV', back: 'more', html: h, color: 'legsb' };
   }
   const sel = imp.sessions.filter(s => !s.skip);
@@ -539,7 +539,7 @@ function settings() {
       <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it. Only feedback you choose to send leaves the phone.</p>
       <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
       <p>3D view: three.js (MIT). 3D muscle model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas, CC BY-SA 4.0. Details in anatomy/ATTRIBUTION.txt.</p>
-      <p class="links"><a href="https://github.com/fir1412/we-go-gim/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
+      <p class="links"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of use</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
     <p class="fine">we go gim ${APP_VERSION}. Heart-rate and weight sync with Health Connect needs the Android app wrapper; for now, log them here.</p>`;
   return { title: 'Settings', sub: 'Make it yours', back: 'more', html: h, color: 'rest' };
 }
