@@ -454,6 +454,16 @@ select.inp { appearance: auto; }
 .foldbtn > svg { width: 16px; height: 16px; color: var(--faint); transform: rotate(90deg); flex: none; }
 .foldbtn .grow { flex: 1; min-width: 0; }
 .foldup svg { transform: rotate(-90deg); }
+/* swipe a card left to skip the exercise */
+#screen { overflow-x: hidden; }
+.exc:not(.fold):not(.cardioc) { touch-action: pan-y pinch-zoom; transition: transform .2s var(--fx-out, ease-out); }
+.exc.swiping { transition: none; position: relative; }
+.swipe-lbl { position: absolute; top: 50%; left: calc(100% + 14px); transform: translateY(-50%); font-weight: 700; font-size: 0.875rem; color: var(--mute); white-space: nowrap; }
+.exc.swipe-go .swipe-lbl { color: var(--flat); }
+.exc.swipe-go { box-shadow: 0 0 0 2px var(--flat); }
+.exc.skipped { opacity: .7; }
+.exc.skipped .foldbtn .ok { background: var(--line); color: var(--mute); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .exc:not(.fold):not(.cardioc) { transition: none; } }
 /* summary: concrete next-time targets */
 .nt .num { font-family: var(--display); font-size: 1.0625rem; white-space: nowrap; }
 .nt .num small { font-family: var(--body); font-size: 0.75rem; color: var(--mute); font-weight: 500; }

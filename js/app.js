@@ -291,8 +291,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.1';
+export const APP_VERSION = '1.9.2';
 const WHATS_NEW = {
+  '1.9.2': ['Swipe an exercise card left to skip it. Its sets stop counting and the time left updates. Undo from the card, or use Skip exercise in the ⋮ menu', 'Calendar reminders use the same wording as the app: gym terms stay gym terms'],
   '1.9.1': ['When rest is over, the timer counts up (+0:45) so you can see how long you have been resting. It is never saved as data', 'Weights with a comma (42,5) type in properly', 'A finished exercise you opened again can be folded back with the ^ button', 'Back from an exercise’s details returns to where you were, like your workout'],
   '1.9.0': ['Programme: drag a day by its handle to move it up or down the week. The days in between shift along', 'My templates: save your week as a template, build a new plan without changing the one you train with, and switch whenever you like'],
   '1.8.4': ['The female body map now shows hair on the back view too'],

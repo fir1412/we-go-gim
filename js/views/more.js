@@ -4,8 +4,7 @@ import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, 
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
 import { LANGS, getLang, syncRawNames } from '../i18n.js';
 import { trainingIcs, googleCalendarUrl } from '../calendar.js';
-import { translate } from '../i18n.js';
-import { plainText } from '../plain.js';
+import { displayText } from '../plain.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap, importExtras, loadForeignNames } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { filterList } from '../search.js';
@@ -1413,12 +1412,11 @@ Object.assign(actions, {
 /** Training days as a calendar file: the phone's calendar app takes over the reminders. */
 export function exportCalendar() {
   // Event text in the app's language: it is read later inside the calendar app, outside this screen.
-  const tr = s => translate(plainText(s));
-  const days = S.program.days.filter(d => d.slots.length).map(d => ({ dow: d.dow, name: d.name, title: tr(d.name), minutes: Math.round(estimateDay(d, S.exById, S.sessions) / 60) }));
+  const days = S.program.days.filter(d => d.slots.length).map(d => ({ dow: d.dow, name: d.name, title: displayText(d.name), minutes: Math.round(estimateDay(d, S.exById, S.sessions) / 60) }));
   if (!days.length) return toast('No training days in your programme yet', 'flat');
   const url = location.href.split('#')[0] + '#/start';
   const time = S.settings.remindAt || '18:00';
-  const words = { train: tr('Time to train') };
+  const words = { train: displayText('Time to train') };
   const links = days.map(d => `<a class="btn ghost" href="${esc(googleCalendarUrl(d, time, { title: `we go gim: ${d.title}`, details: `${words.train} · ${url}` }))}" target="_blank" rel="noopener noreferrer">${esc(dowName(d.dow, true))} · ${esc(d.name)}</a>`).join('');
   const google = `<p class="fine">Google Calendar (most Android phones): tap each day and save. It repeats every week at ${esc(time)}.</p><div class="callist">${links}</div>`;
   const file = `<p class="fine">Any other calendar (iPhone, Samsung, Huawei, Xiaomi, OPPO, vivo, Outlook): download one file with every day, then open it.</p><button class="btn ghost" data-x="ics">Download calendar file</button>`;

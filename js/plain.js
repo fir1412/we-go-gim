@@ -70,6 +70,10 @@ const conv = (s, ctx) => {
   return t;
 };
 
+/** Text read outside the screen (a calendar event): the same pass the screen gets, so it follows the
+ *  wording setting (plain English or gym terms) and the app's language, and typed names stay as typed. */
+export const displayText = s => (s ? conv(String(s)) : s);
+
 function walk(root) {
   if (root.nodeType === 3) { fix(root); return; }
   if (root.nodeType !== 1) return;
@@ -102,8 +106,9 @@ function fixAttrs(el) {
 
 /** Turn the text pass on or off: plain English (plain wording) and/or a translation function (another language). */
 export function setPlain(want, translate = null) {
-  if (typeof document === 'undefined' || (want === plainOn && translate === tr)) return;
+  if (want === plainOn && translate === tr) return;
   plainOn = want; tr = translate;
+  if (typeof document === 'undefined') return;
   obs?.disconnect(); obs = null;
   if (!plainOn && !tr) return;
   walk(document.body);
