@@ -2,7 +2,7 @@ import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, expor
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf } from '../ui.js';
-import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
+import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
@@ -821,22 +821,15 @@ export const actions = {
     const year = +document.getElementById('imp-year')?.value || +todayIso().slice(0, 4);
     const src = files.length > 2 ? `${files.length} files` : files.map(f => f.name).join(', ');
     // No type filter on the picker (Android hides files shared from Drive or WhatsApp otherwise), so look inside.
-    const head = async f => new Uint8Array(await f.slice(0, 5).arrayBuffer());
-    const isPdfFile = async f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf' || String.fromCharCode(...await head(f)) === '%PDF-';
+    // Same routing as the import tests: PDFs, CSVs from other apps, notes, chats, HTML and RTF exports; photos,
+    // spreadsheets and archives are turned away with what to do instead.
+    const kinds = new Map();
     for (const f of files) {
-      if (await isPdfFile(f)) continue;
-      const b = await head(f);
-      if (/\.json$/i.test(f.name) || b[0] === 0x7b) return toast('That looks like a backup file. Use "Restore a backup" below.', 'flat');
-      if (/\.(jpe?g|png|gif|webp|heic|zip|docx?|xlsx?)$/i.test(f.name)) return toast(`${f.name} can't be read here. Use PDF, text or CSV.`, 'down');
-    }
-    const looksCsv = async f => /\.csv$/i.test(f.name) || (!(await isPdfFile(f)) && /^[^\n]*\b(date|start_time)\b[^\n]*[,;\t][^\n]*\bexercise/i.test((await readFile(f.slice(0, 2000)))));
-    const csvFlags = await Promise.all(files.map(looksCsv));
-    if (csvFlags.every(Boolean)) {
-      const sessions = [];
-      for (const f of files) sessions.push(...sessionsFromCSV(await readFile(f), { lb: impLb(), dateOrder: impOpt.order }));
-      const { sessions: kept, dropped } = files.length > 1 ? dedupeSessions(sessions) : { sessions, dropped: 0 };
-      prepImport({ sessions: kept, skipped: 0 }, src, '', dropped);
-      return refresh(); // already on the import screen
+      const b = new Uint8Array(await f.slice(0, 4096).arrayBuffer());
+      const r = routeFile(f.name, b.subarray(0, 16), decodeBytes(b));
+      if (r.kind === 'reject') return toast(r.message, 'down');
+      if (r.kind === 'backup') return toast('That looks like a backup file. Use "Restore a backup" below.', 'flat');
+      kinds.set(f, r.kind);
     }
     // Each file is parsed on its own and named after it ("Monday Push 1"); copies of the same log
     // exported twice collapse to one session per date. An exact copy (same name and size) isn't read twice.
@@ -849,10 +842,19 @@ export const actions = {
         const f = todo[i];
         impBusy = { file: f.name, i, n: todo.length, page: 0, pages: 0 };
         paint(true);
-        const isPdf = await isPdfFile(f);
-        const t = isPdf ? await pdfToText(f, (page, pages) => { impBusy.page = page; impBusy.pages = pages; paint(); }) : await readFile(f);
-        if (text.length < 20000) text += '\n' + t;
-        const r = parseLogText(t, S.exercises, { year, sessionName: sessionNameFromFile(f.name), lb: impLb(), dateOrder: impOpt.order });
+        const opts = { year, sessionName: sessionNameFromFile(f.name), lb: impLb(), dateOrder: impOpt.order };
+        let r;
+        if (kinds.get(f) === 'pdf') {
+          const t = await pdfToText(f, (page, pages) => { impBusy.page = page; impBusy.pages = pages; paint(); });
+          if (text.length < 20000) text += '\n' + t;
+          r = parseLogText(t, S.exercises, opts);
+        } else {
+          const bytes = new Uint8Array(await f.arrayBuffer());
+          if (text.length < 20000) text += '\n' + decodeBytes(bytes).slice(0, 20000);
+          r = importFile(f.name, bytes, S.exercises, opts);
+          if (r.kind === 'reject') throw new Error(r.message);
+          r.skipped ||= 0;
+        }
         for (const s of r.sessions) { s.fileTime = f.lastModified; s.file = f.name; }
         all.push(...r.sessions); skipped += r.skipped;
       }

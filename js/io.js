@@ -53,8 +53,8 @@ export function parseCSV(text, delim = ',') {
  * Pounds are converted to kg: a "weight_lbs"/"lbs" column, a "Weight Unit" of lbs, or opts.lb for a bare "weight".
  * Numeric dates are read day first unless the file is clearly month first (a "9/21/2026") or opts.dateOrder says so.
  */
-export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto' } = {}) {
-  const rows = parseCSV(String(text).replace(/^\uFEFF/, ''), csvDelimiter(text));
+export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallbackDate = null } = {}) {
+  let rows = parseCSV(String(text).replace(/^\uFEFF/, ''), csvDelimiter(text));
   if (!rows.length) throw new Error('The file is empty.');
   // Accept common header spellings from other apps and hand-made sheets.
   const ALIAS = {
@@ -63,18 +63,30 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto' } = {}) {
     rep: 'reps', repetitions: 'reps', notes: 'note', comment: 'note', comments: 'note', 'exercise notes': 'note',
     workout: 'session', 'workout name': 'session', title: 'session', 'workout title': 'session', description: 'wnote', 'workout notes': 'wnote',
     'set type': 'settype', 'set order': 'setorder', 'set index': 'setindex', 'duration seconds': 'seconds', seconds: 'seconds', 'weight unit': 'wunit',
+    // Other apps and languages: Jefit, MyFitnessPal, GymBook (German), Spanish, French, Malay sheets.
+    mydate: 'date', ename: 'exercise', 'reps per set': 'reps', 'weight per set': 'weight', 'weight per set kg': 'weight',
+    datum: 'date', fecha: 'date', tarikh: 'date', übung: 'exercise', ejercicio: 'exercise', exercice: 'exercise', senaman: 'exercise',
+    wdh: 'reps', wiederholungen: 'reps', repeticiones: 'reps', répétitions: 'reps', ulangan: 'reps', gewicht: 'weight', 'gewicht kg': 'weight', peso: 'weight', 'peso kg': 'weight', poids: 'weight', 'poids kg': 'weight', berat: 'weight', 'berat kg': 'weight', satz: 'setindex', serie: 'setindex', séries: 'sets', series: 'sets',
+    'exercise name': 'exercise', 'weight kilograms': 'weight',
   };
-  const head = rows[0].map(h => { const k = h.trim().toLowerCase().replace(/[()_]/g, ' ').replace(/\s+/g, ' ').trim(); return ALIAS[k] || k; });
+  const norm = h => { const k = String(h).trim().toLowerCase().replace(/[()_.]/g, ' ').replace(/\s+/g, ' ').trim(); return ALIAS[k] || k; };
+  // Some exports put a title line or two above the header ("### EXERCISE LOGS ###").
+  const at = rows.findIndex(r => { const h = r.map(norm); return h.includes('exercise') && (h.includes('date') || fallbackDate); });
+  if (at > 0) rows = rows.slice(at);
+  const head = rows[0].map(norm);
   const has = n => head.includes(n);
-  const miss = [['date', has('date')], ['exercise', has('exercise')], ['weight', has('weight') || has('weightlb')], ['reps', has('reps') || has('seconds')]].filter(x => !x[1]).map(x => x[0]);
+  // "Set 1", "Set 2"… columns hold either reps (with a weight column) or whole sets ("60x8").
+  const setCols = head.map((h, i) => (/^(set|satz|serie) ?\d+$/.test(h) ? i : -1)).filter(i => i >= 0);
+  const perRowSets = has('logs') || setCols.length > 0;
+  const miss = [['date', has('date') || fallbackDate], ['exercise', has('exercise')], ['weight', has('weight') || has('weightlb') || perRowSets], ['reps', has('reps') || has('seconds') || perRowSets]].filter(x => !x[1]).map(x => x[0]);
   if (miss.length) throw new Error(`Missing column${miss.length > 1 ? 's' : ''}: ${miss.join(', ')}. Expected at least date, exercise, weight, reps.`);
   const ix = n => head.indexOf(n);
-  const order = dateOrder === 'auto' ? detectDateOrder(rows.slice(1).map(r => r[ix('date')])) : dateOrder;
+  const order = !has('date') ? 'ymd' : dateOrder === 'auto' ? detectDateOrder(rows.slice(1).map(r => r[ix('date')])) : dateOrder;
   const kgHeader = /kg/i.test(rows[0][ix('weight')] || '');
   const map = new Map();
   const num = v => { const x = String(v ?? '').replace(',', '.').replace(/\s*(kgs?|lbs?|reps?|s)$/i, '').trim(); return x === '' || !isFinite(+x) ? null : +x; };
   for (const r of rows.slice(1)) {
-    const date = normDate(r[ix('date')], order);
+    const date = has('date') ? normDate(excelDate(r[ix('date')]), order) : fallbackDate;
     if (!date) continue;
     const cell = n => (ix(n) >= 0 ? String(r[ix(n)] ?? '').trim() : '');
     const name = cell('session') || 'Imported';
@@ -83,10 +95,27 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto' } = {}) {
     const sess = map.get(key);
     const wn = cell('wnote');
     if (wn && !sess.notes.includes(wn)) sess.notes.push(wn);
-    const exName = cell('exercise');
+    const exName = cell('exercise').replace(/_+/g, ' ').trim();
     if (!exName) continue;
+    // Whole sets in one cell: Jefit "logs" ("60x8,60x8") or "Set 1…" columns ("60x8", or reps with a weight column).
+    if (perRowSets && !has('reps')) {
+      const lbCell = /^(lbs?|pounds?)$/i.test(cell('wunit') || cell('unit')) || (lb && !kgHeader);
+      const found = [];
+      if (has('logs')) found.push(...(parseSetLine(cell('logs').replace(/,/g, ' '), { lb: lbCell })?.sets || []));
+      for (const i of setCols) {
+        const v = String(r[i] ?? '').trim();
+        if (!v) continue;
+        if (/x|×/i.test(v)) found.push(...(parseSetLine(v, { lb: lbCell })?.sets || []));
+        else if (num(v) != null) { let w = has('weightlb') ? num(cell('weightlb')) : num(cell('weight')); if (w != null && (lbCell || has('weightlb'))) w = lbToKg(w); found.push({ w, r: num(v) }); }
+      }
+      if (!found.length) continue;
+      let e2 = sess.entries.find(e => e.exName === exName);
+      if (!e2) { e2 = { exName, unit: '', sets: [], rir: null, pain: false, note: '' }; sess.entries.push(e2); }
+      e2.sets.push(...found.map(s => ({ w: s.w, r: s.r, done: true })));
+      continue;
+    }
     // Pounds: its own column, a unit column that says so, or the whole file (opts.lb) when the column doesn't say kg.
-    const lbRow = cell('weightlb') !== '' || /^(lbs?|pounds?)$/i.test(cell('wunit')) || (lb && !kgHeader && !/^kgs?$/i.test(cell('wunit')));
+    const lbRow = cell('weightlb') !== '' || /^(lbs?|pounds?)$/i.test(cell('wunit')) || /^(lbs?|pounds?)$/i.test(cell('unit')) || (lb && !kgHeader && !/^kgs?$/i.test(cell('wunit') || cell('unit')));
     let w = cell('weightlb') !== '' ? num(cell('weightlb')) : num(cell('weight'));
     let reps = num(cell('reps'));
     // Timed sets (a plank in Hevy or Strong): seconds count as reps.
@@ -108,6 +137,117 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto' } = {}) {
     if (note && !ent.note.includes(note)) ent.note = ent.note ? ent.note + ' ' + note : note;
   }
   return [...map.values()].filter(s => s.entries.length);
+}
+
+// ---- reading any file someone picks ------------------------------------------------------------------
+/** Bytes to text: UTF-8, or UTF-16 (Excel's "Unicode text", some Windows notes apps), with or without a byte-order mark. */
+export function decodeBytes(u8) {
+  const b = u8 instanceof Uint8Array ? u8 : new Uint8Array(u8);
+  if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder('utf-16le').decode(b.subarray(2));
+  if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder('utf-16be').decode(b.subarray(2));
+  if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) return new TextDecoder('utf-8').decode(b.subarray(3));
+  // No mark, but every other byte is zero: UTF-16 as well.
+  const n = Math.min(b.length, 400);
+  let odd = 0, even = 0;
+  for (let i = 0; i < n; i++) if (!b[i]) (i % 2 ? odd++ : even++);
+  if (n > 8 && odd > n / 3 && even < n / 20) return new TextDecoder('utf-16le').decode(b);
+  if (n > 8 && even > n / 3 && odd < n / 20) return new TextDecoder('utf-16be').decode(b);
+  const utf8 = new TextDecoder('utf-8').decode(b);
+  // Not valid UTF-8 (an old Windows file): read it as Windows-1252 so "é" and "×" survive.
+  return utf8.includes('�') ? new TextDecoder('windows-1252').decode(b) : utf8;
+}
+
+const REJECT = {
+  photo: 'is a photo. Import reads text, not pictures: copy the text out of it (most phones can select text in a photo) and paste it below.',
+  sheet: 'is an Excel or Numbers file. Save it as CSV first (File → Save as / Download → CSV), then import the CSV.',
+  doc: 'is a Word or Pages document. Save it as plain text or PDF first, or copy the text and paste it below.',
+  zip: 'is a zip archive. Unzip it and pick the CSV, text or PDF files inside.',
+  gps: 'is a GPS track (runs and rides). Log cardio under Progress → Cardio instead.',
+  json: 'is a data file from another app. Export a CSV from that app instead, or paste the workouts as text.',
+  audio: 'is not a workout log this app can read. Use PDF, text or CSV.',
+};
+/**
+ * What the Import screen does with a picked file, from its name, first bytes and the start of its text.
+ * kind: pdf | csv | text | html | rtf | backup | reject (with a message).
+ */
+export function routeFile(name, head, sample = '') {
+  const ext = (String(name).match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
+  const h = head instanceof Uint8Array ? head : new Uint8Array(head || []);
+  const sig = String.fromCharCode(...h.subarray(0, 12));
+  const no = why => ({ kind: 'reject', message: `${name} ${REJECT[why]}` });
+  if (ext === 'pdf' || sig.startsWith('%PDF-')) return { kind: 'pdf' };
+  if (/^(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/.test(ext) || (h[0] === 0xff && h[1] === 0xd8) || sig.startsWith('\x89PNG') || sig.startsWith('GIF8') || (sig.startsWith('RIFF') && sig.slice(8, 12) === 'WEBP') || /^....ftyp(heic|heix|mif1)/.test(sig)) return no('photo');
+  if (/^(xlsx?|xlsm|ods|numbers)$/.test(ext)) return no('sheet');
+  if (/^(docx?|odt|pages)$/.test(ext)) return no('doc');
+  if (/^(zip|rar|7z|gz)$/.test(ext)) return no('zip');
+  if (h[0] === 0x50 && h[1] === 0x4b) return no(/sheet|xl\//i.test(name) ? 'sheet' : 'zip');
+  if (h[0] === 0xd0 && h[1] === 0xcf && h[2] === 0x11) return no(ext === 'doc' ? 'doc' : 'sheet');
+  if (/^(gpx|tcx|fit|kml)$/.test(ext)) return no('gps');
+  if (/^(mp3|m4a|wav|mp4|mov)$/.test(ext)) return no('audio');
+  const t = String(sample).replace(/^﻿/, '').trimStart();
+  if (ext === 'rtf' || t.startsWith('{\\rtf')) return { kind: 'rtf' };
+  if (ext === 'json' || /^[{[]\s*["{[\]]/.test(t)) return /"app"\s*:\s*"setlist"/.test(t) ? { kind: 'backup' } : no('json');
+  if (/^<\?xml[^>]*>\s*<(gpx|TrainingCenterDatabase)\b/i.test(t) || /^<(gpx|TrainingCenterDatabase)\b/i.test(t)) return no('gps');
+  if (/^(html?|enex|xml|mhtml?)$/.test(ext) || /^<(!doctype html|html|\?xml|en-export|body|div|table|p)\b/i.test(t)) return { kind: 'html' };
+  if (/^(csv|tsv)$/.test(ext) || /^[^\n]*\b(date|start_time|datum|fecha|tarikh)\b[^\n]*[,;\t][^\n]*\b(exercise|exercise_title|übung|ejercicio|senaman)/i.test(t)) return { kind: 'csv' };
+  return { kind: 'text' };
+}
+
+const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', times: '×', ndash: '–', mdash: '—', hellip: '…' };
+/** HTML, Evernote or Notion exports to plain lines: block ends and table cells become line breaks and spaces. */
+export function htmlToText(html) {
+  return String(html)
+    .replace(/<sms\b[^>]*?\bbody="([^"]*)"[^>]*>/gi, (m, b) => `<p>${b.replace(/&#10;/g, '<br>')}</p>`)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<(script|style|head)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|tr|h[1-6]|note|title|en-note|table|ul|ol)>/gi, '\n')
+    .replace(/<\/t[dh]>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e) => e[0] === '#' ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : +e.slice(1)) : ENT[e.toLowerCase()] ?? m)
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n');
+}
+/** Rich text (TextEdit, WordPad) to plain lines. */
+export function rtfToText(rtf) {
+  return String(rtf)
+    .replace(/\{\\\*[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, '')
+    .replace(/\{\\(fonttbl|colortbl|stylesheet|info)[\s\S]*?\}\s*\}/g, '')
+    .replace(/\\par[d]?\b ?|\\line\b ?/g, '\n')
+    .replace(/\\'([0-9a-f]{2})/gi, (m, x) => new TextDecoder('windows-1252').decode(new Uint8Array([parseInt(x, 16)])))
+    .replace(/\\u(-?\d+) ?\??/g, (m, n) => String.fromCharCode(+n < 0 ? +n + 65536 : +n))
+    .replace(/\\[a-z]+-?\d* ?/gi, '')
+    .replace(/[{}]/g, '')
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n');
+}
+
+/**
+ * One non-PDF file, start to finish, the way the Import screen reads it: sessions found, or why not.
+ * Used by the Import screen and by the import tests.
+ */
+export function importFile(name, bytes, exercises, opts = {}) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const text = decodeBytes(u8);
+  const route = routeFile(name, u8.subarray(0, 16), text.slice(0, 2000));
+  if (route.kind === 'reject' || route.kind === 'backup' || route.kind === 'pdf') return { ...route, sessions: [] };
+  if (route.kind === 'csv') {
+    const fallbackDate = findDate(String(name).replace(/[_]+/g, ' '), opts.year || new Date().getFullYear(), 'ymd');
+    try { return { kind: 'csv', sessions: sessionsFromCSV(text, { ...opts, fallbackDate }) }; }
+    catch (e) {
+      // A CSV that isn't a set-by-set log (one row per exercise, or a coach's sheet) still reads as text lines.
+      const r = parseLogText(text.replace(/[,;\t]+/g, ' '), exercises, { sessionName: sessionNameFromFile(name), ...opts });
+      return r.sessions.length ? { kind: 'text', sessions: r.sessions, skipped: r.skipped } : { kind: 'reject', message: e.message, sessions: [] };
+    }
+  }
+  const plain = route.kind === 'html' ? htmlToText(text) : route.kind === 'rtf' ? rtfToText(text) : text;
+  const r = parseLogText(plain, exercises, { sessionName: sessionNameFromFile(name), ...opts });
+  return { kind: route.kind, sessions: r.sessions, skipped: r.skipped };
+}
+
+/** Excel stores dates as day numbers (46286 = 21 Sep 2026); a CSV saved from it can keep them. */
+export function excelDate(v) {
+  const s = String(v ?? '').trim();
+  if (!/^\d{5}(\.\d+)?$/.test(s) || +s < 20000 || +s > 80000) return v;
+  return new Date(Date.UTC(1899, 11, 30) + Math.floor(+s) * 864e5).toISOString().slice(0, 10);
 }
 
 /** Pounds to kg, kept to 3 decimals so it shows back as the same number of pounds. */
@@ -275,6 +415,16 @@ function splitName(line) {
 const MODIFIERS = ['reverse', 'incline', 'decline', 'close', 'wide', 'front', 'rear', 'single', 'hack', 'smith', 'romanian', 'overhead', 'bulgarian', 'split', 'goblet', 'hammer', 'preacher', 'wrist', 'hanging', 'lying', 'supported'];
 // Plurals and spacing are ignored: "Pull ups" = "Pull-up", "Hammer curls" = "Hammer curl".
 // Common spellings in gym notes, folded to one form before matching.
+// Exercise names in other languages, mapped to the English words the library uses.
+const FOREIGN = [
+  [/bankdrücken|press (?:de )?banca|développé couché|supino(?: reto)?|panca piana|卧推/gu, 'bench press'],
+  [/kniebeugen?|sentadillas?|agachamentos?|深蹲/gu, 'barbell squat'],
+  [/latzug|jalón al pecho|jalon al pecho|tirage vertical|puxada(?: frontal)?|lat machine|高位下拉/gu, 'lat pulldown'],
+  [/kreuzheben|peso muerto|soulevé de terre|levantamento terra|stacco(?: da terra)?|硬拉/gu, 'deadlift'],
+  [/schulterdrücken|press militar|développé militaire|desenvolvimento|lento avanti|推举/gu, 'overhead press'],
+  [/rudern|remo con barra|rowing barre|remada curvada/gu, 'barbell row'],
+  [/bizepscurls?|curl de bíceps|rosca direta/gu, 'bicep curl'],
+];
 const ALIASES = [
   [/\bdumb+el+s?\b|\bdumbbells?\b|\bdbs?\b/g, 'db'], [/\btriceps?\b/g, 'triceps'], [/\bcalves\b/g, 'calf'], [/\blegs\b/g, 'leg'],
   [/\bpull ?-?ups?\b/g, 'pull up'], [/\bchin ?-?ups?\b/g, 'chin up'], [/\bpush ?-?ups?\b/g, 'push up'], [/\bsmitch\b/g, 'smith'],
@@ -286,7 +436,7 @@ const ALIASES = [
   // A bent-over or Pendlay row is a barbell row unless the name says dumbbell or cable.
   [/(?<!\b(?:db|cable|machine|one arm|single arm) )\b(?:bent ?over|pendlay) rows?\b/g, 'barbell row'],
 ];
-const norm = s => ALIASES.reduce((a, [re, to]) => a.replace(re, to), s.toLowerCase()).replace(/[^a-z0-9 ]/g, ' ').replace(/\b([a-z]{2,}?)(es|s)\b/g, (w, st, suf) => (w.endsWith('ss') ? w : suf === 'es' && !/(ch|sh|x)$/.test(st) ? st + 'e' : st)).replace(/\s+/g, ' ').trim();
+const norm = s => ALIASES.reduce((a, [re, to]) => a.replace(re, to), FOREIGN.reduce((a, [re, to]) => a.replace(re, to), s.toLowerCase())).replace(/[^a-z0-9 ]/g, ' ').replace(/\b([a-z]{2,}?)(es|s)\b/g, (w, st, suf) => (w.endsWith('ss') ? w : suf === 'es' && !/(ch|sh|x)$/.test(st) ? st + 'e' : st)).replace(/\s+/g, ' ').trim();
 const squash = s => norm(s).replace(/ /g, '');
 // Words that name the equipment, and words that don't change which lift it is.
 // "Competition bench", "Bench press (BB)" and an Olympic bar are barbell lifts: never matched to a dumbbell one, or the other way round.
@@ -356,6 +506,75 @@ export function matchExercise(name, exercises, { prefer = null, unit = null } = 
   return best;
 }
 
+// ---- rewriting unusual logs into the forms the parser reads ------------------------------------------------------
+const MON3 = 'jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec';
+const KGU = String.raw`(\d+(?:[.,]\d+)?\s*(?:kgs?|kilos?|lbs?|pounds?))`;
+const REPW = String.raw`(?:reps?|repetitions?|ulangan|wdh\.?|repeticiones|répétitions)`;
+const SETW = String.raw`(?:sets?|set|series|séries|sätze|satz)`;
+/**
+ * Lines from chats, tables and other apps rewritten into forms the parser reads: chat prefixes become a
+ * date line, table rows become "Name 60kg x 8 x 3", "8 reps @ 60kg" becomes "60kg x 8", and so on.
+ * Exported for tests; parseLogText runs it first.
+ */
+export function normalizeLog(text, exercises = []) {
+  const out = [];
+  let lastChatDate = null, table = null;
+  const known = n => exercises.length && !!matchExercise(n, exercises);
+  for (let l of String(text).split(/\r\n|\r|\n/)) {
+    // Chat exports: "[21/09/2026, 18:02:11] Name: text" (iOS) or "21/09/2026, 18:02 - Name: text" (Android).
+    const chat = l.match(/^\u200e?\[?(\d{1,2}[/.]\d{1,2}[/.]\d{2,4}),? \d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]\.?m\.?)?\]?\s*(?:-\s*)?[^:]{1,40}:\s(.*)$/i);
+    if (chat) {
+      if (chat[1] !== lastChatDate) { out.push('', chat[1]); lastChatDate = chat[1]; }
+      l = chat[2];
+    }
+    l = l.replace(/[\u00a0\u2007\u202f]/g, ' ')
+      .replace(/^\s*#{1,6}\s+/, '')                                             // markdown headings
+      .replace(/^\s*(?:[-*•◦▪☐☑✓✔]|\[[ xX]\])\s+/, '')                         // bullets and checkboxes
+      .replace(/(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/g, '$1')  // ISO timestamps
+      .replace(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/g, (m, y, mo, d) => `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`)
+      .replace(new RegExp(String.raw`\b(\d{1,2})-(${MON3})[a-z]*-(\d{2})\b`, 'gi'), (m, d, mo, y) => `${d} ${mo} 20${y}`)
+      .replace(/^(\p{L}{2,9}\.?,?\s+)?(\d{1,2})\.(\d{1,2})\.(?=\s|$)/u, (m, w, d, mo) => `${w || ''}${d}/${mo}`)
+      // "Mon 21/9 Push": a weekday in front of a short date
+      .replace(/^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+(?=\d{1,2}[/.-]\d{1,2}(?![/.-]?\d))/i, '');
+    // Tables: "| Bench press | 60kg | 8 | 3 |" or "Bench press | 3 | 8 | 60kg" under a header naming the columns.
+    if ((l.match(/\|/g) || []).length >= 2 || (table && l.includes('|'))) {
+      const cells = l.replace(/^\s*\||\|\s*$/g, '').split('|').map(c => c.trim());
+      if (cells.every(c => /^:?-{2,}:?$/.test(c) || !c)) continue;
+      const roles = cells.map(c => /^(exercise|lift|movement|name|übung|ejercicio|exercice)$/i.test(c) ? 'name' : /^(sets?|series|sätze)$/i.test(c) ? 'sets' : /^(reps?|repetitions|wdh)$/i.test(c) ? 'reps' : /^(weight|load|kg|lbs?|peso|gewicht|poids)$/i.test(c) ? 'w' : null);
+      if (roles.includes('name') && roles.filter(Boolean).length >= 3) { table = roles; continue; }
+      if (table) {
+        const get = k => cells[table.indexOf(k)] ?? '';
+        const w = get('w'), unit = /lb/i.test(w) || /lb/i.test(table.join()) ? 'lbs' : 'kg';
+        const wn = (w.match(/\d+(?:[.,]\d+)?/) || [''])[0], r = (get('reps').match(/\d+/) || [''])[0], k = (get('sets').match(/\d+/) || ['1'])[0];
+        if (get('name') && wn && r) { out.push(`${get('name')} ${wn}${unit} x ${r} x ${k}`); continue; }
+      }
+      l = cells.join(' ');
+    } else if (table && !l.trim()) table = null;
+    l = l
+      // "60kg - 3 sets x 8 reps", "60kg 3 set x 8 ulangan"
+      .replace(new RegExp(String.raw`${KGU}\s*[-–,:]?\s*(\d{1,2})\s*${SETW}\s*(?:x|of|×)\s*(\d{1,3})\s*(?:${REPW})?`, 'gi'), '$1 x $3 x $2')
+      // "3 sets 8 reps 60kg", "3 sets of 8 reps with 60kg"
+      .replace(new RegExp(String.raw`\b(\d{1,2})\s*${SETW}\s*(?:of\s*|x\s*)?(\d{1,3})\s*${REPW}\s*(?:@|at|with|x)?\s*${KGU}`, 'gi'), '$3 x $2 x $1')
+      // "3 x 8 with 60 kilos"
+      .replace(new RegExp(String.raw`\b(\d{1,2})\s*x\s*(\d{1,3})\s*(?:with|at)\s*${KGU}`, 'gi'), '$3 x $2 x $1')
+      // "8 reps @ 60kg"
+      .replace(new RegExp(String.raw`\b(\d{1,3})\s*${REPW}\s*(?:@|at|with|x)\s*${KGU}`, 'gi'), '$2 x $1')
+      // "60kg for 8 reps"
+      .replace(new RegExp(String.raw`${KGU}\s*for\s*(\d{1,3})\s*(?:${REPW})?`, 'gi'), '$1 x $2')
+      // "Deadlift 100 kg: 5" (a single set after a colon)
+      .replace(new RegExp(String.raw`${KGU}\s*:\s*(\d{1,3})\s*$`, 'i'), '$1 x $2')
+      // "Plank 60s x 3": seconds count as reps
+      .replace(/\b(\d{1,3})\s*(?:s|secs?|seconds)\s*x\s*(\d{1,2})\b/gi, (m, sec, k) => `BW ${Array(Math.min(12, +k)).fill(sec).join(',')}`)
+      // "Pull-up BW x 8 x 3"
+      .replace(/\b(bw|body ?weight)\s*x\s*(\d{1,3})\s*x\s*(\d{1,2})\b/gi, (m, b, r, k) => `${b} ${Array(Math.min(12, +k)).fill(r).join(',')}`);
+    // "Bench press 60 8 8 8": a known lift, a load and reps with no units at all.
+    const bare = l.match(/^(\p{L}[\p{L} '()-]*?)\s+(\d{2,3}(?:[.,]\d+)?)\s+((?:\d{1,2}\s+)*\d{1,2})\s*$/u);
+    if (bare && known(bare[1]) && bare[3].trim().split(/\s+/).every(r => +r > 0 && +r <= 30)) l = `${bare[1]} ${bare[2]}kg ${bare[3]}`;
+    out.push(l);
+  }
+  return out;
+}
+
 /**
  * Turn free text (pasted notes or PDF text) into sessions.
  * - A line with a date starts a session; other words on it become a session note
@@ -370,14 +589,15 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
   let sess = null, ent = null, skipped = 0;
   const rows = [];
   let blank = true;
-  const lines = text.split(/\r?\n/);
+  const lines = normalizeLog(text, exercises);
   const order = dateOrder === 'auto' ? detectDateOrder(lines) : dateOrder;
   for (const raw of lines) {
     const l = raw.replace(/\s+/g, ' ').trim();
     if (!l) { blank = true; continue; }
     // "Calves raises on 30 mar 2023" mentions a date; it doesn't start a session.
     const fd = findDateAt(l, year, order);
-    const date = fd && !/\b(on|at|from|since|until|till|by|before|after|of|in|than|like)\s*$/i.test(l.slice(0, fd.index)) ? fd.iso : null;
+    // Nor is "50 kg: 10/10/10" a date: numbers right after a load are reps.
+    const date = fd && !/\b(on|at|from|since|until|till|by|before|after|of|in|than|like)\s*$/i.test(l.slice(0, fd.index)) && !/\d\s*(kgs?|lbs?|kilos?)\s*[:\-–]?\s*$/i.test(l.slice(0, fd.index)) ? fd.iso : null;
     const si = parseSetLine(date ? l.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/^\s*\d{1,2}[/.]\d{1,2}\b(?![/.]\d)/, '') : l, { lb }); // a date is never a set: \"12/9\"
     rows.push({ l, date, si, kind: date && !si?.sets.length ? 'date' : si?.sets.length ? 'sets' : 'text', blank });
     blank = false;
@@ -433,10 +653,10 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
     if (row.kind === 'sets') {
       const si = row.si;
       // An inline name must read like one ("Incline DB press 25 kg 8,8,8"), not a unit note ("80lbs or 36kg x8").
-      const lead = si.before.replace(/\d+(?:[.,]\d+)?\s*(lbs?|pounds?|kgs?)\b/gi, '').replace(/\b(kg|kgs|lbs?|or|and|reps?|sets?|each|ea|x|@|bw|level|lvl)\b/gi, '').replace(/[^A-Za-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+      const lead = si.before.replace(/\d+(?:[.,]\d+)?\s*(lbs?|pounds?|kgs?)\b/gi, '').replace(/\b(kg|kgs|lbs?|or|and|reps?|sets?|each|ea|x|@|bw|level|lvl)\b/gi, '').replace(/[^\p{L} '-]/gu, ' ').replace(/(^|\s)[-']+|[-']+(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
       // Lowercase names count too ("lunges 10kg 10,10,8") when short and not a remark.
-      const nameLike = /^[A-Z]/.test(lead) || matchExercise(lead, exercises) || (lead.split(' ').length <= 4 && !PAIN_RE.test(lead) && !COMMENT_RE.test(lead) && !/\b(then|and|also|again|same|next|last|up to|drop)\b/i.test(lead));
-      if (lead.length >= 4 && /[a-z]{3}/i.test(lead) && nameLike) {
+      const nameLike = /^\p{Lu}|^\p{Lo}/u.test(lead) || matchExercise(lead, exercises) || (lead.split(' ').length <= 4 && !PAIN_RE.test(lead) && !COMMENT_RE.test(lead) && !/\b(then|and|also|again|same|next|last|up to|drop)\b/i.test(lead));
+      if ((lead.length >= 4 && /\p{L}{3}/u.test(lead) || /\p{Script=Han}{2}/u.test(lead)) && nameLike) {
         const [n, extra] = splitName(lead);
         ent = newEnt(sess, n);
         if (extra) addNote(ent, extra);
