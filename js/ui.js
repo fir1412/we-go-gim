@@ -1,5 +1,5 @@
 // Shared UI helpers: escaping, formatting, chips, charts, sheets, toasts.
-import { incLabel } from './engine.js';
+import { incLabel, setEngineMonths } from './engine.js';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -7,17 +7,36 @@ export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ESC[c]);
 
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DOW_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+// Month and weekday names follow the app language (English, Malay or Chinese). The arrays are changed in place,
+// so every module that imported them sees the new names.
+const DATE_NAMES = {
+  en: { mon: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], letter: ['S', 'M', 'T', 'W', 'T', 'F', 'S'] },
+  ms: { mon: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'], dow: ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'], long: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'], letter: ['A', 'I', 'S', 'R', 'K', 'J', 'S'] },
+  zh: { mon: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], dow: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'], long: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'], letter: ['日', '一', '二', '三', '四', '五', '六'] },
+  ja: { mon: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], dow: ['日', '月', '火', '水', '木', '金', '土'], long: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'], letter: ['日', '月', '火', '水', '木', '金', '土'] },
+};
+const MON = [...DATE_NAMES.en.mon], DOW = [...DATE_NAMES.en.dow], DOW_LONG = [...DATE_NAMES.en.long], DOW_LETTER = [...DATE_NAMES.en.letter];
+let dateLang = 'en';
 export const MONTHS = MON;
+export function setDateLang(lang) {
+  const n = DATE_NAMES[lang] || DATE_NAMES.en;
+  dateLang = DATE_NAMES[lang] ? lang : 'en';
+  MON.splice(0, 12, ...n.mon); DOW.splice(0, 7, ...n.dow); DOW_LONG.splice(0, 7, ...n.long); DOW_LETTER.splice(0, 7, ...n.letter);
+  setEngineMonths(n.mon);
+}
 export const parts = iso => { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(Date.UTC(y, m - 1, d)).getUTCDay() }; };
 export const fmtDate = (iso, { year = false, dow = false } = {}) => {
   if (!iso) return '';
   const p = parts(iso);
+  if (dateLang === 'zh') return `${year ? p.y + '年' : ''}${p.m}月${p.d}日${dow ? ' ' + DOW[p.dow] : ''}`;
+  if (dateLang === 'ja') return `${year ? p.y + '年' : ''}${p.m}月${p.d}日${dow ? '(' + DOW[p.dow] + ')' : ''}`;
   return `${dow ? DOW[p.dow] + ' ' : ''}${p.d} ${MON[p.m - 1]}${year ? ' ' + p.y : ''}`;
 };
+/** "Sep 2026" / "2026年9月" for a 'YYYY-MM' month. */
+export const fmtMonth = ym => (dateLang === 'zh' || dateLang === 'ja' ? `${ym.slice(0, 4)}年${+ym.slice(5)}月` : `${MON[+ym.slice(5) - 1]} ${ym.slice(0, 4)}`);
 export const dowName = (i, long = false) => (long ? DOW_LONG : DOW)[i];
+/** One-letter weekday for compact calendars (M T W… / I S R… / 一 二 三…). */
+export const dowLetter = i => DOW_LETTER[i];
 export const num = (v, dp = 1) => (v == null || isNaN(v) ? '—' : String(+(+v).toFixed(dp)));
 export const kfmt = v => Math.round(v).toLocaleString('en-GB');
 
@@ -341,3 +360,8 @@ export const T = k => (TERMS[k] ? TERMS[k][expertWording() ? 1 : 0] : k);
 export const TIP = k => TIPS[k] || '';
 /** A small "?" that explains a term on tap (uses the native title for desktop, a toast on phones). */
 export const helpTip = k => (TIPS[k] ? `<button class="tipq" data-act="tip" data-k="${k}" aria-label="What does ${T(k)} mean?">${ICON.help}</button>` : '');
+
+/** Language picker: each language in its own script, so anyone can find theirs. Changing it reloads the app. */
+export function langPicker(cur, langs) {
+  return `<label class="rrow langrow"><span>Language · Bahasa · 语言 · 言語</span><select data-input="set-lang" aria-label="Language">${langs.map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
+}

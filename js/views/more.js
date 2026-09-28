@@ -1,7 +1,8 @@
 import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits } from '../engine.js';
-import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf } from '../ui.js';
+import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
+import { LANGS, getLang } from '../i18n.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
@@ -488,10 +489,12 @@ function settings() {
   const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
   const wording = st.wording || (st.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain');
   const u = getUnits();
-  const h = `<div class="box pad stack">${seg('Theme', 'theme', st.theme, [['system', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}
+  const en = getLang() === 'en';
+  const h = `<div class="box pad stack">${langPicker(getLang(), LANGS)}
+      ${seg('Theme', 'theme', st.theme, [['system', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}
       ${seg('Weights', 'st-units', st.units === 'lb' ? 'lb' : 'kg', [['kg', 'kg'], ['lb', 'lb']])}
-      ${seg('Words', 'st-wording', wording, [['plain', 'Plain'], ['expert', 'Gym terms']])}
-      <p class="fine">${wording === 'expert' ? 'Gym terms: RIR, e1RM, calibrate, deload.' : 'Plain words: “reps left” instead of RIR, “find your weight” instead of calibrate.'} Weights are always stored in kg, so switching units never changes your history.</p></div>
+      ${en ? seg('Words', 'st-wording', wording, [['plain', 'Plain'], ['expert', 'Gym terms']]) : ''}
+      <p class="fine">${!en ? '' : wording === 'expert' ? 'Gym terms: RIR, e1RM, calibrate, deload. ' : 'Plain words: “reps left” instead of RIR, “find your weight” instead of calibrate. '}Weights are always stored in kg, so switching units never changes your history.</p></div>
     <div class="box pad stack">
       ${tg('timerSound', 'Rest timer sound', 'Two short beeps when rest is over')}
       ${tg('timerVibrate', 'Rest timer vibration', 'Buzz when rest is over')}

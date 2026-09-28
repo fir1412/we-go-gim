@@ -20,7 +20,10 @@ export function e1rm(w, r) {
 export const isKg = u => u === 'kg' || u === 'kg/DB';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const shortDate = iso => `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]}`;
+let zhDates = false;
+/** Month names for dates inside suggestion text, set with the app language (ui.setDateLang). */
+export const setEngineMonths = names => { MONTHS.splice(0, 12, ...names); zhDates = /月/.test(names[0]); };
+export const shortDate = iso => (zhDates ? `${MONTHS[+iso.slice(5, 7) - 1]}${+iso.slice(8, 10)}日` : `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]}`);
 
 /** Working sets of an entry: done and not warm-up. */
 export function workSets(entry) {

@@ -1,7 +1,8 @@
 import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from './state.js';
 import { setUnits, setBwLabel } from './engine.js';
-import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording } from './ui.js';
+import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
 import { setPlain } from './plain.js';
+import { setLang, getLang, translate, LANGS } from './i18n.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
@@ -115,6 +116,13 @@ document.addEventListener('focusin', ev => {
 const GLOBAL = {
   tip: el => toast(TIP(el.dataset.k)),
   'timer-add': () => { if (S.draft?.timer) { S.draft.timer.end += 30000; saveDraft(); paintTimer(); restNotice(); } },
+  // Changing language reloads, so every screen, tab label and date is rebuilt in the new language.
+  async 'set-lang'(el) {
+    const v = el.value || el.dataset.v;
+    if (!LANGS.some(([k]) => k === v) || v === getLang()) return;
+    await saveSettings({ lang: v });
+    location.reload();
+  },
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
@@ -211,10 +219,19 @@ async function wake() {
 }
 document.addEventListener('visibilitychange', () => { wake(); paintTimer(); });
 
+/** First visit: follow the phone's language when the app speaks it. */
+function guessLang() {
+  const want = (navigator.languages || [navigator.language || 'en']).map(l => String(l).slice(0, 2).toLowerCase());
+  return want.find(l => LANGS.some(([k]) => k === l)) || 'en';
+}
+
 // ---- theme ------------------------------------------------------------------------
 export function applyTheme() {
-  setWording(S.settings.wording || (S.settings.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain'));
-  setPlain(!expertWording());
+  // Other languages always use plain wording: the dictionaries translate the plain-English text.
+  const en = getLang() === 'en';
+  setWording(!en ? 'plain' : S.settings.wording || (S.settings.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain'));
+  setDateLang(getLang());
+  setPlain(!expertWording(), en ? null : translate);
   setUnits(S.settings.units || 'kg');
   setBwLabel(T('bw'));
   const t = S.settings.theme;
@@ -226,9 +243,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.6.3';
+export const APP_VERSION = '1.7.0';
 const WHATS_NEW = {
-  '1.6.3': ['Easier English: short forms are written out in full (like “3 sets of 8 reps” and “minutes”), and muscles have everyday names', 'Safer: spreadsheets exported from the app can’t run hidden formulas, and typing mistakes like 6000 kg are caught'],
+  '1.7.0': ['New languages: Bahasa Melayu, 中文 and 日本語. Pick one in Settings or on the welcome screen', 'Easier English: short forms are written out in full (like “3 sets of 8 reps” and “minutes”), and muscles have everyday names', 'Safer: spreadsheets exported from the app can’t run hidden formulas, and typing mistakes like 6000 kg are caught'],
   '1.6.2': ['Security fixes: backup files are checked field by field, the PDF reader is verified before it runs, and very long pasted lines no longer slow the app down'],
   '1.6.1': ['New app icon: a tuxedo kitten with its dumbbells'],
   '1.6.0': [
@@ -424,6 +441,7 @@ async function boot() {
     $('#screen').innerHTML = `<div class="empty"><b>Couldn't open storage.</b><p>${esc(e.message)}</p></div>`;
     return;
   }
+  await setLang(S.settings.lang || guessLang()).catch(() => setLang('en'));
   applyTheme();
   onChange(() => { applyTheme(); render(); });
   window.addEventListener('hashchange', () => { if (sheetOpen()) closeSheet(); render(); });

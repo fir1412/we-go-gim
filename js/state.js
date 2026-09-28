@@ -344,6 +344,7 @@ export function sanitizeBackup(data) {
     if (s.targets && typeof s.targets === 'object') s.targets = Object.fromEntries(DAILY_FIELDS.filter(k => k in s.targets).map(k => [k, numOr(s.targets[k])]));
     if (Array.isArray(s.gyms)) s.gyms = s.gyms.map(g => ({ id: str(g?.id, 40), name: str(g?.name, 60) }));
     for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience']) if (k in s && typeof s[k] !== 'string') delete s[k];
+    if ('lang' in s && !['en', 'ms', 'zh', 'ja'].includes(s.lang)) delete s.lang;
     out.settings = s;
   }
   return out;
