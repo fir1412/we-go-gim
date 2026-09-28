@@ -1,5 +1,5 @@
 import { S, todayIso, refresh, dayForDate, saveSettings } from '../state.js';
-import { bodySVG } from '../anatomy.js';
+import { bodySVG, regionById } from '../anatomy.js';
 import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
 import { esc, fmtDate, pill, STATUS, num, cvar, kstyle, dowName, ICON, T, helpTip, expertWording } from '../ui.js';
 import { progressNav } from './insights.js';
@@ -21,6 +21,7 @@ const setWord = () => (T('sets') === 'sets' ? 'working set' : 'hard set');
 
 let mode = 'level';   // level | week
 let sel = null;       // selected muscle
+let region = null;    // id of the map region tapped last (a finer muscle inside sel), or null
 
 function fillFor(m, data) {
   const r = data.muscles[m];
@@ -39,10 +40,17 @@ function fillFor(m, data) {
 /** Anatomical front and back views, male or female build, coloured by level or by this week's XP. */
 function diagram(data) {
   const lvl = m => (data.muscles[m]?.xp ? levelFor(data.muscles[m].xp).level : 0);
-  return bodySVG({ female: bodyType() === 'female', fill: m => fillFor(m, data), sel, level: lvl, esc });
+  return bodySVG({ female: bodyType() === 'female', fill: m => fillFor(m, data), sel, region, level: lvl, esc });
 }
 /** Build for the map: set on this screen, else taken from the strength-standards choice, else male. */
 const bodyType = () => S.settings.bodyType || (S.settings.stdSex === 'women' ? 'female' : 'male');
+
+/** The finer muscle tapped on the map, if it belongs to the selected group, and a way to see it in 3D. */
+function tapped(m) {
+  const r = regionById(region);
+  if (!r || r.group !== m) return '';
+  return `<p class="fine mregion"><span>You tapped:</span> <b>${esc(r.part)}</b> · <a href="#/atlas/g/${encodeURIComponent(m)}">See it in 3D</a></p>`;
+}
 
 const xpf = n => Math.round(n).toLocaleString('en-GB');
 
@@ -81,6 +89,7 @@ export function render() {
   const nextDay = nextDayFor(sel, t);
   const days = cur.r.lastDate ? daysBetween(cur.r.lastDate, t) : null;
   h += `<section class="box mcard"><header><div class="lvbadge sm"><span>LVL</span><b>${cur.L.level}</b></div><div class="grow"><h2>${esc(sel)}</h2><small>${esc(muscleTitle(cur.L.level))} · ${xpf(cur.r.xp)} XP total</small></div>${cur.r.week ? pill(`+${cur.r.week} this week`, 'up') : ''}</header>
+    ${tapped(sel)}
     ${bar(cur.L.pct)}<p class="fine">${xpf(cur.L.need - cur.L.into)} XP to level ${cur.L.level + 1}. ${(() => { const n = Math.ceil((cur.L.need - cur.L.into) / XP_SET); return `That's about ${n} ${setWord()}${n === 1 ? '' : 's'}, fewer with a PR.`; })()}</p>
     <dl class="facts">
       <div><dt>Last trained</dt><dd>${days == null ? 'Never' : days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'} ago`}</dd></div>
@@ -144,7 +153,7 @@ function nextDayFor(m, t) {
 }
 
 export const actions = {
-  muscle(el) { sel = el.dataset.m; refresh(); },
+  muscle(el) { sel = el.dataset.m; region = el.dataset.r || null; refresh(); },
   mode(el) { mode = el.dataset.v; refresh(); },
   body: el => saveSettings({ bodyType: el.dataset.v }),
 };
