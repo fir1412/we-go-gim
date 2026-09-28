@@ -1,5 +1,7 @@
 # we go gim
 
+**▶ Open the app: https://fir1412.github.io/we-go-gim/** (on Android, open this link in Chrome, then ⋮ → Install app)
+
 A phone-first workout tracker that pre-fills every session from your last one, so you never copy and paste a workout again.
 
 - **Auto-suggest:** each exercise arrives with today's target from double progression: add reps until every set hits the top of the range, then add the smallest weight step. New exercises or machines ask you to calibrate; poor sleep or pain holds the load; three flat sessions flag a plateau; deload weeks when the signs pile up.
