@@ -4,6 +4,9 @@
 import { S, todayIso, dayForDate } from './state.js';
 import { addDays, exposures, score, workSets, muscleXP, MUSCLES } from './engine.js';
 
+/** Streaks, quests and badges can be switched off in Settings (on by default). */
+export const gameOn = () => S.settings.gamify !== false;
+
 const trainedDays = () => new Set(S.sessions.filter(s => !s.seed).map(s => s.date));
 const planned = d => dayForDate(d).slots.length > 0;
 // People who train on whatever days suit them (missed-day reminders off) aren't held to fixed weekdays.

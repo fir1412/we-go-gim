@@ -3,7 +3,7 @@ import { suggest, weekStart, addDays, daysBetween, deloadCheck, fmtLoad, unitSho
 import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, dowName, dowLetter, num, T, helpTip, expertWording } from '../ui.js';
 import { dailyCard } from './daily.js';
 import { go } from '../app.js';
-import { todayGame } from '../gamify.js';
+import { todayGame, gameOn } from '../gamify.js';
 
 const open = new Set();
 let openDate = null;
@@ -35,7 +35,7 @@ export function render(route) {
       <span>${dowLetter(dowOf(d))}</span><b>${+d.slice(8)}</b><span class="dn">${esc(pd.name)}</span></a>`;
   }
   h += `</div>`;
-  if (date === t) h += todayGame(t);
+  if (date === t && gameOn()) h += todayGame(t);
 
   const doneHere = S.sessions.filter(s => s.date === date && !s.seed);
   for (const s of doneHere) {
