@@ -951,7 +951,7 @@ export const actions = {
   'ios-install'() {
     openSheet(`<h2 class="sh-title">Install on iPhone</h2>
       <ol class="steps"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
-      <p class="fine">It then opens full screen from the dumbbell icon, works offline and updates itself. Your data stays on this phone.</p>
+      <p class="fine">It then opens full screen from the kitten icon, works offline and updates itself. Your data stays on this phone.</p>
       <button class="btn" data-act="close-sheet">Got it</button>`, { label: 'Install on iPhone' });
   },
   'close-sheet': () => closeSheet(),
