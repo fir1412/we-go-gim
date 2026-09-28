@@ -1,6 +1,6 @@
-import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
+import { S, load, saveSettings, saveProgram, withUniqueDays, MAX_TEMPLATES, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
 import * as db from '../db.js';
-import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, MAX_KG, MAX_REPS } from '../engine.js';
+import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, MAX_KG, MAX_REPS, cleanText } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
 import { LANGS, getLang, syncRawNames } from '../i18n.js';
 import { trainingIcs, googleCalendarUrl } from '../calendar.js';
@@ -12,12 +12,12 @@ import { filterList } from '../search.js';
 import { learnProgress } from '../learn.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
-import { parseSplitText, weeklyVolume } from '../split.js';
+import { parseSplitText, weeklyVolume, moveDay, blankWeek, WEEK_ORDER } from '../split.js';
 
 export function render(route) {
   syncRawNames(S);
   switch (route.name) {
-    case 'program': return program();
+    case 'program': return program(route.args);
     case 'paste': return pasteSplit();
     case 'exercises': return exercises();
     case 'exercise': return exerciseEdit(route.args[0]);
@@ -83,32 +83,51 @@ function home() {
 }
 
 // ---- programme editor --------------------------------------------------------------------
-// Edits save as you go. The programme as it was when you opened the editor is kept so
-// "Undo changes" can put it back.
-let pOrig = null;
+// Edits save as you go. The week as it was when you opened the editor is kept so "Undo changes" can put it back.
+// The same editor changes one of your saved templates (#/program/t/<id>) without touching the programme.
+const pOrigs = new Map();
+let tplId = null;
 const openDays = new Set();
-const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const DOW_ORDER = WEEK_ORDER;
 const range = s => `${s.sets} × ${s.lo === s.hi ? s.lo : `${s.lo}–${s.hi}`}`;
-function program() {
-  if (!pOrig) {
-    pOrig = structuredClone(S.program);
+const myTemplates = () => S.settings.templates || [];
+const tplOf = id => myTemplates().find(t => t.id === id);
+/** The week being edited: a template's, or the programme. */
+const P = () => (tplId && tplOf(tplId)?.program) || S.program;
+const sameWeek = (a, b) => JSON.stringify(a.days) === JSON.stringify(b.days);
+const trainDays = p => p.days.filter(d => d.slots.length);
+const tdays = p => `<p class="tdays">${trainDays(p).map(d => `<span style="${kstyle(d.color)}"><b>${dowName(d.dow)}</b> ${esc(d.name)}</span>`).join('') || '<span>No training days yet</span>'}</p>`;
+
+function program(args = []) {
+  tplId = args[0] === 't' ? args[1] || null : null;
+  const tpl = tplId && tplOf(tplId);
+  if (tplId && !tpl) return { title: 'Template not found', sub: 'My templates', back: 'program', html: `<div class="empty"><b>This template was deleted.</b><p><a class="btn" href="#/program">Back to Programme</a></p></div>`, color: 'push' };
+  const key = tplId || '';
+  if (!pOrigs.has(key)) {
+    pOrigs.set(key, structuredClone(P()));
     openDays.clear();
     openDays.add(new Date(todayIso() + 'T12:00').getDay());
-    if (!S.settings.progChecked) saveSettings({ progChecked: true });
+    if (!tpl && !S.settings.progChecked) saveSettings({ progChecked: true });
   }
-  const p = S.program;
+  const p = P();
   // One counting rule everywhere: the main muscle counts a full set, helper muscles half.
   const wv = weeklyVolume(p, S.exById), ws = Object.fromEntries(Object.entries(wv).map(([m, v]) => [m, Math.round(v * 2) / 2]));
-  let h = `<div class="row2"><a class="btn ghost" href="#/setup/templates">${ICON.list} Ready-made plans</a><a class="btn ghost" href="#/paste">${ICON.upload} Paste a split</a></div>
-    <p class="fine">Tap a day to edit it. Changes save as you go and apply to future sessions; past sessions stay as they were.</p>
-    <div class="box pad vsum"><p class="lbl">Weekly ${esc(T('sets'))} per muscle · helpers count half · green is 10 or more</p><div class="chips">${MUSCLES.filter(m => ws[m]).map(m => pill(`${m} ${ws[m]}`, ws[m] >= 10 ? 'up' : ws[m] >= 6 ? 'flat' : 'mute')).join('')}</div></div>`;
+  let h = tpl
+    ? `<div class="box pad stack"><label class="field"><span>Template name</span><input class="inp" id="t-rename" value="${esc(tpl.name)}" data-input="t-rename" maxlength="40" enterkeyhint="done"></label>
+      <p class="fine">Changes save to this template only. Your programme stays as it is until you tap Use this template.</p>
+      <button class="btn" data-act="t-use" data-id="${esc(tpl.id)}">Use this template</button></div>`
+    : `<div class="row2"><a class="btn ghost" href="#/setup/templates">${ICON.list} Ready-made plans</a><a class="btn ghost" href="#/paste">${ICON.upload} Paste a split</a></div>`;
+  h += `<p class="fine">Tap a day to edit it. Drag a day by its handle to move it up or down the week. The days in between shift along.${tpl ? '' : ' Changes save as you go and apply to future sessions; past sessions stay as they were.'}</p>
+    <div class="box pad vsum"><p class="lbl">Weekly ${esc(T('sets'))} per muscle · helpers count half · green is 10 or more</p><div class="chips">${MUSCLES.filter(m => ws[m]).map(m => pill(`${m} ${ws[m]}`, ws[m] >= 10 ? 'up' : ws[m] >= 6 ? 'flat' : 'mute')).join('')}</div></div>
+    <div class="pdays">`;
   for (const dow of DOW_ORDER) {
     const di = p.days.findIndex(d => d.dow === dow);
     if (di < 0) continue;
     const d = p.days[di], open = openDays.has(dow);
     const nSets = d.slots.reduce((a, s) => a + (+s.sets || 0), 0);
-    h += `<section class="box pday2" style="${kstyle(d.color)}">
-      <button class="pdh" data-act="p-open" data-dow="${dow}" aria-expanded="${open}"><b class="dlab">${dowName(dow)}</b><span class="grow"><b>${esc(d.name)}</b><small>${d.slots.length ? `${d.slots.length === 1 ? '1 exercise' : d.slots.length + ' exercises'} · ${nSets} sets${d.sub ? ' · ' + esc(d.sub) : ''}` : esc(d.sub || 'Rest day')}</small></span>${ICON.chev}</button>`;
+    h += `<section class="box pday2" data-dow="${dow}" style="${kstyle(d.color)}"><div class="pdrow">
+      <button class="pdh" data-act="p-open" data-dow="${dow}" aria-expanded="${open}"><b class="dlab">${dowName(dow)}</b><span class="grow"><b>${esc(d.name)}</b><small>${d.slots.length ? `${d.slots.length === 1 ? '1 exercise' : d.slots.length + ' exercises'} · ${nSets} sets${d.sub ? ' · ' + esc(d.sub) : ''}` : esc(d.sub || 'Rest day')}</small></span>${ICON.chev}</button>
+      <button class="dragh" id="dh-${dow}" data-dow="${dow}" aria-label="Move ${esc(d.name)} (${dowName(dow, true)}): drag up or down, or use the arrow keys">${ICON.grip}</button></div>`;
     if (open) {
       h += `<div class="pdb"><div class="pdn"><input class="inp" id="pn-${di}" value="${esc(d.name)}" data-input="p-day" data-d="${di}" data-f="name" aria-label="Name for ${dowName(dow, true)}" enterkeyhint="done">
         <button class="sw big" data-act="p-color" data-d="${di}" style="${kstyle(d.color)}" aria-label="Change colour for ${dowName(dow, true)}"></button></div>
@@ -116,25 +135,126 @@ function program() {
       h += d.slots.length ? `<ul class="pslots">${d.slots.map((s, si) => `<li><button class="pslot2" data-act="p-slot" data-d="${di}" data-s="${si}">${s.group ? `<i class="grp">${esc(s.group)}</i>` : `<i class="grp n">${si + 1}</i>`}<span class="grow">${esc(S.exById[s.exId]?.name || 'Missing exercise')}${s.note ? `<small>${esc(s.note)}</small>` : ''}</span><b class="num">${range(s)}</b></button></li>`).join('')}</ul>`
         : `<p class="fine">Rest day. Add an exercise to make it a training day.</p>`;
       h += `<div class="pdacts"><button class="mini addx" data-act="p-add" data-d="${di}">${ICON.plus} Add exercise</button>
-        <button class="mini" data-act="p-moveday" data-dow="${dow}">${ICON.today} Move to another day</button></div></div>`;
+        <button class="mini" data-act="p-moveday" data-dow="${dow}">${ICON.today} Swap with another day</button></div></div>`;
     }
     h += `</section>`;
   }
-  const changed = JSON.stringify(pOrig) !== JSON.stringify(p);
-  if (changed) h += `<div class="cta"><button class="btn ghost" data-act="p-undo">Undo changes made on this screen</button></div>`;
-  return { title: 'Programme', sub: 'Your weekly split', back: 'more', html: h, color: 'push' };
+  h += `</div>`;
+  if (!sameWeek(pOrigs.get(key), p)) h += `<button class="btn ghost" data-act="p-undo">Undo changes made on this screen</button>`;
+  if (tpl) h += `<button class="btn ghost danger-t" data-act="t-del" data-id="${esc(tpl.id)}">Delete this template</button>`;
+  else {
+    const list = myTemplates();
+    h += `<section class="box pad mytpl"><p class="lbl">My templates</p>
+      <p class="fine">Save this week to come back to later, or build a new plan without changing the one you train with.</p>
+      ${list.length ? `<div class="list box">${list.map(t => `<button class="li" data-act="t-open" data-id="${esc(t.id)}"><span class="grow"><b>${esc(t.name)}</b><small>${plural(trainDays(t.program).length, 'training day')}${sameWeek(t.program, S.program) ? ' · same as your programme' : ''}</small></span>${ICON.chev}</button>`).join('')}</div>` : ''}
+      <div class="row2"><button class="btn ghost" data-act="t-save">${ICON.save} Save as template</button><button class="btn ghost" data-act="t-new">${ICON.plus} New template</button></div></section>`;
+  }
+  return { title: tpl ? tpl.name : 'Programme', sub: tpl ? 'Editing a template' : 'Your weekly split', back: tpl ? 'program' : 'more', html: h, color: 'push', after: wireDayDrag };
 }
 
-/** Change the programme and save straight away. */
+/** Change the week being edited (the programme, or the open template) and save straight away. */
 async function editProgram(fn) {
-  const p = structuredClone(S.program);
+  const p = structuredClone(P());
   if (fn(p) === false) return;
+  if (tplId && tplOf(tplId)) return saveTemplate(tplId, { program: cleanWeek(p) });
   await saveProgram(p);
+}
+function cleanWeek(p) {
+  p = withUniqueDays(p);
+  for (const d of p.days) { d.name = cleanText(d.name, 40); d.sub = cleanText(d.sub, 80); }
+  return { days: p.days };
+}
+async function saveTemplate(id, patch) {
+  await saveSettings({ templates: myTemplates().map(t => (t.id === id ? { ...t, ...patch } : t)) });
+}
+async function addTemplate(name, program) {
+  const t = { id: uid('t'), name: cleanText(name, 40) || 'My plan', saved: todayIso(), program: cleanWeek(structuredClone(program)) };
+  await saveSettings({ templates: [...myTemplates(), t] });
+  return t;
+}
+const nextTplName = () => { let n = myTemplates().length + 1; while (myTemplates().some(t => t.name === `My plan ${n}`)) n++; return `My plan ${n}`; };
+
+/** Move a day to another place in the week (drag or arrow keys). Open days stay open where they land. */
+async function shiftDay(from, to) {
+  if (from === to) return;
+  const src = P().days.find(d => d.dow === from);
+  const order = [...DOW_ORDER];
+  order.splice(DOW_ORDER.indexOf(to), 0, order.splice(DOW_ORDER.indexOf(from), 1)[0]);
+  const open = new Set(openDays);
+  openDays.clear();
+  order.forEach((old, k) => { if (open.has(old)) openDays.add(DOW_ORDER[k]); });
+  await editProgram(p => { p.days = moveDay(p, from, to).days; });
+  toast(`${src?.slots.length ? `${src.name} moved to` : 'The rest day moved to'} ${dowName(to, true)}. The days in between shifted along.`, 'up');
+}
+
+/** Drag a day by its handle; the other days slide out of the way. Arrow keys on the handle move it one day. */
+function wireDayDrag(root) {
+  const sc = document.getElementById('screen');
+  root.querySelectorAll('.dragh').forEach(h => h.addEventListener('keydown', async ev => {
+    const k = { ArrowUp: -1, ArrowDown: 1 }[ev.key];
+    if (!k) return;
+    ev.preventDefault();
+    const from = +h.dataset.dow, i = DOW_ORDER.indexOf(from) + k;
+    if (i < 0 || i >= DOW_ORDER.length) return;
+    await shiftDay(from, DOW_ORDER[i]);
+    document.getElementById('dh-' + DOW_ORDER[i])?.focus();
+  }));
+  root.querySelectorAll('.dragh').forEach(h => h.addEventListener('pointerdown', ev => {
+    if (ev.button != null && ev.button !== 0) return;
+    ev.preventDefault();
+    const card = h.closest('.pday2'), list = [...root.querySelectorAll('.pday2')], from = list.indexOf(card);
+    const rects = list.map(c => c.getBoundingClientRect());
+    const gap = rects.length > 1 ? rects[1].top - rects[0].bottom : 8;
+    const shift = rects[from].height + gap;
+    const y0 = ev.clientY, s0 = sc?.scrollTop || 0;
+    let y = y0, to = from, raf = 0;
+    try { h.setPointerCapture(ev.pointerId); } catch {}
+    card.classList.add('dragging');
+    root.classList.add('dragmode');
+    navigator.vibrate?.(10);
+    const place = () => {
+      const dy = y - y0 + ((sc?.scrollTop || 0) - s0);
+      card.style.transform = `translateY(${dy}px)`;
+      // Where the finger is decides the drop, so a tall open day moves as easily as a closed one.
+      const mid = y + ((sc?.scrollTop || 0) - s0);
+      to = from;
+      for (let k = 0; k < list.length; k++) {
+        const c = rects[k].top + rects[k].height / 2;
+        if (k < from && mid < c) { to = k; break; }
+        if (k > from && mid > c) to = k;
+      }
+      list.forEach((c, k) => { if (c !== card) c.style.transform = k >= to && k < from ? `translateY(${shift}px)` : k <= to && k > from ? `translateY(${-shift}px)` : ''; });
+    };
+    // Near the top or bottom edge the list scrolls, so a day can travel the whole week on a small phone.
+    const tick = () => {
+      if (sc) {
+        const r = sc.getBoundingClientRect(), e = 56;
+        const v = y < r.top + e ? -Math.ceil((r.top + e - y) / 5) : y > r.bottom - e ? Math.ceil((y - r.bottom + e) / 5) : 0;
+        if (v) { const was = sc.scrollTop; sc.scrollTop += v; if (sc.scrollTop !== was) place(); }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const move = e => { y = e.clientY; place(); };
+    const end = e => {
+      cancelAnimationFrame(raf);
+      h.removeEventListener('pointermove', move);
+      h.removeEventListener('pointerup', end);
+      h.removeEventListener('pointercancel', end);
+      card.classList.remove('dragging');
+      root.classList.remove('dragmode');
+      list.forEach(c => { c.style.transform = ''; });
+      if (e.type === 'pointerup' && to !== from) shiftDay(+list[from].dataset.dow, +list[to].dataset.dow).catch(err => toast(err.message || 'Could not move the day', 'down'));
+    };
+    h.addEventListener('pointermove', move);
+    h.addEventListener('pointerup', end);
+    h.addEventListener('pointercancel', end);
+  }));
 }
 
 /** Bottom sheet for one exercise slot: steppers instead of number fields, so no keyboard. */
 function slotSheet(di, si) {
-  const d = S.program.days[di], s = d?.slots[si];
+  const d = P().days[di], s = d?.slots[si];
   if (!s) return closeSheet();
   const ex = S.exById[s.exId];
   const step = (f, label, v) => `<div class="rrow"><span>${label}</span><div class="stepper"><button data-act="p-step" data-d="${di}" data-s="${si}" data-f="${f}" data-v="-1" aria-label="${label} down">−</button><b class="num" aria-live="polite">${v}</b><button data-act="p-step" data-d="${di}" data-s="${si}" data-f="${f}" data-v="1" aria-label="${label} up">+</button></div></div>`;
@@ -169,11 +289,11 @@ function searchList(root, raw, sel) {
 const cardioHint = `<p class="searchnone fine" hidden>No exercise matches. Try fewer words, or add it with New exercise.</p><p class="cardiohint fine" hidden>Walking, running, bikes and other cardio are logged under <a href="#/cardio">Insights → Cardio</a>, not as an exercise.</p>`;
 
 // "New exercise" from a programme picker: after saving, come back and use it there (add to the day, or swap).
-let pendingPick = null;
+let pendingPick = null, pendingAt = 'program';
 
 /** Searchable exercise list in a sheet. Calls onPick(id). */
 function pickExercise(title, onPick, cur = null) {
-  const inProg = new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
+  const inProg = new Set(P().days.flatMap(d => d.slots.map(s => s.exId)));
   const el = openSheet(`<h2 class="sh-title" tabindex="-1" autofocus>${esc(title)}</h2><input class="inp" id="pick-q" type="search" placeholder="Search ${S.exercises.length} exercises" aria-label="Search exercises" autocomplete="off">
     ${cardioHint}
     <ul class="picklist">${S.exercises.map(x => `<li data-name="${esc(searchText(x))}"><button data-pick="${esc(x.id)}" ${x.id === cur ? 'aria-current="true"' : ''}><b>${esc(x.name)}</b><small>${esc((x.muscles || []).slice(0, 2).join(', ') || 'No muscles set')}${inProg.has(x.id) ? ' · in programme' : ''}</small></button></li>`).join('')}</ul>
@@ -181,7 +301,7 @@ function pickExercise(title, onPick, cur = null) {
   el.querySelector('#pick-q').addEventListener('input', ev => searchList(el, ev.target.value, '.picklist li'));
   el.addEventListener('click', ev => {
     if (ev.target.closest('.cardiohint a')) { closeSheet(); return; }
-    if (ev.target.closest('a[href="#/exercise/new"]')) { pendingPick = onPick; return; }
+    if (ev.target.closest('a[href="#/exercise/new"]')) { pendingPick = onPick; pendingAt = location.hash.replace(/^#\/?/, '') || 'program'; return; }
     const b = ev.target.closest('[data-pick]');
     if (b) { closeSheet(); onPick(b.dataset.pick); }
   });
@@ -231,7 +351,7 @@ function exerciseEdit(id) {
     <label class="field"><span>Caution note (shown with suggestions)</span><input class="inp" id="ex-caution" value="${esc(ed.caution || '')}" data-input="ed" data-f="caution" placeholder="e.g. Lower back has flared here"></label>
     <button class="btn" data-act="ed-save" style="--c:var(--up)">${isNew ? 'Create exercise' : 'Save exercise'}</button>`;
   if (!isNew) h += `<a class="btn ghost" href="#/ex/${esc(ed.id)}">History and records (${n} session${n === 1 ? '' : 's'})</a><button class="linkbtn danger center" data-act="ed-del">Delete exercise</button>`;
-  return { title: isNew ? 'New exercise' : 'Edit exercise', sub: isNew ? 'Add to your library' : esc(ed.name), back: isNew && pendingPick ? 'program' : 'exercises', html: h, color: 'pull' };
+  return { title: isNew ? 'New exercise' : 'Edit exercise', sub: isNew ? 'Add to your library' : esc(ed.name), back: isNew && pendingPick ? pendingAt : 'exercises', html: h, color: 'pull' };
 }
 
 // ---- gyms & equipment ---------------------------------------------------------------------------
@@ -569,7 +689,8 @@ const FAQ = [
   ['What do the coloured tags mean?', 'They say what changed since last time: +1 rep, a heavier weight, find your weight (a new lift), or an easy day. Tap the tag during a workout to see why.'],
   ['What weight should I use for a new exercise?', 'Tap Light, Medium or Heavy on the new lift and a starting weight is filled in. Pick one you could do for the target reps with about 2 reps to spare. Next time builds on it.'],
   ['How does the app decide my weights?', 'Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same.'],
-  ['How do I change my split or plan?', 'More → Programme. Tap a day to add, remove or reorder exercises, or pick a ready-made plan, paste your own, or rebuild it with the questions.'],
+  ['How do I change my split or plan?', 'More → Programme. Tap a day to add, remove or reorder exercises. Drag a day by its handle to move it up or down the week. You can also pick a ready-made plan, paste your own, or rebuild it with the questions.'],
+  ['Can I keep more than one plan?', 'Yes. More → Programme → My templates. Save as template keeps a copy of your week; New template builds a plan without changing the one you train with. Tap a template to use, edit or delete it. Templates are in your backup file.'],
   ['How do I do a superset?', 'In a workout, tap ⋮ on an exercise and choose Pair with the next exercise. The rest timer then runs after both.'],
   ['Can I log cardio?', 'Yes. Tap Add cardio in a workout, or open Progress → Cardio this week for cardio on its own.'],
   ['I missed a workout. What now?', 'Today offers to do the missed day today or skip it. Either way your plan carries on; nothing breaks.'],
@@ -647,11 +768,11 @@ export const actions = {
   async 'p-move'(el) {
     const di = +el.dataset.d, i = +el.dataset.s, j = i + +el.dataset.v;
     await editProgram(p => { const a = p.days[di].slots; if (j < 0 || j >= a.length) return false; [a[i], a[j]] = [a[j], a[i]]; });
-    slotSheet(di, Math.max(0, Math.min(j, S.program.days[di].slots.length - 1)));
+    slotSheet(di, Math.max(0, Math.min(j, P().days[di].slots.length - 1)));
   },
   async 'p-del'(el) {
     const di = +el.dataset.d, si = +el.dataset.s;
-    const name = S.exById[S.program.days[di].slots[si]?.exId]?.name || 'Exercise';
+    const name = S.exById[P().days[di].slots[si]?.exId]?.name || 'Exercise';
     closeSheet();
     await editProgram(p => { p.days[di].slots.splice(si, 1); });
     toast(`${name} removed. "Undo changes" puts it back.`);
@@ -661,22 +782,22 @@ export const actions = {
     pickExercise('Swap for…', async id => {
       await editProgram(p => { p.days[di].slots[si].exId = id; });
       slotSheet(di, si);
-    }, S.program.days[di].slots[si]?.exId);
+    }, P().days[di].slots[si]?.exId);
   },
   'p-add'(el) {
     const di = +el.dataset.d;
-    pickExercise(`Add to ${S.program.days[di].name}`, async id => {
+    pickExercise(`Add to ${P().days[di].name}`, async id => {
       await editProgram(p => {
         const d = p.days[di];
         if (!d.slots.length && /^rest$/i.test(d.name)) Object.assign(d, { name: 'Workout', sub: '', color: d.color === 'rest' ? 'push' : d.color });
         d.slots.push({ exId: id, sets: 3, lo: 8, hi: 12, group: '' });
       });
-      slotSheet(di, S.program.days[di].slots.length - 1);
+      slotSheet(di, P().days[di].slots.length - 1);
     });
   },
   // Any colour: quick picks, the phone's full colour picker, or a hex code typed in.
   'p-color'(el) {
-    const d = +el.dataset.d, day = S.program.days[d], cur = hexOf(day.color);
+    const d = +el.dataset.d, day = P().days[d], cur = hexOf(day.color);
     const sheet = openSheet(`<h2 class="sh-title">Colour for ${esc(day.name)}</h2>
       <div class="colprev" id="col-prev" style="--k:${cur}"><b>${esc(day.name)}</b><span id="col-hexlbl">${cur.toUpperCase()}</span></div>
       <p class="lbl">Quick picks</p>
@@ -707,9 +828,9 @@ export const actions = {
   },
   // Move a day's workout to another weekday: the two days trade places (a rest day just swaps in).
   'p-moveday'(el) {
-    const from = +el.dataset.dow, src = S.program.days.find(d => d.dow === from);
+    const from = +el.dataset.dow, src = P().days.find(d => d.dow === from);
     const rows = DOW_ORDER.filter(d => d !== from).map(dow => {
-      const d = S.program.days.find(x => x.dow === dow);
+      const d = P().days.find(x => x.dow === dow);
       const what = d?.slots.length ? `swap with ${esc(d.name)}` : 'rest day';
       return `<button class="li" data-act="p-moveday-to" data-from="${from}" data-to="${dow}" style="${kstyle(d?.color || 'rest')}"><i class="sw"></i><span><b>${dowName(dow, true)}</b><small>${what}</small></span>${ICON.chev}</button>`;
     }).join('');
@@ -717,7 +838,7 @@ export const actions = {
   },
   async 'p-moveday-to'(el) {
     const from = +el.dataset.from, to = +el.dataset.to;
-    const a = S.program.days.find(d => d.dow === from), b = S.program.days.find(d => d.dow === to);
+    const a = P().days.find(d => d.dow === from), b = P().days.find(d => d.dow === to);
     const aName = a.name, bName = b?.slots.length ? b.name : null;
     closeSheet();
     await editProgram(p => {
@@ -730,9 +851,85 @@ export const actions = {
     toast(bName ? `${aName} is now on ${dowName(to, true)}, ${bName} on ${dowName(from, true)}` : `${aName} moved to ${dowName(to, true)}. ${dowName(from, true)} is now a rest day.`, 'up');
   },
   async 'p-undo'() {
-    if (!pOrig) return;
-    await saveProgram(structuredClone(pOrig));
-    toast('Programme put back as it was', 'up');
+    const orig = pOrigs.get(tplId || '');
+    if (!orig) return;
+    await editProgram(p => { p.days = structuredClone(orig.days); });
+    toast(tplId ? 'Template put back as it was' : 'Programme put back as it was', 'up');
+  },
+  // My templates
+  't-open'(el) {
+    const t = tplOf(el.dataset.id);
+    if (!t) return;
+    openSheet(`<h2 class="sh-title">${esc(t.name)}</h2>${t.saved ? `<p class="fine">Saved ${fmtDate(t.saved, { year: true })}</p>` : ''}${tdays(t.program)}
+      <button class="btn" data-act="t-use" data-id="${esc(t.id)}">Use this template</button>
+      <div class="row2"><a class="btn ghost" href="#/program/t/${encodeURIComponent(t.id)}">Edit</a><button class="btn ghost danger-t" data-act="t-del" data-id="${esc(t.id)}">Delete</button></div>`, { label: t.name });
+  },
+  't-save'() {
+    if (myTemplates().length >= MAX_TEMPLATES) return toast(`You can keep up to ${MAX_TEMPLATES} templates. Delete one first.`, 'flat');
+    const same = myTemplates().find(t => sameWeek(t.program, S.program));
+    openSheet(`<h2 class="sh-title">Save as template</h2><p class="sh-body">Keeps a copy of this week's split: days, exercises, sets and rep ranges.${same ? ` It matches ${esc(same.name)} right now.` : ''}</p>
+      <label class="field"><span>Name</span><input class="inp" id="t-name" value="${esc(nextTplName())}" maxlength="40" enterkeyhint="done"></label>
+      <div class="row2"><button class="btn ghost" data-act="sheet-close">Cancel</button><button class="btn" data-act="t-save-go">Save</button></div>`, { label: 'Save as template' });
+    document.getElementById('t-name')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); actions['t-save-go'](); } });
+  },
+  async 't-save-go'() {
+    const name = cleanText(document.getElementById('t-name')?.value || '', 40);
+    if (!name) return toast('Give the template a name', 'down');
+    const old = myTemplates().find(t => t.name.toLowerCase() === name.toLowerCase());
+    closeSheet();
+    if (old) {
+      if (!(await confirmSheet({ title: `Replace ${old.name}?`, body: 'A template with this name exists. Its week is replaced with your current programme.', ok: 'Replace' }))) return;
+      await saveTemplate(old.id, { program: cleanWeek(structuredClone(S.program)), saved: todayIso() });
+    } else await addTemplate(name, S.program);
+    toast(`Saved as ${name}. Find it under My templates.`, 'up');
+  },
+  't-new'() {
+    if (myTemplates().length >= MAX_TEMPLATES) return toast(`You can keep up to ${MAX_TEMPLATES} templates. Delete one first.`, 'flat');
+    openSheet(`<h2 class="sh-title">New template</h2><p class="sh-body">Build a plan here without changing the programme you train with. Use it when it's ready.</p>
+      <label class="field"><span>Name</span><input class="inp" id="t-name" value="${esc(nextTplName())}" maxlength="40" enterkeyhint="done"></label>
+      <div class="list box"><button class="li" data-act="t-new-go" data-from="blank"><span class="grow"><b>Start with an empty week</b><small>Seven rest days to fill in</small></span>${ICON.chev}</button>
+      <button class="li" data-act="t-new-go" data-from="copy"><span class="grow"><b>Start from a copy of my programme</b><small>Change what you like; your programme stays as it is</small></span>${ICON.chev}</button></div>`, { label: 'New template' });
+  },
+  async 't-new-go'(el) {
+    const name = cleanText(document.getElementById('t-name')?.value || '', 40) || nextTplName();
+    const t = await addTemplate(name, el.dataset.from === 'copy' ? S.program : blankWeek());
+    closeSheet();
+    go('program/t/' + encodeURIComponent(t.id));
+  },
+  async 't-rename'(el) {
+    const t = tplOf(tplId), v = cleanText(el.value, 40);
+    if (!t) return;
+    if (!v) { toast('A template needs a name', 'down'); return refresh(); }
+    if (v !== t.name) await saveTemplate(t.id, { name: v });
+  },
+  async 't-use'(el) {
+    const t = tplOf(el.dataset.id);
+    if (!t) return;
+    closeSheet();
+    const kept = sameWeek(t.program, S.program) || myTemplates().some(x => sameWeek(x.program, S.program)) || !trainDays(S.program).length;
+    const how = await confirmSheet({ title: `Use ${t.name}?`, body: `Your programme becomes this template's week. Logged sessions, levels and bests stay.${kept ? '' : ' <b>Your current week isn\'t saved as a template.</b>'}`, ok: kept ? 'Use this template' : 'Use without saving', alt: kept ? null : 'Save my current week first' });
+    if (!how) return;
+    if (how === 'alt') {
+      if (myTemplates().length >= MAX_TEMPLATES) return toast(`You can keep up to ${MAX_TEMPLATES} templates. Delete one first.`, 'flat');
+      await addTemplate(`Before ${t.name}`.slice(0, 40), S.program);
+    }
+    // Exercises deleted since the template was saved are left out.
+    const week = structuredClone(t.program);
+    for (const d of week.days) d.slots = d.slots.filter(s => S.exById[s.exId]);
+    await saveProgram(week);
+    pOrigs.delete('');
+    go('program');
+    toast(`${t.name} is now your programme${how === 'alt' ? '. Your old week is under My templates' : ''}.`, 'up');
+  },
+  async 't-del'(el) {
+    const t = tplOf(el.dataset.id);
+    if (!t) return;
+    closeSheet();
+    if (!(await confirmSheet({ title: `Delete ${t.name}?`, body: 'Only the template is deleted. Your programme and logged sessions stay.', ok: 'Delete', danger: true }))) return;
+    await saveSettings({ templates: myTemplates().filter(x => x.id !== t.id) });
+    pOrigs.delete(t.id);
+    if (tplId === t.id) go('program');
+    toast('Template deleted');
   },
   // exercise editor
   ed(el) {
@@ -787,7 +984,7 @@ export const actions = {
       // Back to the programme, where the new exercise goes straight into the day it was made for.
       const use = pendingPick, id = ed.id;
       pendingPick = null;
-      go('program');
+      go(pendingAt);
       setTimeout(() => use(id), 0);
       return;
     }
@@ -868,7 +1065,7 @@ export const actions = {
     const how = await confirmSheet({ title: 'Restore this backup?', body, ok: S.sessions.length ? 'Replace' : 'Restore', danger: true, alt: S.sessions.length ? 'Merge (keep both)' : null });
     if (!how) return;
     await withUndo('restore', () => importAll(d, { merge: how === 'alt' }));
-    pOrig = null;
+    pOrigs.clear();
     toast('Backup restored', 'up');
     if (location.hash.startsWith('#/import')) go('today');
   },
@@ -878,7 +1075,7 @@ export const actions = {
     try { validateBackup(u.data); } catch (e) { return toast(e.message, 'down'); }
     if (!(await confirmSheet({ title: 'Put back your earlier data?', body: `Brings back the ${Number(u.data.sessions.length)} sessions from ${fmtDate(u.at, { year: true })}. What's on the phone now becomes the undo copy${S.draft ? ', and the workout in progress is discarded' : ''}.`, ok: 'Put it back' }))) return;
     await withUndo('undo', () => importAll(u.data));
-    pOrig = null;
+    pOrigs.clear();
     toast('Earlier data restored', 'up');
   },
   async 'csv-in'(el) {
@@ -906,7 +1103,7 @@ export const actions = {
   async reset() {
     if (!(await confirmSheet({ title: 'Erase everything?', body: `All ${S.sessions.length} sessions, weigh-ins, cardio, programme changes and settings are deleted and the app starts over empty. ${S.settings.lastBackup ? `Your last backup file is from ${fmtDate(S.settings.lastBackup, { year: true })}.` : '<b>You have never saved a backup file.</b>'} An undo copy is kept on this phone.`, ok: 'Erase everything', danger: true }))) return;
     await withUndo('erase', () => resetAll());
-    pOrig = null; imp = null;
+    pOrigs.clear(); imp = null;
     toast('Everything erased. Undo it under More → Backup.');
     go('setup');
   },
@@ -1110,7 +1307,7 @@ function keepEd() {
 
 // Leaving a screen drops its draft state.
 window.addEventListener('hashchange', () => {
-  if (!location.hash.startsWith('#/program')) pOrig = null;
+  if (!location.hash.startsWith('#/program')) pOrigs.clear();
   if (!location.hash.startsWith('#/exercise/')) edFor = null;
   if (!location.hash.startsWith('#/data')) undoMeta = undefined;
 });
@@ -1207,7 +1404,7 @@ Object.assign(actions, {
     }
     for (let dow = 0; dow < 7; dow++) if (!days.some(x => x.dow === dow)) days.push({ dow, name: 'Rest', sub: 'Rest or easy cardio', color: 'rest', slots: [] });
     await saveProgram({ ...S.program, days: days.sort((a, b) => ((a.dow + 6) % 7) - ((b.dow + 6) % 7)) });
-    pst = null; pOrig = null;
+    pst = null; pOrigs.clear();
     toast('Your split is now the programme', 'up');
     go('program');
   },

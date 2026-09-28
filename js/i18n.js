@@ -135,7 +135,7 @@ export function setRawNames(list) {
 export function syncRawNames(S) {
   if (!S) return;
   const sess = [...new Set((S.sessions || []).map(x => x.name))];
-  setRawNames([...(S.program?.days || []).map(d => d.name), ...(S.exercises || []).map(x => x.name), ...sess]);
+  setRawNames([...(S.program?.days || []).map(d => d.name), ...(S.exercises || []).map(x => x.name), ...(S.settings?.templates || []).map(t => t.name), ...sess]);
   // Workout names ("Push 1") also count as names inside sentences ("Delete Push 1 on 2 Mar?").
   if (lang !== 'en' && sess.join('') !== extraNames.join('')) { extraNames = sess; setUserNames(lastUserList); }
 }

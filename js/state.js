@@ -98,6 +98,8 @@ export function withUniqueDays(program) {
   if (dows.every(w => Number.isInteger(w) && w >= 0 && w <= 6) && new Set(dows).size === dows.length) return program; // already fine: keep the same objects
   return { ...program, days: dedupeDays(program.days) };
 }
+/** How many of your own plans can be kept under My templates. */
+export const MAX_TEMPLATES = 20;
 export async function saveProgram(program) {
   program = withUniqueDays(program);
   for (const d of program.days || []) { d.name = cleanText(d.name, 40); d.sub = cleanText(d.sub, 80); }
@@ -368,7 +370,8 @@ export function sanitizeBackup(data) {
     for (const k of ['waist', 'chest', 'hips', 'arm', 'thigh']) if (numOr(m[k]) != null) r[k] = numOr(m[k]);
     return r;
   }).filter(m => m.date);
-  if (data.program && Array.isArray(data.program.days)) out.program = { ...data.program, days: dedupeDays(data.program.days.filter(d => d && typeof d === 'object').map(d => ({ dow: numOr(d.dow, null), name: str(d.name, 40), sub: str(d.sub, 80), color: str(d.color, 20), slots: Array.isArray(d.slots) ? d.slots.map(slot).filter(Boolean) : [] }))) };
+  const prog = p => ({ ...p, days: dedupeDays(p.days.filter(d => d && typeof d === 'object').map(d => ({ dow: numOr(d.dow, null), name: str(d.name, 40), sub: str(d.sub, 80), color: str(d.color, 20), slots: Array.isArray(d.slots) ? d.slots.map(slot).filter(Boolean) : [] }))) });
+  if (data.program && Array.isArray(data.program.days)) out.program = prog(data.program);
   if (data.settings && typeof data.settings === 'object') {
     const s = { ...data.settings };
     for (const k of ['goalKg', 'heightCm', 'sessionLen']) if (k in s) s[k] = numOr(s[k]);
@@ -387,6 +390,9 @@ export function sanitizeBackup(data) {
     if ('dayStart' in s) s.dayStart = Math.max(0, Math.min(6, numOr(s.dayStart, 0)));
     if ('remindAt' in s && !/^\d{2}:\d{2}$/.test(s.remindAt)) delete s.remindAt;
     if ('lang' in s && !['en', 'ms', 'zh', 'zh-Hant', 'ja'].includes(s.lang)) delete s.lang;
+    // Saved plans (More → Programme → My templates): a name and a week, like the programme itself.
+    if ('templates' in s) s.templates = (Array.isArray(s.templates) ? s.templates : []).filter(t => t && typeof t === 'object' && Array.isArray(t.program?.days)).slice(0, MAX_TEMPLATES)
+      .map(t => ({ id: str(t.id, 40) || uid('t'), name: str(t.name, 40) || 'My plan', saved: iso(t.saved) || undefined, program: { days: prog(t.program).days } }));
     out.settings = s;
   }
   return out;

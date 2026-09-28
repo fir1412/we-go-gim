@@ -251,7 +251,7 @@ export function applyTheme() {
   const en = getLang() === 'en';
   setWording(!en ? 'plain' : S.settings.wording || (S.settings.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain'));
   setDateLang(getLang());
-  if (!en) setUserNames([...S.program.days.map(d => d.name), ...S.exercises.map(x => x.name)]);
+  if (!en) setUserNames([...S.program.days.map(d => d.name), ...S.exercises.map(x => x.name), ...(S.settings.templates || []).map(t => t.name)]);
   setPlain(!expertWording(), en ? null : translate);
   setUnits(S.settings.units || 'kg');
   setBwLabel(T('bw'));
@@ -265,8 +265,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.8.4';
+export const APP_VERSION = '1.9.0';
 const WHATS_NEW = {
+  '1.9.0': ['Programme: drag a day by its handle to move it up or down the week. The days in between shift along', 'My templates: save your week as a template, build a new plan without changing the one you train with, and switch whenever you like'],
   '1.8.4': ['The female body map now shows hair on the back view too'],
   '1.8.3': ['Learn the app: 10 short missions that show what each feature does. Skip any time and find them under More', 'Pounds work everywhere: Equipment, the exercise editor, and + and − step to the dumbbells you own', 'Set your EZ bar weight in Equipment', 'Imports keep gym and heart rate, and say why lines were left out'],
   '1.8.2': ['Exercise search finds what you mean as you type: words in any order, “pullup” or “pull-up”, best matches first', 'New users always start at the welcome screen, and a new exercise made from your programme goes straight back to it', 'Turn speed slider for the 3D muscle view', 'Many fixes from testing: safer imports and edits, long names wrap, no double saves'],
