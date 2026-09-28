@@ -1,6 +1,6 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
 import { guessMuscles } from '../io.js';
-import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round } from '../engine.js';
+import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round, MAX_KG, MAX_REPS } from '../engine.js';
 import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
@@ -346,7 +346,10 @@ export const actions = {
   // Typing never re-renders (that would close the phone keyboard); carried weights are patched in place.
   set(el) {
     const e = E(el), si = +el.dataset.s, s = e.sets[si], f = el.dataset.f;
-    const v = el.value === '' || !Number.isFinite(+el.value) ? null : Math.max(0, +el.value);
+    let v = el.value === '' || !Number.isFinite(+el.value) ? null : Math.max(0, +el.value);
+    // A typo like 6000 instead of 60: cap it and say so, so charts and levels don't blow up.
+    const max = f === 'r' ? MAX_REPS : S.exById[E(el).exId]?.unit === 'L' ? 100 : +toDisp(MAX_KG);
+    if (v != null && v > max) { v = null; el.value = ''; toast(f === 'r' ? 'That many reps looks like a typo. Please check it.' : 'That weight looks like a typo. Please check it.', 'flat'); }
     if (v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
     if (f === 'w') {
       const ex = S.exById[e.exId];

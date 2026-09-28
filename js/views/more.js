@@ -828,6 +828,9 @@ export const actions = {
     // Same routing as the import tests: PDFs, CSVs from other apps, notes, chats, HTML and RTF exports; photos,
     // spreadsheets and archives are turned away with what to do instead.
     const kinds = new Map();
+    // A huge file would freeze the phone while it's read; real logs are far smaller.
+    const big = files.find(f => f.size > (/\.pdf$/i.test(f.name) ? 60 : 25) * 1024 * 1024);
+    if (big) return toast(`${big.name} is too big to import (${Math.round(big.size / 1048576)} MB). Split it into smaller files.`, 'down');
     for (const f of files) {
       const b = new Uint8Array(await f.slice(0, 4096).arrayBuffer());
       const r = routeFile(f.name, b.subarray(0, 16), decodeBytes(b));

@@ -3,6 +3,10 @@
 export const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 export const round = (x, step = 0.5) => Math.round(x / step) * step;
+/** The heaviest load (kg) and most reps (or seconds, for timed sets) a set can have; anything above is a typo or junk. */
+export const MAX_KG = 1500, MAX_REPS = 3600;
+/** Names without hidden control or direction characters (which can disguise text), trimmed and length-capped. */
+export const cleanText = (s, max = 80) => String(s ?? '').replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const fill = (n, v) => Array.from({ length: n }, () => v);
 const EPS = 1e-6;

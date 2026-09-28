@@ -81,6 +81,22 @@ test('pdf.js 3.11.174 stays safe from CVE-2024-4367: eval off in getDocument and
   assert.doesNotMatch(html, /unsafe-eval/);
 });
 
+test('CSV export keeps formula-looking text as text (no spreadsheet formula injection)', () => {
+  const csv = io.toCSV([{ date: '2026-09-21', name: '=HYPERLINK("http://x","y")', gymId: 'g', entries: [{ exId: 'a', sets: [{ w: 1, r: 1, done: true }], note: '+cmd|calc' }] }], { a: { name: '@SUM(1)', unit: 'kg' } }, [{ id: 'g', name: '-2+3' }]);
+  const row = csv.split('\n')[1];
+  assert.doesNotMatch(row, /(^|,)"?[=+\-@]/);
+  assert.match(row, /'=HYPERLINK/); assert.match(row, /'@SUM/); assert.match(row, /'-2\+3/); assert.match(row, /'\+cmd/);
+});
+
+test('absurd loads and reps from imports are dropped; names lose hidden control characters', () => {
+  const s = io.parseLogText('2026-09-21 Push\nBench press 999999kg x 8 x 3\nBarbell squat 80kg x 5 x 3', EXERCISES, { year: 2026 }).sessions;
+  assert.equal(s[0].entries.length, 1);
+  assert.equal(s[0].entries[0].sets[0].w, 80);
+  const csv = io.sessionsFromCSV(`Date,Exercise,Weight,Reps\n2026-09-21,Bench${String.fromCharCode(0x202E)}press,60,8\n2026-09-21,Curl,20,99999`);
+  assert.equal(csv[0].entries.length, 1);
+  assert.equal(csv[0].entries[0].exName, 'Bench press');
+});
+
 test('the app refuses to run inside another site\'s frame', () => {
   const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(src, /if \(window\.top !== window\.self\)/);

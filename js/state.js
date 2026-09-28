@@ -1,7 +1,7 @@
 // App state held in memory, persisted through db.js.
 import * as db from './db.js';
 import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY, MUSCLE_UPDATES } from './seed.js';
-import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec } from './engine.js';
+import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec, cleanText, MAX_KG, MAX_REPS } from './engine.js';
 
 export const S = {
   backend: null,
@@ -78,16 +78,19 @@ export async function load() {
 
 // ---- settings / program / exercises ---------------------------------------
 export async function saveSettings(patch) {
+  if (Array.isArray(patch.gyms)) patch = { ...patch, gyms: patch.gyms.map(g => ({ ...g, name: cleanText(g.name, 60) || 'Gym' })) };
   S.settings = { ...S.settings, ...patch };
   await db.setKv('settings', S.settings);
   refresh();
 }
 export async function saveProgram(program) {
+  for (const d of program.days || []) { d.name = cleanText(d.name, 40); d.sub = cleanText(d.sub, 80); }
   S.program = program;
   await db.setKv('program', program);
   refresh();
 }
 export async function saveExercise(ex) {
+  ex = { ...ex, name: cleanText(ex.name) || 'Exercise' };
   const i = S.exercises.findIndex(e => e.id === ex.id);
   if (i >= 0) S.exercises[i] = ex; else S.exercises.push(ex);
   S.exercises.sort((a, b) => a.name.localeCompare(b.name));
@@ -301,7 +304,8 @@ export function sanitizeBackup(data) {
   const iso = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const bool = v => v === true;
   const oneOf = (v, list, d) => (list.includes(v) ? v : d);
-  const set = x => ({ w: numOr(x?.w), r: numOr(x?.r), done: bool(x?.done), ...(x?.warm ? { warm: true } : {}), ...(Number.isFinite(x?.at) ? { at: x.at } : {}) });
+  const cap = (v, max) => (v != null && v > max ? null : v);
+  const set = x => ({ w: cap(numOr(x?.w), MAX_KG), r: cap(numOr(x?.r), MAX_REPS), done: bool(x?.done), ...(x?.warm ? { warm: true } : {}), ...(Number.isFinite(x?.at) ? { at: x.at } : {}) });
   const slot = s => s && typeof s === 'object' ? { exId: str(s.exId, 80), sets: numOr(s.sets, 3), lo: numOr(s.lo, 8), hi: numOr(s.hi, 12), group: str(s.group, 4), ...(s.note ? { note: str(s.note, 120) } : {}) } : undefined;
   const cardio = c => ({ type: str(c?.type, 40) || 'Other', min: numOr(c?.min, 0), intensity: oneOf(c?.intensity, ['easy', 'moderate', 'hard'], 'moderate'), ...(numOr(c?.km) ? { km: numOr(c.km) } : {}) });
   const out = { ...data };
