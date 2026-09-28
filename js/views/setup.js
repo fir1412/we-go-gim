@@ -58,7 +58,8 @@ export function render(route) {
 
 function question(step) {
   const q = Q[step], v = st.a[q.k];
-  let h = `<div class="wz-top"><div class="dots" aria-hidden="true">${Q.map((_, i) => `<i class="${i === step ? 'on' : i < step ? 'done' : ''}"></i>`).join('')}</div><span class="fine">${step + 1} of ${Q.length}</span></div>
+  const asked = Q.map((_, i) => i).filter(i => !skipQ(i)), pos = asked.indexOf(step);
+  let h = `<div class="wz-top"><div class="dots" aria-hidden="true">${asked.map(i => `<i class="${i === step ? 'on' : i < step ? 'done' : ''}"></i>`).join('')}</div><span class="fine">${pos + 1} of ${asked.length}</span></div>
     <h2 class="wz-q">${esc(q.title)}</h2>${q.hint ? `<p class="fine">${esc(q.hint)}</p>` : ''}`;
   if (q.days) {
     h += `<div class="wz-days" role="group" aria-label="Training days">${[1, 2, 3, 4, 5, 6, 0].map(d => `<button data-act="wz-day" data-v="${d}" aria-pressed="${v.includes(d)}" aria-label="${esc(dowName(d, true))}"><b>${dowName(d).slice(0, 1)}</b><span>${dowName(d)}</span></button>`).join('')}</div>
@@ -96,7 +97,7 @@ function start() {
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower. Replaces your programme straight away.</small></span>${ICON.chev}</button>
     </div>
     <button class="linkbtn center" data-act="wz-cancel">Keep my current programme</button>`
-    : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="72" height="72"><h2>Let's set you up</h2><p>we go gim plans every session from your last one. How do you want to start?</p></div>
+    : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="72" height="72"><h2>Let's set you up</h2><p>This app fills in each workout for you, based on your last one. How do you want to start?</p></div>
     ${prefs()}
     <button class="btn wz-main" data-act="wz-begin">Build my plan <small>· ${S.settings.experience ? 6 : 7} quick questions, about a minute</small></button>
     <details class="box wz-more"><summary>Other ways to start</summary><div class="list wz-choices">
@@ -117,7 +118,8 @@ function prefs() {
   const u = S.settings.units === 'lb' ? 'lb' : 'kg';
   const x = S.settings.experience || st.a.experience;
   const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
-  return `<div class="box pad stack wz-prefs">${seg('Lifting for', 'wz-exp', x, [['new', 'Under 6 mo'], ['some', 'Up to 2 yrs'], ['experienced', '2 yrs +']])}
+  return `<div class="box pad stack wz-prefs"><p class="lbl wz-explbl">How long have you lifted weights?</p>
+    <div class="seg wz-expseg" role="group" aria-label="How long have you lifted weights?">${[['new', 'Under 6 months'], ['some', '6 months to 2 years'], ['experienced', 'Over 2 years']].map(([v, l]) => `<button data-act="wz-exp" data-v="${v}" aria-pressed="${x === v}">${l}</button>`).join('')}</div>
     ${seg('Weights in', 'wz-units', u, [['kg', 'kg'], ['lb', 'lb']])}
     <p class="fine">${x === 'experienced' ? 'You\'ll see gym terms like RIR and e1RM.' : x ? 'You\'ll see plain words like "reps left" instead of gym jargon.' : 'This sets the words the app uses and your starting weights.'} Change either in Settings.</p></div>`;
 }
@@ -140,7 +142,7 @@ function preview() {
   if (!st.plan) st.plan = buildSplit(st.a, S.exById);
   const p = st.plan;
   const vol = weeklyVolume(p, S.exById), tg = targetsFor(st.a), gaps = planGaps(p, st.a, S.exById);
-  let h = `<h2 class="wz-q">Your plan</h2><p class="fine">${esc(explainSplit(st.a))} Loads get worked out in your first sessions.</p>`;
+  let h = `<h2 class="wz-q">Your plan</h2><p class="fine">${esc(explainSplit(st.a))} Your weights are worked out in your first workouts.</p>`;
   for (const d of p.days) {
     if (!d.slots.length) continue;
     h += `<section class="box wz-day" style="${kstyle(d.color)}"><header><b>${dowName(d.dow)}</b><span>${esc(d.name)}</span><small>about ${dayMinutes(d, S.exById)} min</small></header><ul>${d.slots.map(s => {

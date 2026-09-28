@@ -226,8 +226,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.6.2';
+export const APP_VERSION = '1.6.3';
 const WHATS_NEW = {
+  '1.6.3': ['Easier English: short forms are written out in full (like “3 sets of 8 reps” and “minutes”), and muscles have everyday names', 'Safer: spreadsheets exported from the app can’t run hidden formulas, and typing mistakes like 6000 kg are caught'],
   '1.6.2': ['Security fixes: backup files are checked field by field, the PDF reader is verified before it runs, and very long pasted lines no longer slow the app down'],
   '1.6.1': ['New app icon: a tuxedo kitten with its dumbbells'],
   '1.6.0': [
