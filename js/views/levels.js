@@ -1,6 +1,6 @@
 import { S, todayIso, refresh, dayForDate, saveSettings } from '../state.js';
 import { bodySVG } from '../anatomy.js';
-import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
+import { hasEstMax, trendRange, muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
 import { esc, fmtDate, pill, STATUS, num, cvar, kstyle, dowName, ICON, T, helpTip, expertWording } from '../ui.js';
 import { progressNav } from './insights.js';
 
@@ -87,7 +87,7 @@ export function render() {
       <div><dt>Last trained</dt><dd>${days == null ? 'Never' : days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'} ago`}</dd></div>
       <div><dt>Next session</dt><dd>${nextDay ? `${esc(nextDay.name)} · ${nextDay.when}` : 'Not in your programme'}</dd></div>
       ${tr ? `<div><dt>Lead lift</dt><dd><a href="#/ex/${esc(tr.ex.id)}">${esc(tr.ex.name)}</a> ${pill(STATUS[tr.status][0], STATUS[tr.status][1])}</dd></div>` : ''}
-      ${tr && isKg(tr.ex.unit) ? `<div><dt>${esc(T('estMax'))} ${helpTip('estMax')}</dt><dd>${num(toDisp(tr.scores[0]))} → ${num(toDisp(tr.scores[tr.scores.length - 1]))} ${unitShort(tr.ex.unit)}</dd></div>` : tr ? `<div><dt>Top load</dt><dd>${esc(fmtLoad(tr.ex, tr.from.w))} → ${esc(fmtLoad(tr.ex, tr.to.w))}</dd></div>` : ''}
+      ${tr ? `<div><dt>${hasEstMax(tr.ex) ? `${esc(T('estMax'))} ${helpTip('estMax')}` : 'Top load'}</dt><dd>${esc(trendRange(tr.ex, tr))}</dd></div>` : ''}
     </dl>`;
   const ev = cur.r.events.slice(-5).reverse();
   if (ev.length) h += `<p class="lbl">Recent XP</p><ul class="xplist">${ev.map(e => `<li><a href="#/session/${esc(e.sessionId)}"><span>${fmtDate(e.date)}</span><span class="grow">${esc(e.why)}</span><b>+${e.xp}</b></a></li>`).join('')}</ul>`;

@@ -291,7 +291,7 @@ function summary(d) {
       v += volume(ex, ws.slice(0, n)); lv += volume(ex, last.sets.slice(0, n));
     }
     if (ws.length && prevExps.length) {
-      const pb = personalBests(prevExps, ex.unit);
+      const pb = personalBests(prevExps, ex);
       const bestNow = Math.max(0, ...ws.map(s => e1rm(+s.w, +s.r) || 0));
       const heavyNow = Math.max(...ws.map(s => +s.w || 0));
       if (pb.best && bestNow > pb.best.v + 1e-6) prs.push(`${ex.name}: best ${expertWording() ? 'e1RM' : 'estimated 1-rep max'}, ${num(toDisp(bestNow))} ${getUnits()}`);
