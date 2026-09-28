@@ -37,6 +37,8 @@ export const fmtMonth = ym => (dateLang === 'zh' || dateLang === 'ja' ? `${ym.sl
 export const dowName = (i, long = false) => (long ? DOW_LONG : DOW)[i];
 /** One-letter weekday for compact calendars (M T W… / I S R… / 一 二 三…). */
 export const dowLetter = i => DOW_LETTER[i];
+/** Clock time: 24-hour in Chinese and Japanese (as people there read it), the phone's own style otherwise. */
+export const fmtTime = ms => new Date(ms).toLocaleTimeString(dateLang === 'zh' || dateLang === 'ja' ? 'en-GB' : [], { hour: '2-digit', minute: '2-digit', ...(dateLang === 'zh' || dateLang === 'ja' ? { hourCycle: 'h23' } : {}) });
 export const num = (v, dp = 1) => (v == null || isNaN(v) ? '—' : String(+(+v).toFixed(dp)));
 export const kfmt = v => Math.round(v).toLocaleString('en-GB');
 
@@ -205,16 +207,17 @@ window.addEventListener('hashchange', () => { staleHref = null; });
 export const sheetOpen = () => !!sheetClose;
 
 /** In-app confirmation (never window.confirm). */
-export function confirmSheet({ title, body = '', ok = 'Confirm', danger = false }) {
+/** Resolves true (ok), false (cancel) or 'alt' when the optional middle choice is picked. */
+export function confirmSheet({ title, body = '', ok = 'Confirm', danger = false, alt = null }) {
   return new Promise(resolve => {
     let done = false;
     const el = openSheet(`<h2 class="sh-title">${esc(title)}</h2>${body ? `<p class="sh-body">${body}</p>` : ''}
-      <div class="row2"><button class="btn ghost" data-x="no">Cancel</button><button class="btn ${danger ? 'danger' : ''}" data-x="yes">${esc(ok)}</button></div>`,
+      ${alt ? `<button class="btn" data-x="alt">${esc(alt)}</button>` : ''}<div class="row2"><button class="btn ghost" data-x="no">Cancel</button><button class="btn ${danger ? 'danger' : ''}${alt ? ' ghost' : ''}" data-x="yes">${esc(ok)}</button></div>`,
       { label: title, onClose: () => { if (!done) resolve(false); } });
     el.addEventListener('click', e => {
       const b = e.target.closest('[data-x]');
       if (!b) return;
-      done = true; resolve(b.dataset.x === 'yes'); closeSheet();
+      done = true; resolve(b.dataset.x === 'alt' ? 'alt' : b.dataset.x === 'yes'); closeSheet();
     });
   });
 }

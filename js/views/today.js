@@ -1,8 +1,9 @@
 import { S, todayIso, dayForDate, setReadiness, startWorkout, suggestionCtx, isPoor, deloadActive, saveSettings, saveBody, discardDraft, refresh, trimmedCounts } from '../state.js';
 import { suggest, weekStart, addDays, daysBetween, deloadCheck, fmtLoad, unitShort, dowOf, estimateDay, planSec, SESSION_LENGTHS, toDisp, fromDisp, getUnits } from '../engine.js';
-import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, dowName, dowLetter, num, T, helpTip, expertWording } from '../ui.js';
+import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, dowName, dowLetter, num, T, helpTip, expertWording } from '../ui.js';
 import { dailyCard } from './daily.js';
 import { go } from '../app.js';
+import { weekStats, streakLine } from '../streak.js';
 
 const open = new Set();
 let openDate = null;
@@ -20,10 +21,10 @@ export function render(route) {
   if (S.draft) {
     const all = S.draft.entries.flatMap(e => e.sets.filter(s => !s.warm)), done = all.filter(s => s.done).length;
     const stale = S.draft.date < t;
-    h += `<a class="resume" href="#/workout" style="${kstyle(S.draft.color)}"><span><b>${esc(S.draft.name)} ${stale ? `from ${fmtDate(S.draft.date, { dow: true })} not saved` : 'in progress'}</b><small>${done}/${all.length} sets · ${stale ? 'finish or discard it' : `started ${new Date(S.draft.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}</small></span><span class="pill">${stale ? 'Open' : 'Resume'} ${ICON.chev}</span></a>`;
+    h += `<a class="resume" href="#/workout" style="${kstyle(S.draft.color)}"><span><b>${esc(S.draft.name)} ${stale ? `from ${fmtDate(S.draft.date, { dow: true })} not saved` : 'in progress'}</b><small>${done}/${all.length} sets · ${stale ? 'finish or discard it' : `started ${fmtTime(S.draft.start)}`}</small></span><span class="pill">${stale ? 'Open' : 'Resume'} ${ICON.chev}</span></a>`;
   }
-  h += deloadCard(t);
-  if (date === t) h += missedCard(t) + backupCard(t);
+  // One banner at a time, most useful first, so Start stays near the top.
+  h += (date === t ? missedCard(t) : '') || deloadCard(t) || (date === t ? backupCard(t) : '');
 
   // week strip
   const ws = weekStart(t);
@@ -34,6 +35,7 @@ export function render(route) {
       <span>${dowLetter(dowOf(d))}</span><b>${+d.slice(8)}</b><span>${esc(pd.name.split(' ')[0])}</span></a>`;
   }
   h += `</div>`;
+  if (date === t) h += streakLine(weekStats(t));
 
   const doneHere = S.sessions.filter(s => s.date === date && !s.seed);
   for (const s of doneHere) {

@@ -978,3 +978,14 @@ a.mini { text-decoration: none; display: inline-grid; place-items: center; color
   .atlas-stage { grid-row: span 6; height: min(78vh, 760px); }
 }
 
+/* ---- text size setting ---- */
+html[data-text="large"] { font-size: 112.5%; }
+html[data-text="xl"] { font-size: 125%; }
+
+/* ---- weekly streak ---- */
+.streak { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; padding: 10px 14px; margin: 8px 0; border-radius: 14px;
+  background: color-mix(in srgb, var(--push) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--push) 35%, var(--line)); color: var(--text); text-decoration: none; }
+.streak b { font-size: 0.95rem; }
+.streak span { font-size: 0.8rem; color: var(--mute); }
+.keepgoing { text-align: center; }
+

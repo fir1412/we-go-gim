@@ -111,7 +111,10 @@ const SYNONYMS = {
   legcurl: 'hamstring', lyingcurl: 'hamstring', legext: 'quad quads', calf: 'calves', pullup: 'chin bodyweight', pushup: 'press up',
 };
 /** Lower-case text an exercise search matches against: name, muscles and other names for it. */
-export const searchText = x => `${x.name} ${(x.muscles || []).join(' ')} ${SYNONYMS[x.id] || ''}`.toLowerCase();
+// The chosen language adds its own names, so search works in Malay, Chinese and Japanese too (set by i18n.js).
+let localNames = () => '';
+export const setSearchLocal = f => { localNames = f; };
+export const searchText = x => `${x.name} ${(x.muscles || []).join(' ')} ${SYNONYMS[x.id] || ''} ${localNames(x)}`.toLowerCase();
 /** Searches that mean cardio, which is logged under Insights → Cardio rather than as an exercise. */
 export const CARDIO_WORDS = /^(tread|walk|run|jog|cardio|bike|cycl|spin|ellip|cross ?train|stair|row(ing)? machine|erg|swim|hike|skip)/i;
 
@@ -180,6 +183,24 @@ export const TEMPLATES = [
       1: { dow: 1, name: 'Home A', sub: 'Full body', color: 'push', slots: [S('goblet', 3, 8, 12), S('bench', 3, 8, 12), S('dbrow', 3, 8, 12), S('dblat', 2, 12, 20), S('hammer', 2, 10, 15)] },
       3: { dow: 3, name: 'Home B', sub: 'Full body', color: 'pull', slots: [S('dbrdl', 3, 8, 12), S('shp', 3, 8, 12), S('bss', 3, 8, 12), S('pushup', 2, 8, 15), S('dbcurl', 2, 10, 15)] },
       5: { dow: 5, name: 'Home C', sub: 'Full body', color: 'legs', slots: [S('lunge', 3, 10, 12), S('incline', 3, 8, 12), S('dbrow', 3, 8, 12), S('dbskull', 2, 10, 15), S('plank', 3, 20, 45)] },
+    }),
+  },
+  {
+    id: 'bw3', name: 'Home, no equipment, 3 days', days: 3, level: 'Beginner', gear: 'Floor and a chair',
+    about: 'Full body with nothing but your body weight, about 25 minutes. Quiet enough for a small flat.',
+    program: week({
+      1: { dow: 1, name: 'Body A', sub: 'Full body', color: 'push', slots: [S('bwsquat', 3, 10, 20), S('pushup', 3, 5, 15), S('invrow', 3, 6, 12), S('glutebridge', 3, 10, 20), S('plank', 2, 20, 45)] },
+      3: { dow: 3, name: 'Body B', sub: 'Full body', color: 'pull', slots: [S('bwsplit', 3, 8, 15), S('pikepush', 3, 5, 12), S('slidecurl', 3, 6, 12), S('bwcalf', 2, 10, 20), S('revcrunch', 2, 8, 15)] },
+      5: { dow: 5, name: 'Body C', sub: 'Full body', color: 'legs', slots: [S('bwlunge', 3, 8, 15), S('declpush', 3, 5, 12), S('ytraise', 2, 8, 15), S('glutebridge', 3, 12, 20), S('benchdip', 2, 6, 15)] },
+    }),
+  },
+  {
+    id: 'easy3', name: 'Easy on the joints, 3 days', days: 3, level: 'Any age, 50+ friendly', gear: 'Machines and dumbbells',
+    about: 'Seated and supported machines, no barbell squats or deadlifts, higher reps with lighter weights. Good for strength, balance and bone health.',
+    program: week({
+      1: { dow: 1, name: 'Easy A', sub: 'Full body', color: 'push', slots: [S('legpress', 2, 10, 15), S('mchest', 2, 10, 15), S('cablerow', 2, 10, 15), S('glutebridge', 2, 10, 15), S('calf', 2, 12, 15)] },
+      3: { dow: 3, name: 'Easy B', sub: 'Full body', color: 'pull', slots: [S('goblet', 2, 8, 12), S('pulldown', 2, 10, 15), S('mshp', 2, 10, 15), S('legcurl', 2, 10, 15), S('farmer', 2, 20, 40)] },
+      5: { dow: 5, name: 'Easy C', sub: 'Full body', color: 'legs', slots: [S('legext', 2, 10, 15), S('incline', 2, 10, 15), S('facepull', 2, 12, 15), S('hipabd', 2, 12, 15), S('plank', 2, 15, 30)] },
     }),
   },
 ];

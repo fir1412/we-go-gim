@@ -124,6 +124,7 @@ const GLOBAL = {
     await saveSettings({ lang: v });
     location.reload();
   },
+  'cal-export': () => more.exportCalendar(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
@@ -235,6 +236,7 @@ export function applyTheme() {
   setPlain(!expertWording(), en ? null : translate);
   setUnits(S.settings.units || 'kg');
   setBwLabel(T('bw'));
+  document.documentElement.dataset.text = ['large', 'xl'].includes(S.settings.textSize) ? S.settings.textSize : '';
   const t = S.settings.theme;
   if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;

@@ -3,7 +3,7 @@
 // "Add a set to Flat Dumbbell bench press" and "Add a set to Leg press" share one entry, "Add a set to {0}".
 // Library exercise names, muscles and the built-in day names are translated too; anything the user typed stays
 // as typed. Text with no dictionary entry is left in English rather than guessed.
-import { EXERCISES, PROGRAM, TEMPLATES } from './seed.js';
+import { EXERCISES, PROGRAM, TEMPLATES, setSearchLocal } from './seed.js';
 import { plainText } from './plain.js';
 
 export const LANGS = [['en', 'English'], ['ms', 'Bahasa Melayu'], ['zh', '中文'], ['ja', '日本語']];
@@ -65,8 +65,9 @@ function one(core) {
 function parts(core, re, joiner) {
   const ps = core.split(re);
   if (ps.length < 2) return null;
-  const tr = ps.map(p => one(p) ?? (/[A-Za-z]/.test(p) ? null : p));
-  return tr.every(x => x != null) ? tr.join(joiner) : null;
+  // Pieces with no entry (a user's own note or exercise name) stay as they are; the rest are translated.
+  const tr = ps.map(p => one(p));
+  return tr.some(x => x != null) ? tr.map((x, i) => x ?? ps[i]).join(joiner) : null;
 }
 
 /** One piece of on-screen text in the current language (unchanged in English or when there's no entry). */
@@ -89,5 +90,6 @@ export async function setLang(want) {
   if (lang === 'en') { dict = null; return; }
   const mod = await import(`./i18n/${lang}.js`);
   dict = mod.default;
+  setSearchLocal(x => [x.name, ...(x.muscles || [])].map(n => translate(plainText(n))).join(' '));
 }
 export const getLang = () => lang;

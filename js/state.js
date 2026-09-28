@@ -26,7 +26,9 @@ export const touch = () => invalidateCaches();
 export function todayIso() {
   const q = new URLSearchParams(location.search).get('today');
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
-  const d = new Date();
+  // Night-shift lifters can move the start of the day (up to 6 am), so a 2 am workout counts for the evening before.
+  const shift = Math.max(0, Math.min(6, +S.settings?.dayStart || 0));
+  const d = new Date(Date.now() - shift * 3600000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -343,7 +345,9 @@ export function sanitizeBackup(data) {
     for (const k of ['goalKg', 'heightCm', 'sessionLen']) if (k in s) s[k] = numOr(s[k]);
     if (s.targets && typeof s.targets === 'object') s.targets = Object.fromEntries(DAILY_FIELDS.filter(k => k in s.targets).map(k => [k, numOr(s.targets[k])]));
     if (Array.isArray(s.gyms)) s.gyms = s.gyms.map(g => ({ id: str(g?.id, 40), name: str(g?.name, 60) }));
-    for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience']) if (k in s && typeof s[k] !== 'string') delete s[k];
+    for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience', 'textSize', 'remindAt']) if (k in s && typeof s[k] !== 'string') delete s[k];
+    if ('dayStart' in s) s.dayStart = Math.max(0, Math.min(6, numOr(s.dayStart, 0)));
+    if ('remindAt' in s && !/^\d{2}:\d{2}$/.test(s.remindAt)) delete s.remindAt;
     if ('lang' in s && !['en', 'ms', 'zh', 'ja'].includes(s.lang)) delete s.lang;
     out.settings = s;
   }

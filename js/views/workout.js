@@ -1,9 +1,10 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
 import { guessMuscles } from '../io.js';
 import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round, MAX_KG, MAX_REPS } from '../engine.js';
-import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
+import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
+import { weekStats, streakLine } from '../streak.js';
 
 const FEEL = [[1, 'Drained'], [2, 'Low'], [3, 'OK'], [4, 'Good'], [5, 'Great']];
 
@@ -74,7 +75,7 @@ export function render() {
   const mins = Math.max(0, Math.floor((Date.now() - d.start) / 60000));
   const all = d.entries.flatMap(e => e.sets.filter(s => !s.warm)), done = all.filter(s => s.done).length;
   const left = estimateRemaining(d.entries, S.exById, S.sessions, Date.now(), d.start);
-  const finishAt = new Date(Date.now() + left * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const finishAt = fmtTime(Date.now() + left * 1000);
   let h = `<div class="sbar"><div class="prog"><i style="width:${all.length ? done / all.length * 100 : 0}%"></i></div><span class="num">${done}/${all.length} sets</span></div>`;
   // Backfilling a past day: no clock, no rest timer; an optional duration instead.
   if (d.past) h += `<div class="warn" style="--k:var(--upper)"><b>Past workout.</b><span>Logging ${fmtDate(d.date, { dow: true, year: true })}. Tick the sets you did.</span></div>
@@ -104,7 +105,7 @@ export function render() {
     <button class="linkbtn danger center" data-act="discard">Discard workout</button>`;
   return {
     // The bar is sticky, so the clock and time left stay visible while scrolling.
-    title: d.name, sub: d.past ? `Past workout · ${fmtDate(d.date, { dow: true })}` : `${d.date !== todayIso() ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${mins} min in · ${left ? `~${Math.round(left / 60)} left · done ${finishAt}` : 'last sets'}`, color: d.color,
+    title: d.name, sub: d.past ? `Past workout · ${fmtDate(d.date, { dow: true })}` : `${d.date !== todayIso() ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${mins} min in · ${left ? `~${Math.round(left / 60)} min left · done ${finishAt}` : 'last sets'}`, color: d.color,
     right: `<button class="mini go" data-act="finish">Finish</button>`, html: h,
   };
 }
@@ -253,7 +254,7 @@ function earlyWins(d) {
     const repsNow = ws.reduce((a, s) => a + (+s.r || 0), 0), repsThen = last.sets.reduce((a, s) => a + (+s.r || 0), 0);
     if ((now != null && then != null && now > then + 1e-6) || (ex.unit === 'bw' && repsNow > repsThen)) beat.push(ex.name);
   }
-  if (beat.length) return `<div class="box prbox win"><p class="lbl">You beat last time</p><p>${ICON.trendUp}${esc(beat.slice(0, 4).join(', '))}${beat.length > 4 ? ` and ${beat.length - 4} more` : ''}.</p><p class="fine">That is how it works: every session starts from your last one and asks for a little more where you earned it.</p></div>`;
+  if (beat.length) return `<div class="box prbox win"><p class="lbl">You beat last time</p><div class="chips">${ICON.trendUp}${beat.slice(0, 6).map(n => pill(n, 'up')).join('')}</div><p class="fine">That is how it works: every session starts from your last one and asks for a little more where you earned it.</p></div>`;
   if (!before) return `<div class="box prbox win"><p class="lbl">First workout logged</p><p class="fine">Next time every set is filled in from today, with a small step up where you earned it. Beat it and you will see it here.</p></div>`;
   return '';
 }
@@ -301,13 +302,19 @@ function summary(d) {
     const sg = suggest(e.slot, ex, ctx), u = sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit);
     return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? (ex.unit === 'bw' ? esc(T('bw')) : expertWording() ? '?' : 'Find weight') : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
   }).join('');
-  const pct = lv ? Math.round((v / lv - 1) * 100) : null;
+  // A short or partial workout isn't compared with a full one: no red percentage for showing up.
+  const partial = tot && done < tot / 2;
+  const pct = lv && !partial ? Math.round((v / lv - 1) * 100) : null;
   const mins = d.past ? d.minutes : Math.max(1, Math.round((Date.now() - d.start) / 60000));
   const planned = d.plannedSec ? Math.round(d.plannedSec / 60) : null;
   let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
+  if (partial) h += `<p class="fine keepgoing">Every set counts. Showing up is what keeps the plan going.</p>`;
+  if (!d.past) h += streakLine(weekStats(d.date, S.sessions.some(s => s.date >= d.date) ? 0 : 1));
   h += earlyWins(d);
+  // Early on, one offer of reminders: the biggest reason people drift away is forgetting the next workout.
+  if (!d.past && !S.settings.calAdded && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Want a nudge on training days?</b></p><p class="fine">Your phone's calendar can remind you 10 minutes before. Nothing is sent anywhere.</p><button class="btn ghost" data-act="cal-export">Add training days to my calendar</button></div>`;
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
   const before = muscleXP(S.sessions, S.exById, d.date);

@@ -4,7 +4,7 @@ import { S, saveProgram, saveSettings, refresh } from '../state.js';
 import { PROGRAM, TEMPLATES } from '../seed.js';
 import { buildSplit, explainSplit, weeklyVolume, targetsFor, planGaps, dayMinutes, baseSets } from '../split.js';
 import { MUSCLES } from '../engine.js';
-import { esc, pill, cvar, kstyle, dowName, toast, ICON, T, helpTip, confirmSheet, langPicker } from '../ui.js';
+import { esc, pill, cvar, kstyle, dowName, dowLetter, toast, ICON, T, helpTip, confirmSheet, langPicker } from '../ui.js';
 import { LANGS, getLang } from '../i18n.js';
 import { go, showTour } from '../app.js';
 
@@ -63,7 +63,7 @@ function question(step) {
   let h = `<div class="wz-top"><div class="dots" aria-hidden="true">${asked.map(i => `<i class="${i === step ? 'on' : i < step ? 'done' : ''}"></i>`).join('')}</div><span class="fine">${pos + 1} of ${asked.length}</span></div>
     <h2 class="wz-q">${esc(q.title)}</h2>${q.hint ? `<p class="fine">${esc(q.hint)}</p>` : ''}`;
   if (q.days) {
-    h += `<div class="wz-days" role="group" aria-label="Training days">${[1, 2, 3, 4, 5, 6, 0].map(d => `<button data-act="wz-day" data-v="${d}" aria-pressed="${v.includes(d)}" aria-label="${esc(dowName(d, true))}"><b>${dowName(d).slice(0, 1)}</b><span>${dowName(d)}</span></button>`).join('')}</div>
+    h += `<div class="wz-days" role="group" aria-label="Training days">${[1, 2, 3, 4, 5, 6, 0].map(d => `<button data-act="wz-day" data-v="${d}" aria-pressed="${v.includes(d)}" aria-label="${esc(dowName(d, true))}"><b>${dowLetter(d)}</b><span>${dowName(d)}</span></button>`).join('')}</div>
       <p class="fine">${v.length ? `${v.length} day${v.length === 1 ? '' : 's'} a week` : 'No days picked yet'}${backToBack(v) ? ' · a rest day between sessions helps you recover, but back-to-back days work too' : ''}</p>`;
   } else {
     h += `<div class="wz-opts ${q.one ? '' : 'multi'}" role="group" aria-label="${esc(q.title)}">${q.opts.map(([val, label]) => {
@@ -108,7 +108,7 @@ function start() {
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower, for a full gym.</small></span>${ICON.chev}</button>
     </div></details>
     <button class="linkbtn center" data-act="wz-skip">Skip for now</button>
-    <p class="fine center-t">Skipping keeps the example 5-day split (push, pull, legs, upper, lower). Change or rebuild it any time under More.</p>`;
+    <p class="fine center-t">Skipping starts you on Full body, 3 days: the easiest plan to begin with. Change or rebuild it any time under More.</p>`;
   return back
     ? { title: 'Rebuild my split', sub: 'Programme', html: h, color: 'push', back: 'settings' }
     : { title: 'Welcome', sub: 'we go gim', html: h, color: 'push' };
@@ -193,8 +193,10 @@ export const actions = {
   async 'wz-own'() { await finish('paste', { tour: false }); },
   // Skip: straight to Today, no tour, and one line saying which plan is loaded.
   async 'wz-skip'() {
+    const fb = TEMPLATES.find(x => x.id === 'fb3');
+    if (fb) await saveProgram(structuredClone(fb.program));
     await finish('today', { tour: false });
-    toast('Example 5-day split loaded. Change it under More → Programme.', 'up');
+    toast('Full body, 3 days is your plan. Change it under More → Programme.', 'up');
   },
   'wz-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
   'wz-wording': el => saveSettings({ wording: el.dataset.v === 'expert' ? 'expert' : 'plain' }),
