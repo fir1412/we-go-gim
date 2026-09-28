@@ -5,18 +5,25 @@ import { go } from '../app.js';
 
 let editing = null; // session id being edited
 let showSeed = true;
-const PAGE = 40;
-let shown = PAGE;   // sessions listed; more on demand so hundreds of imported sessions stay quick
+let viewMonth = null; // 'YYYY-MM' being browsed; null means the current month
+
+/** '2026-09' + -1 → '2026-08' */
+const addMonths = (ym, n) => { const i = +ym.slice(0, 4) * 12 + (+ym.slice(5) - 1) + n; return `${Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}`; };
+const monthName = ym => `${MONTHS[+ym.slice(5) - 1]} ${ym.slice(0, 4)}`;
 
 export function render(route) {
   if (route.name === 'session') return detail(route.args[0]);
   const t = todayIso();
   const isImp = s => s.seed || s.imported;
   const nImp = S.sessions.filter(isImp).length;
-  const all = S.sessions.filter(s => showSeed || !isImp(s));
-  const list = all.slice(0, shown);
   const on = {};
   for (const s of S.sessions) (on[s.date] ||= []).push(s);
+  // Every month from the first logged session to now, so any month can be browsed.
+  const nowM = t.slice(0, 7);
+  const firstM = S.sessions.reduce((a, s) => (s.date.slice(0, 7) < a ? s.date.slice(0, 7) : a), nowM);
+  const vm = viewMonth && viewMonth >= firstM && viewMonth <= nowM ? viewMonth : nowM;
+  const inMonth = S.sessions.filter(s => s.date.slice(0, 7) === vm);
+  const list = inMonth.filter(s => showSeed || !isImp(s));
 
   const xp = xpBySession(muscleXP(S.sessions, S.exById));
 
@@ -34,19 +41,31 @@ export function render(route) {
   let h = `<div class="kpis"><div class="kpi"><b>${thisWeek}<small>/${planned}</small></b><span>this week</span></div><div class="kpi"><b>${last30}</b><span>last 30 days</span></div><div class="kpi"><b>${streak}</b><span>week streak</span></div></div>
     <button class="btn ghost" data-act="log-past">${ICON.plus} Log a past workout</button>`;
 
-  // 6-week calendar, Monday first
-  const start = addDays(ws, -35);
+  // Month calendar, Monday first, with arrows and a picker to reach any month.
+  const first = `${vm}-01`, days = new Date(+vm.slice(0, 4), +vm.slice(5), 0).getDate();
   let g = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span class="h">${x}</span>`).join('');
-  for (let i = 0; i < 42; i++) {
-    const d = addDays(start, i), ss = on[d];
+  g += '<span class="pad" aria-hidden="true"></span>'.repeat((dowOf(first) + 6) % 7);
+  for (let i = 0; i < days; i++) {
+    const d = addDays(first, i), ss = on[d];
     const lab = `${fmtDate(d)}${ss ? ': ' + ss.map(s => s.name).join(', ') : ''}`;
-    g += ss ? `<a href="#/session/${esc(ss[0].id)}" class="on ${d === t ? 'now' : ''}" style="--k:${cvar(ss[0].color)}" aria-label="${esc(lab)}">${+d.slice(8)}</a>`
-      : `<span class="${d === t ? 'now' : ''} ${d > t ? 'fut' : ''}" aria-label="${esc(lab)}">${+d.slice(8)}</span>`;
+    g += ss ? `<a href="#/session/${esc(ss[0].id)}" class="on ${d === t ? 'now' : ''}" style="--k:${cvar(ss[0].color)}" aria-label="${esc(lab)}">${i + 1}</a>`
+      : `<span class="${d === t ? 'now' : ''} ${d > t ? 'fut' : ''}" aria-label="${esc(lab)}">${i + 1}</span>`;
   }
-  h += `<div class="box cal"><div class="cap"><b>${fmtDate(start)} – ${fmtDate(addDays(start, 41))}</b><span>${S.sessions.length} session${S.sessions.length === 1 ? '' : 's'} logged</span></div><div class="g">${g}</div></div>`;
+  const counts = {};
+  for (const s of S.sessions) counts[s.date.slice(0, 7)] = (counts[s.date.slice(0, 7)] || 0) + 1;
+  let opts = '';
+  for (let m = nowM; m >= firstM; m = addMonths(m, -1)) opts += `<option value="${m}"${m === vm ? ' selected' : ''}>${monthName(m)}${counts[m] ? ` · ${counts[m]}` : ''}</option>`;
+  h += `<div class="box cal"><div class="calnav">
+      <button class="iconbtn sm flip" data-act="hist-month-step" data-n="-1" aria-label="Previous month"${vm <= firstM ? ' disabled' : ''}>${ICON.chev}</button>
+      <select class="inp" data-input="hist-month" aria-label="Month to show">${opts}</select>
+      <button class="iconbtn sm" data-act="hist-month-step" data-n="1" aria-label="Next month"${vm >= nowM ? ' disabled' : ''}>${ICON.chev}</button></div>
+    <div class="cap"><span>${inMonth.length} session${inMonth.length === 1 ? '' : 's'} this month · ${S.sessions.length} in all</span></div><div class="g">${g}</div>
+    ${vm !== nowM ? `<button class="linkbtn center" data-act="hist-month-now">Back to this month</button>` : ''}</div>`;
 
   h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} imported` : 'Show imported'}</button>` : ''}</div>`;
-  if (!list.length) h += nImp && !showSeed ? `<div class="empty"><b>No sessions logged in the app yet.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>` : `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here.</p></div>`;
+  if (!list.length) h += inMonth.length ? `<div class="empty"><b>Only imported sessions in ${monthName(vm)}.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>`
+    : S.sessions.length ? `<div class="empty"><b>No sessions in ${monthName(vm)}.</b><p>Use the arrows or the month list above to see other months.</p></div>`
+    : `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here.</p></div>`;
   let month = '';
   for (const s of list) {
     const m = s.date.slice(0, 7);
@@ -68,11 +87,7 @@ export function render(route) {
       <span class="hxp" style="--k:${cvar(s.color)}">${gx ? `+${gx}<small>XP</small>` : ''}</span></a></li>`;
   }
   if (month) h += `</ul>`;
-  if (all.length > list.length) {
-    const more = Math.min(PAGE * 2, all.length - list.length);
-    h += `<button class="btn ghost" data-act="more-hist">Show ${more} older session${more === 1 ? '' : 's'} <small>· ${all.length - list.length} more</small></button>`;
-  }
-  return { title: 'History', sub: 'Every session, newest first', html: h, color: 'upper' };
+  return { title: 'History', sub: 'Month by month, newest first', html: h, color: 'upper' };
 }
 
 function detail(id) {
@@ -173,7 +188,9 @@ export const actions = {
     await logPast(date, day);
   },
   'toggle-seed'() { showSeed = !showSeed; refresh(); },
-  'more-hist'() { shown += PAGE * 2; refresh(); },
+  'hist-month'(el) { viewMonth = el.value; refresh(); },
+  'hist-month-step'(el) { viewMonth = addMonths(document.querySelector('[data-input="hist-month"]')?.value || todayIso().slice(0, 7), +el.dataset.n); refresh(); },
+  'hist-month-now'() { viewMonth = null; refresh(); },
   edit(el) { editing = el.dataset.id; buffer = structuredClone(S.sessions.find(s => s.id === editing)); refresh(); },
   'edit-cancel'() {
     const i = S.sessions.findIndex(x => x.id === buffer?.id);

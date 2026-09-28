@@ -174,6 +174,7 @@ matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S
 export const APP_VERSION = '1.4.0';
 const WHATS_NEW = {
   '1.4.0': [
+    'History shows any month: use the arrows or pick a month to see its calendar and sessions',
     'Plain words or gym terms: pick in More → Settings. Plain says "reps left" and "find your weight"; gym terms say RIR and calibrate. Tap a ? to see what a term means',
     'kg or lb: pick in More → Settings. Weights are stored in kg, so switching never changes your history; imported logs in pounds are converted',
     'Short on time? Choose 20, 30 or 45 minutes on Today and the workout trims itself to fit',

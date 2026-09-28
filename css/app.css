@@ -807,3 +807,11 @@ button.newmeta u { text-underline-offset: 2px; }
 .pslot2 .grow small { display: block; color: var(--mute); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
 .impent .rowt { flex-wrap: wrap; }
 .impent .grp { font-style: normal; font-weight: 700; color: var(--c); }
+
+/* History: browse any month */
+.calnav { display: flex; align-items: center; gap: 8px; }
+.calnav select { flex: 1; min-width: 0; min-height: 44px; }
+.calnav .iconbtn { width: 44px; height: 44px; }
+.calnav .iconbtn:disabled { opacity: .35; }
+.calnav .flip svg { transform: scaleX(-1); }
+.cal .g > .pad { background: none; }
