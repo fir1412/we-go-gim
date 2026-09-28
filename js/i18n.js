@@ -40,7 +40,7 @@ export function tokenize(s) {
   const MON = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Mac|Mei|Ogo|Okt|Dis)';
   const WD = '(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat|Ahd|Isn|Sel|Rab|Kha|Jum|Sab)';
   const CJK = String.raw`(?:\s?[(（]?[日月火水木金土一二三四五六周週星期]+[)）]?)?`;
-  const DATES = String.raw`\d{4}年\d{1,2}月(?:\d{1,2}日)?${CJK}|\d{1,2}月\d{1,2}日${CJK}|\d{1,2}月|\b(?:${WD} )?\d{1,2} ${MON}\b(?: \d{4})?|\b${MON} \d{4}\b|\b${MON}\b`;
+  const DATES = String.raw`\d{4}年\d{1,2}月(?:\d{1,2}日)?${CJK}|\d{1,2}月\d{1,2}日${CJK}|\d{1,2}月|\b(?:${WD} )?\d{1,2} ${MON}\b(?: \d{4})?|\b${MON} \d{4}\b|\b${MON}\b|星期[一二三四五六日天]|[週周][一二三四五六日]|[月火水木金土日]曜日|\\b(?:Isnin|Selasa|Rabu|Khamis|Jumaat|Sabtu|Ahad)\\b`;
   if (!nameRe) nameRe = new RegExp(`(?<![\\p{L}\\d])(${[...new Set([...knownNames(), ...userNames])].sort((a, b) => b.length - a.length).map(escRe).join('|')})(?![\\p{L}\\d])|(${DATES}|\\d+(?:[.,:]\\d+)*)`, 'gu');
   const vals = [];
   const key = s.replace(nameRe, (m, name, n) => { vals.push(name ? ['name', name] : ['num', n]); return `{${vals.length - 1}}`; });
