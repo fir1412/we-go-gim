@@ -1,5 +1,5 @@
 // Personalised split builder. Pure: answers in, programme out (same shape as PROGRAM in seed.js).
-import { SET_WORK_SEC, TRANSITION_SEC } from './engine.js';
+import { SET_WORK_SEC, TRANSITION_SEC, dedupeDays } from './engine.js';
 
 /** Training patterns and the exercises that fill them, best first, per equipment level. */
 const PATTERNS = {
@@ -130,6 +130,14 @@ export function targetsFor(answers) {
   return out;
 }
 
+/** The training weekdays the plan really uses: whole numbers 0–6 (strings accepted), no repeats, Monday first,
+ *  1 to 6 of them (no days picked means Monday; a seventh day is left for rest). */
+const trainingDows = days => {
+  const d = [...new Set((Array.isArray(days) ? days : []).map(Number))].filter(x => Number.isInteger(x) && x >= 0 && x <= 6)
+    .sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7)).slice(0, 6);
+  return d.length ? d : [1];
+};
+
 const norm = answers => {
   const a = { goal: 'muscle', days: [1, 3, 5], experience: 'some', minutes: 60, equipment: 'gym', focus: [], protect: [], ...answers };
   a.equipment = ['gym', 'db', 'home'].includes(a.equipment) ? a.equipment : 'gym';
@@ -145,7 +153,7 @@ const norm = answers => {
  */
 export function buildSplit(answers, exById) {
   const a = norm(answers);
-  const dows = [...new Set(a.days)].filter(d => d >= 0 && d <= 6).sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7)).slice(0, 6);
+  const dows = trainingDows(a.days);
   const types = templateFor(dows.length, a.experience, a.equipment);
   const avoid = new Set(a.protect.flatMap(p => AVOID[p] || []));
   const eq = a.equipment;
@@ -267,7 +275,7 @@ export function planGaps(plan, answers, exById) {
 /** Short explanation of why this split was chosen. */
 export function explainSplit(answers) {
   const a = norm(answers);
-  const n = [...new Set(a.days || [])].length;
+  const n = trainingDows(a.days).length; // the same days buildSplit uses, so text and plan agree
   const t = templateFor(n, a.experience, a.equipment);
   const kind = n <= 1 ? 'one full-body session trains everything once. A second day would roughly double your weekly work'
     : n === 2 ? 'two full-body sessions, so every muscle gets trained twice a week'
@@ -454,5 +462,14 @@ export function parseSplitText(text) {
   }
   // More than seven workouts can't all get a weekday: say so rather than drop them silently.
   for (const d of kept) if (d.dow == null) notAdded.push(`${d.name} (no free weekday left)`);
+  // Weekdays are returned as written; two workouts on one weekday are spread out by spreadSameWeekday (for the
+  // review) and by saveProgram, which de-duplicates every programme it stores.
   return { days: kept.filter(d => d.dow != null), skipped, notAdded };
 }
+
+/**
+ * Parsed split days with one workout per weekday: the later of two on a weekday ("Monday – Push AM",
+ * "Monday – Pull PM") moves to the next free weekday, so both can be reached from Today and the streak can be
+ * met; with all seven taken it joins that weekday's list. Order is kept. Use on parseSplitText(...).days.
+ */
+export const spreadSameWeekday = days => dedupeDays(days, 'items');
