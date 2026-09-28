@@ -260,7 +260,7 @@ function exDetail(id) {
   const kg = hasEstMax(ex); // machines and cables: no estimated max, their chart shows the top load
   const metric = kg ? exMetric : 'load';
 
-  let h = `<div class="rrow"><span>${pill(label, k)}${tr.n >= 2 ? ` <b class="num">${esc(trendRange(ex, tr))}</b>` : ''} ${esc(unitLong(ex.unit))}${ex.perGym ? ' · compared per gym' : ''}</span><a class="linkbtn" href="#/exercise/${esc(ex.id)}">Edit exercise</a></div>`;
+  let h = `<div class="rrow"><span>${pill(label, k)}${tr.n >= 2 ? ` <b class="num">${esc(trendRange(ex, tr))}</b>` : ''} ${tr.n >= 2 && isKg(ex.unit) ? '' : esc(unitLong(ex.unit))}${ex.perGym ? ' · compared per gym' : ''}</span><a class="linkbtn" href="#/exercise/${esc(ex.id)}">Edit exercise</a></div>`;
   if (ex.caution) h += `<div class="warn" style="--k:var(--down)"><b>Note.</b><span>${esc(ex.caution)}</span></div>`;
   if (ex.unitUnclear) h += `<div class="warn"><b>Unit unclear.</b><span>Old entries mix per-side and total load. Set the unit under Edit exercise.</span></div>`;
 
