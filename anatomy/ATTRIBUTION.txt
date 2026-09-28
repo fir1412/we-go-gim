@@ -1,7 +1,7 @@
 FIT MIT WITH — 3D ANATOMY ATLAS: SOURCES, LICENSES AND CHANGES
 Notice revised 2026-09-13
 
-The muscle atlas rendered in this app (assets/anatomy/full-body-male-mobile.glb,
+The muscle atlas rendered in this app (anatomy/full-body-male-mobile.glb,
 full-body-female-mobile.glb, full-body-map.json and female-muscle-map.json) is
 Adapted Material derived from openly licensed anatomy. These files are
 distributed under the Creative Commons Attribution-ShareAlike 4.0 International
