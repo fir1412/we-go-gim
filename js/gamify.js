@@ -116,7 +116,7 @@ export function todayGame(t = todayIso()) {
   const st = streakInfo(t), q = quests(t);
   const shields = st.shields ? `<span class="shield"><i aria-hidden="true">🛡️</i> Shields: ${st.shields}</span>` : '';
   let h = st.best
-    ? `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Day streak: ${st.streak}</b>${shields}<span>Best: ${st.best}</span></a>`
+    ? `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</b>${shields}<span>Best: ${st.best}</span></a>`
     : `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Start your streak today: your first workout counts as 1</b>${shields}</a>`;
   const next = nextTraining(t);
   if (!q.length) {

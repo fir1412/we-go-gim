@@ -361,7 +361,7 @@ function body() {
 }
 
 // ---- cardio ------------------------------------------------------------------------
-const TYPES = ['Walk', 'Treadmill', 'Incline walk', 'Run', 'Cycling', 'Exercise bike', 'Rower', 'Swim', 'Hike', 'Futsal', 'Football', 'Badminton', 'Basketball', 'Muay Thai', 'Silat', 'Aerobics', 'Yoga', 'Pilates', 'Other'];
+const TYPES = ['Walk', 'Treadmill', 'Incline walk', 'Run', 'Cycling', 'Exercise bike', 'Rower', 'Swim', 'Hike', 'Futsal', 'Football', 'Badminton', 'Basketball', 'Table tennis', 'Skipping rope', 'Muay Thai', 'Silat', 'Tai chi', 'Aerobics', 'Dance', 'Yoga', 'Pilates', 'Stretching', 'Other'];
 const INT = [['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']];
 const cardioDraft = { type: 'Swim', intensity: 'easy' };
 

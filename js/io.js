@@ -961,7 +961,7 @@ export const hasPain = t => {
   return false;
 };
 // English words, Chinese 痛/疼 (but 酸痛 is ordinary muscle soreness), Japanese 痛い/痛み/痛めた, Malay "sakit" (not "sakit otot").
-const PAIN_RE = /\b(?:pain|painful|hurt|hurts|hurting|ache|aching|achy|ping|pinged|pinging|twinge|tweak|tweaked|niggle|strain|strained|sore|tight|flared?|injur\w*|numb|clicking|popped)\b|(?<!酸)[痛疼]|\bsakit\b(?!\s+otot)/i;
+const PAIN_RE = /\b(?:pain|painful|hurt|hurts|hurting|ache|aching|achy|ping|pinged|pinging|twinge|tweak|tweaked|niggle|strain|strained|sore|tight|flared?|injur\w*|numb|clicking|popped)\b|(?<!酸)(?:疼痛|拉伤|拉傷|扭伤|扭傷|不舒服|[痛疼])|\bsakit\b(?!\s+otot)/i;
 const COMMENT_RE = /\b(felt|feel|feels|feeling|tired|lazy|sleep|slept|heavy|easy|hard|strong|weak|good|bad|great|awful|hr|bpm|rpe|rir|pump|form|failure|failed|energy|sick|fever|dizzy|skipped|missed|didn'?t|couldn'?t|was|were|a bit|very|really)\b/i;
 const SESSION_RE = /\b(slept|sleep|felt|feel|tired|energy|rpe|session|today|workout|gym|sick|fever)\b/i;
 

@@ -94,7 +94,7 @@ function start() {
     <div class="warn wz-warn" style="--k:var(--flat)"><b>Replaces your programme.</b><span>Your current weekly plan is swapped for the new one when you tap “Use this plan”.${n ? ` Your ${n} logged session${n === 1 ? '' : 's'}, levels and personal bests stay.` : ''}</span></div>
     <div class="list box wz-choices">
       <button class="li" data-act="wz-begin" style="--k:var(--push)"><i class="sw"></i><span><b>Build my split</b><small>${S.settings.setupAnswers ? 'Your last answers are filled in; change what you need.' : '7 quick questions, then a plan to review before anything changes.'}</small></span>${ICON.chev}</button>
-      <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5 or dumbbells at home.</small></span>${ICON.chev}</a>
+      <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5, home with no equipment, or easy on the joints.</small></span>${ICON.chev}</a>
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower. Replaces your programme straight away.</small></span>${ICON.chev}</button>
     </div>
     <button class="linkbtn center" data-act="wz-cancel">Keep my current programme</button>`
@@ -102,7 +102,7 @@ function start() {
     ${prefs()}
     <button class="btn wz-main" data-act="wz-begin">Build my plan <small>· ${S.settings.experience ? 6 : 7} quick questions, about a minute</small></button>
     <details class="box wz-more"><summary>Other ways to start</summary><div class="list wz-choices">
-      <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5 or dumbbells at home.</small></span>${ICON.chev}</a>
+      <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5, home with no equipment, or easy on the joints.</small></span>${ICON.chev}</a>
       <button class="li" data-act="wz-logs" style="--k:var(--legsb)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes, or a Hevy, Strong or spreadsheet CSV, or restore a backup from this app.</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-own" style="--k:var(--upper)"><i class="sw"></i><span><b>I have my own split</b><small>Paste your plan as text (from a note, a coach or a chat).</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower, for a full gym.</small></span>${ICON.chev}</button>

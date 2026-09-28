@@ -1143,11 +1143,9 @@ export function exportCalendar() {
   const time = S.settings.remindAt || '18:00';
   const words = { train: tr('Time to train') };
   const links = days.map(d => `<a class="btn ghost" href="${esc(googleCalendarUrl(d, time, { title: `we go gim: ${d.title}`, details: `${words.train} · ${url}` }))}" target="_blank" rel="noopener noreferrer">${esc(dowName(d.dow, true))} · ${esc(d.name)}</a>`).join('');
-  const el = openSheet(`<h2 class="sh-title">Add training days to my calendar</h2>
-    <p class="fine">Google Calendar (most Android phones): tap each day and save. It repeats every week at ${esc(time)}.</p>
-    <div class="callist">${links}</div>
-    <p class="fine">iPhone, Samsung or Outlook calendar: download one file with every day.</p>
-    <button class="btn ghost" data-x="ics">Download calendar file</button>`, { label: 'Training reminders' });
+  const google = `<p class="fine">Google Calendar (most Android phones): tap each day and save. It repeats every week at ${esc(time)}.</p><div class="callist">${links}</div>`;
+  const file = `<p class="fine">Any other calendar (iPhone, Samsung, Huawei, Xiaomi, OPPO, vivo, Outlook): download one file with every day, then open it.</p><button class="btn ghost" data-x="ics">Download calendar file</button>`;
+  const el = openSheet(`<h2 class="sh-title">Add training days to my calendar</h2>${getLang() === 'zh' ? file + google : google + file}`, { label: 'Training reminders' });
   el.addEventListener('click', ev => {
     if (ev.target.closest('a[href^="https://calendar.google.com"]')) saveSettings({ calAdded: true });
     if (!ev.target.closest('[data-x="ics"]')) return;

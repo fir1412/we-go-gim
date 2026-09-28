@@ -231,7 +231,7 @@ function pairItem(ei) {
 }
 
 // ---- cardio inside a workout ---------------------------------------------------------------------------
-const CW_TYPES = ['Treadmill', 'Incline walk', 'Walk', 'Run', 'Bike', 'Exercise bike', 'Rower', 'Stairs', 'Swim', 'Futsal', 'Badminton', 'Basketball', 'Muay Thai', 'Silat', 'Aerobics', 'Yoga', 'Pilates', 'Other'];
+const CW_TYPES = ['Treadmill', 'Incline walk', 'Walk', 'Run', 'Bike', 'Exercise bike', 'Rower', 'Stairs', 'Swim', 'Futsal', 'Badminton', 'Basketball', 'Table tennis', 'Skipping rope', 'Muay Thai', 'Silat', 'Tai chi', 'Aerobics', 'Dance', 'Yoga', 'Pilates', 'Stretching', 'Other'];
 const cw = { type: 'Treadmill', intensity: 'moderate' };
 function cardioSheet() {
   const keep = id => document.getElementById(id)?.value ?? '';
@@ -322,7 +322,7 @@ function summary(d) {
     S.sessions = withThis;
     let st, fresh;
     try { st = streakInfo(d.date); fresh = badges(d.date).filter(b => b.date && !before.has(b.id)); } finally { S.sessions = was; }
-    h += `<div class="box pad gamewin"><p class="big"><i class="flame" aria-hidden="true">🔥</i> Day streak: ${st.streak}</p>${st.streak > 1 && st.streak === st.best ? '<p class="fine">Your best streak yet.</p>' : ''}</div>`;
+    h += `<div class="box pad gamewin"><p class="big"><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</p>${st.streak > 1 && st.streak === st.best ? '<p class="fine">Your best streak yet.</p>' : ''}</div>`;
     if (fresh.length) h += `<div class="box prbox badgewin"><p class="lbl">New badge</p>${fresh.map(b => `<p><span class="bi" aria-hidden="true">${b.icon}</span> <b>${b.name}</b></p><p class="fine">${b.about}</p>`).join('')}</div>`;
   }
   h += earlyWins(d);
@@ -723,6 +723,7 @@ function howToUrl(ex) {
   const lang = getLang();
   const name = lang === 'en' ? ex.name : translate(plainText(ex.name));
   const how = { en: 'exercise proper form', ms: 'cara betul senaman', zh: '动作要领', 'zh-Hant': '動作要領', ja: 'やり方 フォーム' }[lang] || 'exercise proper form';
+  if (lang === 'zh') return `https://search.bilibili.com/all?keyword=${encodeURIComponent(`${name} ${how}`)}`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} ${how}`)}`;
 }
 
