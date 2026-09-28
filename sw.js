@@ -1,9 +1,9 @@
 // Offline cache. Bump VERSION whenever app files change.
-const VERSION = 'wegogim-v22';
+const VERSION = 'wegogim-v27';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/db.js', './js/seed.js', './js/engine.js', './js/ui.js', './js/io.js',
-  './js/views/today.js', './js/views/workout.js', './js/views/history.js', './js/views/insights.js', './js/views/more.js', './js/views/levels.js', './js/views/setup.js', './js/views/daily.js', './js/split.js', './js/feedback.js', './js/anatomy.js', './js/plain.js', './js/i18n.js', './js/i18n/ms.js', './js/i18n/zh.js', './js/i18n/ja.js',
+  './js/views/today.js', './js/views/workout.js', './js/views/history.js', './js/views/insights.js', './js/views/more.js', './js/views/levels.js', './js/views/setup.js', './js/views/daily.js', './js/split.js', './js/feedback.js', './js/anatomy.js', './js/plain.js', './js/i18n.js', './js/atlas-map.js', './js/streak.js', './js/calendar.js', './js/fx.js', './js/gamify.js', './js/views/atlas.js', './js/i18n/ms.js', './js/i18n/zh.js', './js/i18n/ja.js', './js/i18n/zh-Hant.js',
   './fonts/fonts.css', './fonts/barlow-condensed-500.woff2', './fonts/barlow-condensed-600.woff2', './fonts/barlow-condensed-700.woff2', './fonts/dm-sans-var.woff2',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
 ];
@@ -27,7 +27,10 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin === self.location.origin) {
     const key = keyFor(url);
-    const fromCache = () => caches.match(key).then(r => r || caches.match('./index.html'));
+    // Only a page load may fall back to the app shell. A script or data file answered with index.html would stop
+    // the app on "Loading…" (a module served as HTML is refused), so those fail normally instead.
+    const shell = req.mode === 'navigate';
+    const fromCache = () => caches.match(key).then(r => r || (shell ? caches.match('./index.html') : undefined));
     e.respondWith(new Promise(resolve => {
       let settled = false;
       const timer = setTimeout(() => { fromCache().then(r => { if (!settled && r) { settled = true; resolve(r); } }); }, 3000);

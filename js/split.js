@@ -292,16 +292,26 @@ const DAY_WORDS = [
   [/^(fri(day)?|jumaat|viernes|金(曜日?)?)(?=[\s.,:–—-]|$)/i, 5], [/^(sat(urday)?|sabtu|s[áa]bado|土(曜日?)?)(?=[\s.,:–—-]|$)/i, 6],
   [/^(sun(day)?|ahad|minggu|domingo|日(曜日?)?)(?=[\s.,:–—-]|$)/i, 0],
 ];
-const SETS_RE = /(\d+)\s*(?:[x×]\s*\d+|sets?\b)/i;
-/** "Monday – Chest", "Mon upper", "Isnin: Dada", "月曜日 胸", "Day 1 – Push" → {dow|null, name} or null. */
+const SETS_RE = /(\d+)\s*(?:[x×*]\s*\d+|sets?\b|组|組|セット)/i;
+// Chinese "星期一"/"周一" (日/天 = Sunday) and Japanese "(月)": weekday characters → weekday.
+const ZH_DAY = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
+const JA_DAY = { 月: 1, 火: 2, 水: 3, 木: 4, 金: 5, 土: 6, 日: 0 };
+const headerName = rest => { const n = rest.replace(/^[\s.,:;、–—-]+/, '').trim(); return n.charAt(0).toUpperCase() + n.slice(1); };
+/** "Monday – Chest", "Mon upper", "Isnin: Dada", "月曜日 胸", "星期一 – 胸", "周一：胸", "(月) 胸", "Day 1 – Push" → {dow|null, name} or null. */
 function dayHeader(line) {
   if (SETS_RE.test(line)) return null;
   const clean = line.replace(/^[#*\s]+|[*]+$/g, '');
+  let c;
+  if ((c = clean.match(/^(?:星期|周|週|礼拜|禮拜)([一二三四五六日天])/))) return { dow: ZH_DAY[c[1]], name: headerName(clean.slice(c[0].length)) };
+  if ((c = clean.match(/^\(([月火水木金土日])(?:曜日?)?\)/))) return { dow: JA_DAY[c[1]], name: headerName(clean.slice(c[0].length)) };
   for (const [re, dow] of DAY_WORDS) {
     const m = clean.match(re);
     if (m) { const n = clean.slice(m[0].length).replace(/^[\s.,:–—-]+/, '').trim(); return { dow, name: n.charAt(0).toUpperCase() + n.slice(1) }; }
   }
-  const d = clean.match(/^(?:day|hari|d[íi]a|workout)\s*(\d{1,2}|[a-f])\b[\s.,:–—-]*(.*)$/i);
+  // Numbered days in Chinese and Japanese: "第4天", "第4日", "4日目".
+  if ((c = clean.match(/^(?:第\s*(\d{1,2})\s*[天日]|(\d{1,2})\s*日目)/))) return { dow: null, name: headerName(clean.slice(c[0].length)) || `Day ${c[1] || c[2]}` };
+  // "Day 2", "D2 – Legs"
+  const d = clean.match(/^(?:day|hari|d[íi]a|workout|d(?=\d))\s*(\d{1,2}|[a-f])\b[\s.,:–—-]*(.*)$/i);
   return d ? { dow: null, name: d[2].trim() || `Day ${d[1].toUpperCase()}` } : null;
 }
 const COLOR_FOR = [[/chest|push/i, 'push'], [/back|pull/i, 'pull'], [/leg|lower|squat/i, 'legs'], [/arm|bicep|tricep/i, 'arms'], [/shoulder|upper|delt/i, 'upper'], [/full/i, 'legsb']];
@@ -311,6 +321,10 @@ const WORKOUT_RE = /^(push|pull|legs?|lower|upper|full(?: ?body)?|chest(?: (?:an
 const TIMED_RE = /\b(e\d?mom|tabata|for time|every \d+ ?(?:min|minutes|sec)|amrap \d+ ?(?:min|minutes)|\d+ ?(?:min|minutes) amrap|intervals?|rounds? for)\b/i;
 const DIST_AFTER = /^\s*(m|km|k|meters?|metres?|yd|yards?|cal|kcal|calories|mins?|minutes|miles?|mi|ft|feet|steps)\b/i;
 const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
+// Section words in Chinese, Japanese and Malay ("可选：", "最后加练：", "仕上げ：", "Pilihan:", "Akhiri dengan:").
+const OPTIONAL_RE = /optional|可选|選做|选做|任意|オプション|pilihan/i;
+const FINISH_RE = /finish|最后|最後|收尾|加练|仕上げ|フィニッシャー|akhiri|penutup/i;
+const SECTION_WORD = /^(可选|选做|選做|最后加练|最後加練|最后|最後に|最後|收尾|加练|任意|オプション|仕上げ|フィニッシャー|pilihan|akhiri dengan|akhiri)\s*:\s*(.*)$/i;
 
 /**
  * Read a written split. Returns {days:[{dow, name, sub, color, items:[{name, sets, lo, hi, note, group}]}], skipped:[lines], notAdded:[lines]}.
@@ -325,7 +339,8 @@ export function parseSplitText(text) {
   const days = [], skipped = [], notAdded = [];
   let day = null, section = '', blank = true, explicit = false;
   for (const raw of String(text).split(/\r?\n/)) {
-    const line = raw.replace(/\s+/g, ' ').trim();
+    // Full-width digits, colons and brackets ("５セット", "水曜日：背中", "（月）") become their plain forms.
+    const line = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
     if (!line) { blank = true; continue; }
     const wasBlank = blank;
     blank = false;
@@ -359,6 +374,30 @@ export function parseSplitText(text) {
     let group = '', lm;
     if ((lm = body.match(/^([A-H])\s?([1-9])\s*[.):–—-]?\s+(?=\S)/i))) { group = lm[1].toUpperCase(); body = body.slice(lm[0].length); }
     else if ((lm = body.match(/^([A-H])[.)]\s+(?=\S)/))) body = body.slice(lm[0].length);
+    // A section word on its own line ("可选：", "最后加练：", "仕上げ：", "Pilihan:") labels what follows;
+    // in front of an exercise ("仕上げ：プランク 3セット×60秒") it labels just that one.
+    let own = '';
+    const sw = body.match(SECTION_WORD);
+    if (sw) {
+      if (!sw[2]) { section = sw[1]; continue; }
+      own = sw[1]; body = sw[2];
+    }
+    // Seconds ("60秒") are reps, noted as seconds; "力竭" / "限界まで" is to failure.
+    const secs = /\d\s*秒/.test(body);
+    // "60秒×3": the number with 秒 is the hold, the bare one the sets.
+    body = body.replace(/(\d+)\s*秒\s*[x×]\s*(\d+)(?!\s*(?:秒|次|回|\d|组|組|セット))/, '$2×$1秒');
+    body = body.replace(/(\d)\s*秒/g, '$1次').replace(/\s*(?:至|到)?力竭|\s*[x×]?\s*限界(?:まで)?|\s*オールアウト/g, ' to failure')
+      .replace(/(\d+)\s*(?:组|組|セット)\s*[x×]?\s*(?=to failure)/, '$1 sets ');
+    // Ranges written "8~10" / "8〜10", and "3*10" / "3＊10" for ×.
+    body = body.replace(/(\d)\s*[~〜]\s*(?=\d)/g, '$1–').replace(/(\d)\s*[*✕]\s*(?=\d)/g, '$1 × ')
+      // Chinese, Japanese and Malay: "4 组，每组 6–8 次", "4 セット × 6–8 回", "4 set, 6–8 ulangan", "3 set 10 rep" -> "4 × 6–8"
+      .replace(/(\d+)\s*(?:组|組|セット|sets?\b)\s*[,、]?\s*(?:每组|各)?\s*(?:[x×]\s*)?(\d+(?:\s*[–—-]\s*\d+)?)\s*(?:次|回|reps?\b|ulangan\b)/i, '$1 × $2')
+      // "4组×8", "3セット×10" (no rep word)
+      .replace(/(\d+)\s*(?:组|組|セット|set\b)\s*[,、]?\s*(?:每组|各)?\s*[x×]\s*(\d+)/i, '$1 × $2')
+      // "8次×4组", "10回 3セット": reps first
+      .replace(/(\d+(?:\s*[–—-]\s*\d+)?)\s*(?:次|回)\s*[x×]?\s*(\d+)\s*(?:组|組|セット)/, '$2 × $1')
+      // "3×10回": the rep word isn't needed
+      .replace(/([x×]\s*\d+(?:\s*[–—-]\s*\d+)?)\s*(?:次|回|ulangan\b)/i, '$1');
     // "5 sets of 5" / "3 sets of 8-12 reps" -> "5 × 5"; "3 x AMRAP" -> 3 sets, as many reps as you can.
     body = body.replace(/(\d+)\s*sets?\s*(?:of|x|×)\s*(\d+)(\s*[–—-]\s*\d+)?(?:\s*reps?\b)?/i, '$1 × $2$3')
       .replace(/(\d+)\s*[x×]\s*(amrap|max(?: reps)?|failure)\b/i, '$1 sets $2');
@@ -378,6 +417,7 @@ export function parseSplitText(text) {
       skipped.push(line); if (day.items.length || /\d/.test(line)) notAdded.push(line); continue;
     }
     let rest = (m[5] || '').trim();
+    if (secs) rest = ['seconds', rest].filter(Boolean).join(' ');
     // "Row 5 × 500m", "Bike 3 × 10 min": distance or time, not reps.
     if (!pct && m[3] && DIST_AFTER.test(rest)) { skipped.push(line); notAdded.push(line); continue; }
     const sets = Math.max(1, Math.min(10, +m[2]));
@@ -391,7 +431,8 @@ export function parseSplitText(text) {
     const inten = name.match(/\s*(@\s*\S.*|\bRPE\s*\d.*|\d+(?:\.\d+)?\s*%.*)$/i);
     if (inten && inten.index > 1) { rest = [inten[1].trim(), rest].filter(Boolean).join(' '); name = name.slice(0, inten.index).replace(/[\s–—:-]+$/, ''); }
     rest = rest.replace(/^[,;·-]\s*/, '').replace(/^amrap$/i, 'AMRAP').replace(/^max(?: reps)?$/i, 'AMRAP');
-    const note = [/optional/i.test(section) ? 'Optional' : /finish/i.test(section) ? 'Finisher' : '', rest].filter(Boolean).join(' · ');
+    const sec = own || section;
+    const note = [OPTIONAL_RE.test(sec) ? 'Optional' : FINISH_RE.test(sec) ? 'Finisher' : '', rest].filter(Boolean).join(' · ');
     day.items.push({ name, sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note, group });
   }
   // A superset label on its own ("A1" with no A2) is just numbering.

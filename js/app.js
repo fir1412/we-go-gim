@@ -2,15 +2,17 @@ import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from
 import { setUnits, setBwLabel } from './engine.js';
 import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
 import { setPlain } from './plain.js';
-import { setLang, getLang, translate, LANGS } from './i18n.js';
+import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i18n.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
 import * as history from './views/history.js';
 import * as levels from './views/levels.js';
+import * as atlas from './views/atlas.js';
 import * as setup from './views/setup.js';
 import * as more from './views/more.js';
 import * as daily from './views/daily.js';
+import './fx.js'; // motion and touch feedback (self-starting)
 
 const TABS = [
   ['today', 'Today', ICON.today],
@@ -25,7 +27,7 @@ const ROUTES = {
   today: [today, 'today'], daily: [daily, 'today'], start: [today, 'today'],
   workout: [workout, 'workout'],
   insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
-  levels: [levels, 'insights'], measure: [insights, 'insights'],
+  levels: [levels, 'insights'], atlas: [atlas, 'insights'], measure: [insights, 'insights'],
   setup: [setup, 'more'],
   history: [history, 'history'], session: [history, 'history'],
   more: [more, 'more'], program: [more, 'more'], paste: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
@@ -123,6 +125,8 @@ const GLOBAL = {
     await saveSettings({ lang: v });
     location.reload();
   },
+  'cal-export': () => more.exportCalendar(),
+  install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
@@ -221,8 +225,7 @@ document.addEventListener('visibilitychange', () => { wake(); paintTimer(); });
 
 /** First visit: follow the phone's language when the app speaks it. */
 function guessLang() {
-  const want = (navigator.languages || [navigator.language || 'en']).map(l => String(l).slice(0, 2).toLowerCase());
-  return want.find(l => LANGS.some(([k]) => k === l)) || 'en';
+  return pickLang(navigator.languages || [navigator.language || 'en']);
 }
 
 // ---- theme ------------------------------------------------------------------------
@@ -231,9 +234,11 @@ export function applyTheme() {
   const en = getLang() === 'en';
   setWording(!en ? 'plain' : S.settings.wording || (S.settings.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain'));
   setDateLang(getLang());
+  if (!en) setUserNames([...S.program.days.map(d => d.name), ...S.exercises.map(x => x.name)]);
   setPlain(!expertWording(), en ? null : translate);
   setUnits(S.settings.units || 'kg');
   setBwLabel(T('bw'));
+  document.documentElement.dataset.text = ['large', 'xl'].includes(S.settings.textSize) ? S.settings.textSize : '';
   const t = S.settings.theme;
   if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
@@ -243,8 +248,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.7.0';
+export const APP_VERSION = '1.8.0';
 const WHATS_NEW = {
+  '1.8.0': ['Medical mode: every muscle in 3D. Tap a muscle to see the exercises that train it', 'Day streaks, daily quests and badges. Rest days never break your streak', 'Reminders on training days through your phone calendar', '90 more exercises, a more detailed body map, and Traditional Chinese (繁體中文)', 'Import notes and spreadsheets written in Malay, Chinese or Japanese'],
   '1.7.0': ['New languages: Bahasa Melayu, 中文 and 日本語. Pick one in Settings or on the welcome screen', 'Easier English: short forms are written out in full (like “3 sets of 8 reps” and “minutes”), and muscles have everyday names', 'Safer: spreadsheets exported from the app can’t run hidden formulas, and typing mistakes like 6000 kg are caught'],
   '1.6.2': ['Security fixes: backup files are checked field by field, the PDF reader is verified before it runs, and very long pasted lines no longer slow the app down'],
   '1.6.1': ['New app icon: a tuxedo kitten with its dumbbells'],

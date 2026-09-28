@@ -1,8 +1,9 @@
 import { S, todayIso, refresh, dayForDate, saveSettings } from '../state.js';
-import { bodySVG } from '../anatomy.js';
-import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
+import { bodySVG, regionById } from '../anatomy.js';
+import { hasEstMax, trendRange, muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
 import { esc, fmtDate, pill, STATUS, num, cvar, kstyle, dowName, ICON, T, helpTip, expertWording } from '../ui.js';
 import { progressNav } from './insights.js';
+import { badgeWall } from '../gamify.js';
 
 /** Lifters who arrive with real history (experienced in setup, or a big import) never see beginner titles. */
 function seasoned() {
@@ -21,6 +22,7 @@ const setWord = () => (T('sets') === 'sets' ? 'working set' : 'hard set');
 
 let mode = 'level';   // level | week
 let sel = null;       // selected muscle
+let region = null;    // id of the map region tapped last (a finer muscle inside sel), or null
 
 function fillFor(m, data) {
   const r = data.muscles[m];
@@ -39,10 +41,17 @@ function fillFor(m, data) {
 /** Anatomical front and back views, male or female build, coloured by level or by this week's XP. */
 function diagram(data) {
   const lvl = m => (data.muscles[m]?.xp ? levelFor(data.muscles[m].xp).level : 0);
-  return bodySVG({ female: bodyType() === 'female', fill: m => fillFor(m, data), sel, level: lvl, esc });
+  return bodySVG({ female: bodyType() === 'female', fill: m => fillFor(m, data), sel, region, level: lvl, esc });
 }
 /** Build for the map: set on this screen, else taken from the strength-standards choice, else male. */
 const bodyType = () => S.settings.bodyType || (S.settings.stdSex === 'women' ? 'female' : 'male');
+
+/** The finer muscle tapped on the map, if it belongs to the selected group, and a way to see it in 3D. */
+function tapped(m) {
+  const r = regionById(region);
+  if (!r || r.group !== m) return '';
+  return `<p class="fine mregion"><span>You tapped:</span> <b data-noplain>${esc(r.part)}</b> · <a href="#/atlas/g/${encodeURIComponent(m)}">See it in 3D</a></p>`;
+}
 
 const xpf = n => Math.round(n).toLocaleString('en-GB');
 
@@ -73,7 +82,8 @@ export function render() {
 
   h += `<div class="rrow"><div class="seg" role="group" aria-label="Colour the map by">${[['level', 'Level'], ['week', 'This week']].map(([v, l]) => `<button data-act="mode" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
     <span class="legend">${mode === 'level' ? '<i class="lg" style="background:var(--legs)"></i>low <i class="lg" style="background:var(--push)"></i>high' : '<i class="lg" style="background:var(--up);opacity:.3"></i>little <i class="lg" style="background:var(--up)"></i>a lot'}</span></div>`;
-  h += `<div class="box diagram">${diagram(data)}<div class="seg sm bodyseg" role="group" aria-label="Body shown">${[['male', 'Male'], ['female', 'Female']].map(([v, l]) => `<button data-act="body" data-v="${v}" aria-pressed="${bodyType() === v}">${l}</button>`).join('')}</div></div>`;
+  h += `<div class="box diagram">${diagram(data)}<div class="seg sm bodyseg" role="group" aria-label="Body shown">${[['male', 'Male'], ['female', 'Female']].map(([v, l]) => `<button data-act="body" data-v="${v}" aria-pressed="${bodyType() === v}">${l}</button>`).join('')}</div></div>
+    <a class="btn ghost atlas-open" href="#/atlas/g/${encodeURIComponent(sel)}">${ICON.levels}Medical mode: every muscle in 3D</a>`;
 
   // selected muscle card
   const cur = ranked.find(x => x.m === sel);
@@ -81,12 +91,13 @@ export function render() {
   const nextDay = nextDayFor(sel, t);
   const days = cur.r.lastDate ? daysBetween(cur.r.lastDate, t) : null;
   h += `<section class="box mcard"><header><div class="lvbadge sm"><span>LVL</span><b>${cur.L.level}</b></div><div class="grow"><h2>${esc(sel)}</h2><small>${esc(muscleTitle(cur.L.level))} · ${xpf(cur.r.xp)} XP total</small></div>${cur.r.week ? pill(`+${cur.r.week} this week`, 'up') : ''}</header>
+    ${tapped(sel)}
     ${bar(cur.L.pct)}<p class="fine">${xpf(cur.L.need - cur.L.into)} XP to level ${cur.L.level + 1}. ${(() => { const n = Math.ceil((cur.L.need - cur.L.into) / XP_SET); return `That's about ${n} ${setWord()}${n === 1 ? '' : 's'}, fewer with a PR.`; })()}</p>
     <dl class="facts">
       <div><dt>Last trained</dt><dd>${days == null ? 'Never' : days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'} ago`}</dd></div>
       <div><dt>Next session</dt><dd>${nextDay ? `${esc(nextDay.name)} · ${nextDay.when}` : 'Not in your programme'}</dd></div>
       ${tr ? `<div><dt>Lead lift</dt><dd><a href="#/ex/${esc(tr.ex.id)}">${esc(tr.ex.name)}</a> ${pill(STATUS[tr.status][0], STATUS[tr.status][1])}</dd></div>` : ''}
-      ${tr && isKg(tr.ex.unit) ? `<div><dt>${esc(T('estMax'))} ${helpTip('estMax')}</dt><dd>${num(toDisp(tr.scores[0]))} → ${num(toDisp(tr.scores[tr.scores.length - 1]))} ${unitShort(tr.ex.unit)}</dd></div>` : tr ? `<div><dt>Top load</dt><dd>${esc(fmtLoad(tr.ex, tr.from.w))} → ${esc(fmtLoad(tr.ex, tr.to.w))}</dd></div>` : ''}
+      ${tr ? `<div><dt>${hasEstMax(tr.ex) ? `${esc(T('estMax'))} ${helpTip('estMax')}` : 'Top load'}</dt><dd>${esc(trendRange(tr.ex, tr))}</dd></div>` : ''}
     </dl>`;
   const ev = cur.r.events.slice(-5).reverse();
   if (ev.length) h += `<p class="lbl">Recent XP</p><ul class="xplist">${ev.map(e => `<li><a href="#/session/${esc(e.sessionId)}"><span>${fmtDate(e.date)}</span><span class="grow">${esc(e.why)}</span><b>+${e.xp}</b></a></li>`).join('')}</ul>`;
@@ -101,6 +112,7 @@ export function render() {
   }
   h += `</ul>`;
 
+  h += badgeWall(t);
   const ups = data.levelUps.slice(-6).reverse();
   if (ups.length) h += `<p class="lbl">Recent level-ups</p><ul class="box xplist pad">${ups.map(u => `<li><span>${fmtDate(u.date)}</span><span class="grow">${esc(u.muscle)} reached level ${u.level}</span><b class="lvstar">${ICON.star}</b></li>`).join('')}</ul>`;
   const nImp = S.sessions.filter(s => s.imported).length;
@@ -144,7 +156,7 @@ function nextDayFor(m, t) {
 }
 
 export const actions = {
-  muscle(el) { sel = el.dataset.m; refresh(); },
+  muscle(el) { sel = el.dataset.m; region = el.dataset.r || null; refresh(); },
   mode(el) { mode = el.dataset.v; refresh(); },
   body: el => saveSettings({ bodyType: el.dataset.v }),
 };

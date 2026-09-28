@@ -101,3 +101,10 @@ test('the app refuses to run inside another site\'s frame', () => {
   const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
   assert.match(src, /if \(window\.top !== window\.self\)/);
 });
+
+test('service worker: only page loads fall back to the app shell, never scripts', () => {
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /const shell = req\.mode === 'navigate';/);
+  assert.match(sw, /shell \? caches\.match\('\.\/index\.html'\) : undefined/);
+  for (const f of ['streak.js', 'calendar.js', 'atlas-map.js', 'i18n.js']) assert.ok(sw.includes(`'./js/${f}'`), `${f} precached`);
+});

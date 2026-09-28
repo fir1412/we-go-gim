@@ -1,9 +1,14 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
 import { guessMuscles } from '../io.js';
 import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round, MAX_KG, MAX_REPS } from '../engine.js';
-import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
-import { go, startTimer } from '../app.js';
+import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
+import { go, startTimer, canInstall } from '../app.js';
 import { groupLabels } from './today.js';
+import { translate, getLang } from '../i18n.js';
+import { plainText } from '../plain.js';
+import { searchText } from '../seed.js';
+import { weekStats, streakLine } from '../streak.js';
+import { streakInfo, badges } from '../gamify.js';
 
 const FEEL = [[1, 'Drained'], [2, 'Low'], [3, 'OK'], [4, 'Good'], [5, 'Great']];
 
@@ -74,7 +79,7 @@ export function render() {
   const mins = Math.max(0, Math.floor((Date.now() - d.start) / 60000));
   const all = d.entries.flatMap(e => e.sets.filter(s => !s.warm)), done = all.filter(s => s.done).length;
   const left = estimateRemaining(d.entries, S.exById, S.sessions, Date.now(), d.start);
-  const finishAt = new Date(Date.now() + left * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const finishAt = fmtTime(Date.now() + left * 1000);
   let h = `<div class="sbar"><div class="prog"><i style="width:${all.length ? done / all.length * 100 : 0}%"></i></div><span class="num">${done}/${all.length} sets</span></div>`;
   // Backfilling a past day: no clock, no rest timer; an optional duration instead.
   if (d.past) h += `<div class="warn" style="--k:var(--upper)"><b>Past workout.</b><span>Logging ${fmtDate(d.date, { dow: true, year: true })}. Tick the sets you did.</span></div>
@@ -104,7 +109,7 @@ export function render() {
     <button class="linkbtn danger center" data-act="discard">Discard workout</button>`;
   return {
     // The bar is sticky, so the clock and time left stay visible while scrolling.
-    title: d.name, sub: d.past ? `Past workout · ${fmtDate(d.date, { dow: true })}` : `${d.date !== todayIso() ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${mins} min in · ${left ? `~${Math.round(left / 60)} left · done ${finishAt}` : 'last sets'}`, color: d.color,
+    title: d.name, sub: d.past ? `Past workout · ${fmtDate(d.date, { dow: true })}` : `${d.date !== todayIso() ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${mins} min in · ${left ? `~${Math.round(left / 60)} min left · done ${finishAt}` : 'last sets'}`, color: d.color,
     right: `<button class="mini go" data-act="finish">Finish</button>`, html: h,
   };
 }
@@ -226,7 +231,7 @@ function pairItem(ei) {
 }
 
 // ---- cardio inside a workout ---------------------------------------------------------------------------
-const CW_TYPES = ['Treadmill', 'Bike', 'Rower', 'Stairs', 'Incline walk', 'Run', 'Swim', 'Other'];
+const CW_TYPES = ['Treadmill', 'Incline walk', 'Walk', 'Run', 'Bike', 'Exercise bike', 'Rower', 'Stairs', 'Swim', 'Futsal', 'Badminton', 'Basketball', 'Table tennis', 'Skipping rope', 'Muay Thai', 'Silat', 'Tai chi', 'Aerobics', 'Dance', 'Yoga', 'Pilates', 'Stretching', 'Other'];
 const cw = { type: 'Treadmill', intensity: 'moderate' };
 function cardioSheet() {
   const keep = id => document.getElementById(id)?.value ?? '';
@@ -253,7 +258,7 @@ function earlyWins(d) {
     const repsNow = ws.reduce((a, s) => a + (+s.r || 0), 0), repsThen = last.sets.reduce((a, s) => a + (+s.r || 0), 0);
     if ((now != null && then != null && now > then + 1e-6) || (ex.unit === 'bw' && repsNow > repsThen)) beat.push(ex.name);
   }
-  if (beat.length) return `<div class="box prbox win"><p class="lbl">You beat last time</p><p>${ICON.trendUp}${esc(beat.slice(0, 4).join(', '))}${beat.length > 4 ? ` and ${beat.length - 4} more` : ''}.</p><p class="fine">That is how it works: every session starts from your last one and asks for a little more where you earned it.</p></div>`;
+  if (beat.length) return `<div class="box prbox win"><p class="lbl">You beat last time</p><div class="chips">${ICON.trendUp}${beat.slice(0, 6).map(n => pill(n, 'up')).join('')}</div><p class="fine">That is how it works: every session starts from your last one and asks for a little more where you earned it.</p></div>`;
   if (!before) return `<div class="box prbox win"><p class="lbl">First workout logged</p><p class="fine">Next time every set is filled in from today, with a small step up where you earned it. Beat it and you will see it here.</p></div>`;
   return '';
 }
@@ -290,7 +295,7 @@ function summary(d) {
       v += volume(ex, ws.slice(0, n)); lv += volume(ex, last.sets.slice(0, n));
     }
     if (ws.length && prevExps.length) {
-      const pb = personalBests(prevExps, ex.unit);
+      const pb = personalBests(prevExps, ex);
       const bestNow = Math.max(0, ...ws.map(s => e1rm(+s.w, +s.r) || 0));
       const heavyNow = Math.max(...ws.map(s => +s.w || 0));
       if (pb.best && bestNow > pb.best.v + 1e-6) prs.push(`${ex.name}: best ${expertWording() ? 'e1RM' : 'estimated 1-rep max'}, ${num(toDisp(bestNow))} ${getUnits()}`);
@@ -301,13 +306,29 @@ function summary(d) {
     const sg = suggest(e.slot, ex, ctx), u = sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit);
     return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? (ex.unit === 'bw' ? esc(T('bw')) : expertWording() ? '?' : 'Find weight') : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
   }).join('');
-  const pct = lv ? Math.round((v / lv - 1) * 100) : null;
+  // A short or partial workout isn't compared with a full one: no red percentage for showing up.
+  const partial = tot && done < tot / 2;
+  const pct = lv && !partial ? Math.round((v / lv - 1) * 100) : null;
   const mins = d.past ? d.minutes : Math.max(1, Math.round((Date.now() - d.start) / 60000));
   const planned = d.plannedSec ? Math.round(d.plannedSec / 60) : null;
   let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
+  if (partial) h += `<p class="fine keepgoing">Every set counts. Showing up is what keeps the plan going.</p>`;
+  if (!d.past) {
+    // What this workout adds: the day streak after saving, and any badge it unlocks.
+    const was = S.sessions, withThis = [...S.sessions, { id: d.id, date: d.date, name: d.name, entries: d.entries }];
+    const before = new Set(badges(d.date).filter(b => b.date).map(b => b.id));
+    S.sessions = withThis;
+    let st, fresh;
+    try { st = streakInfo(d.date); fresh = badges(d.date).filter(b => b.date && !before.has(b.id)); } finally { S.sessions = was; }
+    h += `<div class="box pad gamewin"><p class="big"><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</p>${st.streak > 1 && st.streak === st.best ? '<p class="fine">Your best streak yet.</p>' : ''}</div>`;
+    if (fresh.length) h += `<div class="box prbox badgewin"><p class="lbl">New badge</p>${fresh.map(b => `<p><span class="bi" aria-hidden="true">${b.icon}</span> <b>${b.name}</b></p><p class="fine">${b.about}</p>`).join('')}</div>`;
+  }
   h += earlyWins(d);
+  // Early on, one offer of reminders: the biggest reason people drift away is forgetting the next workout.
+  if (!d.past && !S.settings.calAdded && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Want a nudge on training days?</b></p><p class="fine">Your phone's calendar can remind you 10 minutes before. Nothing is sent anywhere.</p><button class="btn ghost" data-act="cal-export">Add training days to my calendar</button></div>`;
+  if (!d.past && canInstall() && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Keep it one tap away</b></p><p class="fine">Install the app: an icon on your home screen, full screen, works offline.</p><button class="btn ghost" data-act="install">Install the app</button></div>`;
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
   const before = muscleXP(S.sessions, S.exById, d.date);
@@ -398,6 +419,8 @@ export const actions = {
       <button class="li" data-act="swap" data-e="${ei}"><span><b>Swap exercise</b><small>Machine taken? Keeps the set count and rep range</small></span></button>
       ${pairItem(ei)}
       <button class="li" data-act="note" data-e="${ei}"><span><b>${e.note ? 'Edit note' : 'Add note'}</b><small>Grip, seat setting, how it felt</small></span></button>
+      <a class="li" href="${esc(howToUrl(ex))}" target="_blank" rel="noopener noreferrer"><span><b>How to do it</b><small>Opens a video search in your browser</small></span></a>
+      <a class="li" href="#/atlas/x/${esc(ex.id)}"><span><b>See the muscles in 3D</b><small>Main muscles and helpers</small></span></a>
       <button class="li" data-act="del-set" data-e="${ei}"><span><b>Remove last set</b></span></button>
       <button class="li" data-act="move" data-e="${ei}" data-d="-1" ${ei === 0 ? 'disabled' : ''}><span><b>Move up</b></span></button>
       <button class="li" data-act="move" data-e="${ei}" data-d="1" ${ei === S.draft.entries.length - 1 ? 'disabled' : ''}><span><b>Move down</b></span></button>
@@ -665,7 +688,7 @@ function pickExercise(ei) {
   const sheet = openSheet(`<h2 class="sh-title">${cur ? `Swap ${esc(cur.name)}` : 'Add exercise'}</h2>
     <input class="inp" id="exsearch" type="search" placeholder="Search exercises" autocomplete="off">
     <p class="fine" id="exnone" hidden>No exercise matches. Create it below.</p>
-    <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(x.name.toLowerCase())}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
+    <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(searchText(x))}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
     <button class="btn ghost" data-act="quick-new" data-e="${ei ?? ''}">${ICON.plus} <span id="qn-label">Create a new exercise</span></button>`, { label: 'Pick exercise' });
   sheet.querySelector('#exsearch').addEventListener('input', ev => {
     const raw = ev.target.value.trim(), q = raw.toLowerCase();
@@ -695,3 +718,13 @@ function paintQuick() {
     <div class="row2"><button class="btn ghost" data-act="qn-full">More options</button><button class="btn" data-act="qn-save" style="--c:var(--up)">Add to workout</button></div>`, { label: 'New exercise' });
 }
 const qnName = () => { const el = document.getElementById('qn-name'); if (el) qn.name = el.value.trim(); };
+
+/** A video search for good form, in the app's language (the user taps it; nothing is sent until then). */
+function howToUrl(ex) {
+  const lang = getLang();
+  const name = lang === 'en' ? ex.name : translate(plainText(ex.name));
+  const how = { en: 'exercise proper form', ms: 'cara betul senaman', zh: '动作要领', 'zh-Hant': '動作要領', ja: 'やり方 フォーム' }[lang] || 'exercise proper form';
+  if (lang === 'zh') return `https://search.bilibili.com/all?keyword=${encodeURIComponent(`${name} ${how}`)}`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} ${how}`)}`;
+}
+

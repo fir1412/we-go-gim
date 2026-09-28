@@ -11,6 +11,7 @@ export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ESC[c]);
 // so every module that imported them sees the new names.
 const DATE_NAMES = {
   en: { mon: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], letter: ['S', 'M', 'T', 'W', 'T', 'F', 'S'] },
+  'zh-Hant': { mon: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], dow: ['週日', '週一', '週二', '週三', '週四', '週五', '週六'], long: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'], letter: ['日', '一', '二', '三', '四', '五', '六'] },
   ms: { mon: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'], dow: ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'], long: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'], letter: ['A', 'I', 'S', 'R', 'K', 'J', 'S'] },
   zh: { mon: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], dow: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'], long: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'], letter: ['日', '一', '二', '三', '四', '五', '六'] },
   ja: { mon: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], dow: ['日', '月', '火', '水', '木', '金', '土'], long: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'], letter: ['日', '月', '火', '水', '木', '金', '土'] },
@@ -28,15 +29,17 @@ export const parts = iso => { const [y, m, d] = iso.split('-').map(Number); retu
 export const fmtDate = (iso, { year = false, dow = false } = {}) => {
   if (!iso) return '';
   const p = parts(iso);
-  if (dateLang === 'zh') return `${year ? p.y + '年' : ''}${p.m}月${p.d}日${dow ? ' ' + DOW[p.dow] : ''}`;
+  if ((dateLang === 'zh' || dateLang === 'zh-Hant')) return `${year ? p.y + '年' : ''}${p.m}月${p.d}日${dow ? ' ' + DOW[p.dow] : ''}`;
   if (dateLang === 'ja') return `${year ? p.y + '年' : ''}${p.m}月${p.d}日${dow ? '(' + DOW[p.dow] + ')' : ''}`;
   return `${dow ? DOW[p.dow] + ' ' : ''}${p.d} ${MON[p.m - 1]}${year ? ' ' + p.y : ''}`;
 };
 /** "Sep 2026" / "2026年9月" for a 'YYYY-MM' month. */
-export const fmtMonth = ym => (dateLang === 'zh' || dateLang === 'ja' ? `${ym.slice(0, 4)}年${+ym.slice(5)}月` : `${MON[+ym.slice(5) - 1]} ${ym.slice(0, 4)}`);
+export const fmtMonth = ym => (dateLang === 'zh' || dateLang === 'zh-Hant' || dateLang === 'ja' ? `${ym.slice(0, 4)}年${+ym.slice(5)}月` : `${MON[+ym.slice(5) - 1]} ${ym.slice(0, 4)}`);
 export const dowName = (i, long = false) => (long ? DOW_LONG : DOW)[i];
 /** One-letter weekday for compact calendars (M T W… / I S R… / 一 二 三…). */
 export const dowLetter = i => DOW_LETTER[i];
+/** Clock time: 24-hour in Chinese and Japanese (as people there read it), the phone's own style otherwise. */
+export const fmtTime = ms => new Date(ms).toLocaleTimeString(dateLang === 'zh' || dateLang === 'zh-Hant' || dateLang === 'ja' ? 'en-GB' : [], { hour: '2-digit', minute: '2-digit', ...(dateLang === 'zh' || dateLang === 'zh-Hant' || dateLang === 'ja' ? { hourCycle: 'h23' } : {}) });
 export const num = (v, dp = 1) => (v == null || isNaN(v) ? '—' : String(+(+v).toFixed(dp)));
 export const kfmt = v => Math.round(v).toLocaleString('en-GB');
 
@@ -205,16 +208,17 @@ window.addEventListener('hashchange', () => { staleHref = null; });
 export const sheetOpen = () => !!sheetClose;
 
 /** In-app confirmation (never window.confirm). */
-export function confirmSheet({ title, body = '', ok = 'Confirm', danger = false }) {
+/** Resolves true (ok), false (cancel) or 'alt' when the optional middle choice is picked. */
+export function confirmSheet({ title, body = '', ok = 'Confirm', danger = false, alt = null }) {
   return new Promise(resolve => {
     let done = false;
     const el = openSheet(`<h2 class="sh-title">${esc(title)}</h2>${body ? `<p class="sh-body">${body}</p>` : ''}
-      <div class="row2"><button class="btn ghost" data-x="no">Cancel</button><button class="btn ${danger ? 'danger' : ''}" data-x="yes">${esc(ok)}</button></div>`,
+      ${alt ? `<button class="btn" data-x="alt">${esc(alt)}</button>` : ''}<div class="row2"><button class="btn ghost" data-x="no">Cancel</button><button class="btn ${danger ? 'danger' : ''}${alt ? ' ghost' : ''}" data-x="yes">${esc(ok)}</button></div>`,
       { label: title, onClose: () => { if (!done) resolve(false); } });
     el.addEventListener('click', e => {
       const b = e.target.closest('[data-x]');
       if (!b) return;
-      done = true; resolve(b.dataset.x === 'yes'); closeSheet();
+      done = true; resolve(b.dataset.x === 'alt' ? 'alt' : b.dataset.x === 'yes'); closeSheet();
     });
   });
 }

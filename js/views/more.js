@@ -1,8 +1,11 @@
 import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh } from '../state.js';
 import * as db from '../db.js';
-import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits } from '../engine.js';
+import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
 import { LANGS, getLang } from '../i18n.js';
+import { trainingIcs, googleCalendarUrl } from '../calendar.js';
+import { translate } from '../i18n.js';
+import { plainText } from '../plain.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
@@ -57,6 +60,7 @@ function home() {
   h += `<div class="list box">
     ${row('program', ICON.list, 'Programme', `${nDays} training days · sets and rep ranges`, 'push')}
     ${row('exercises', ICON.workout, 'Exercises', `${S.exercises.length} in your library`, 'pull')}
+    ${row('atlas', ICON.levels, 'Medical mode: every muscle in 3D', 'Tap a muscle to see the exercises that train it', 'upper')}
     ${row('gyms', ICON.pin, 'Gyms', `Training at ${esc(gym?.name || '—')}`, 'legs')}
     ${row('equip', ICON.plate, 'Equipment', 'Dumbbells, plates, bars', 'arms')}
     </div><div class="list box">
@@ -178,7 +182,11 @@ function pickExercise(title, onPick, cur = null) {
 function exercises() {
   const inProg = new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
   let h = `<input class="inp" id="exq" type="search" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off">${cardioHint}
-    <a class="btn ghost" href="#/exercise/new">${ICON.plus} New exercise</a><ul class="box mus" id="exl">`;
+    <a class="btn ghost" href="#/exercise/new">${ICON.plus} New exercise</a>`;
+  // Exercises imported before the muscle guesser improved: offer the better guess, never change it silently.
+  const recheck = muscleRechecks();
+  if (recheck.length) h += `<div class="box pad"><p><b>Check muscles on ${recheck.length} imported exercise${recheck.length === 1 ? '' : 's'}</b></p><p class="fine">The app now reads exercise names better. These may count toward the wrong muscles on your levels and the 3D view.</p><ul class="recheck">${recheck.slice(0, 12).map(({ x, g }) => `<li><span class="grow" data-raw><b>${esc(x.name)}</b></span><small>${(x.muscles || []).map(m => `<span>${esc(m)}</span>`).join(', ') || '—'} → ${g.map(m => `<span>${esc(m)}</span>`).join(', ')}</small><span class="row2"><button class="mini go" data-act="mus-fix" data-id="${esc(x.id)}">Use suggested</button><button class="mini" data-act="mus-keep" data-id="${esc(x.id)}">Keep</button></span></li>`).join('')}</ul>${recheck.length > 1 ? `<button class="btn ghost" data-act="mus-fix-all">Use suggested for all ${recheck.length}</button>` : ''}</div>`;
+  h += `<ul class="box mus" id="exl">`;
   for (const x of S.exercises) {
     h += `<li data-name="${esc(searchText(x))}"><a href="#/exercise/${esc(x.id)}"><span class="t">${esc(x.name)} ${inProg.has(x.id) ? pill('in programme', 'up') : ''}${x.unitUnclear ? pill('unit unclear', 'flat') : ''}${!(x.muscles || []).length ? pill('set muscles', 'down') : ''}</span><span class="d">${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</span></a></li>`;
   }
@@ -486,13 +494,14 @@ function impPicker(gi) {
 function settings() {
   const st = S.settings;
   const tg = (f, title, sub) => `<label class="toggle"><input type="checkbox" id="st-${f}" data-input="st-toggle" data-f="${f}" ${st[f] ? 'checked' : ''}><span><b>${title}</b><small>${sub}</small></span></label>`;
-  const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
+  const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" data-ctx="${act}" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
   const wording = st.wording || (st.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain');
   const u = getUnits();
   const en = getLang() === 'en';
   const h = `<div class="box pad stack">${langPicker(getLang(), LANGS)}
       ${seg('Theme', 'theme', st.theme, [['system', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}
       ${seg('Weights', 'st-units', st.units === 'lb' ? 'lb' : 'kg', [['kg', 'kg'], ['lb', 'lb']])}
+      ${seg('Text size', 'st-text', st.textSize || 'normal', [['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']])}
       ${en ? seg('Words', 'st-wording', wording, [['plain', 'Plain'], ['expert', 'Gym terms']]) : ''}
       <p class="fine">${!en ? '' : wording === 'expert' ? 'Gym terms: RIR, e1RM, calibrate, deload. ' : 'Plain words: “reps left” instead of RIR, “find your weight” instead of calibrate. '}Weights are always stored in kg, so switching units never changes your history.</p></div>
     <div class="box pad stack">
@@ -500,6 +509,17 @@ function settings() {
       ${tg('timerVibrate', 'Rest timer vibration', 'Buzz when rest is over')}
       ${tg('restNotify', 'Notify when rest is over', 'A notification if the app is in the background or the screen is off. Some phones pause web apps after a while, so it can arrive late')}
       ${tg('wakeLock', 'Keep screen on during workouts', 'So you can glance at the next set')}
+      ${seg('New day starts at', 'st-daystart', String(st.dayStart || 0), [['0', 'Midnight'], ['3', '3:00'], ['5', '5:00']])}
+      <p class="fine">For night shifts: a workout after midnight counts for the day before.</p>
+    </div>
+    <div class="box pad stack">
+      <label class="toggle"><input type="checkbox" id="st-pause" data-input="st-pause" ${(st.streakPauses || []).some(p => !p.to) ? 'checked' : ''}><span><b>Pause my streak</b><small>Travel, illness, Ramadan or a busy stretch: weeks while paused never count against it</small></span></label>
+    </div>
+    <div class="box pad stack">
+      <p class="lbl">Training reminders</p>
+      <p class="fine">Adds your training days to your phone's calendar, which reminds you 10 minutes before. Works even when the app is closed. Nothing is sent anywhere.</p>
+      <div class="rrow"><label for="st-remind">Reminder time</label><input class="inp sm" id="st-remind" type="time" value="${esc(st.remindAt || '18:00')}" data-input="st-remind"></div>
+      <button class="btn ghost" data-act="cal-export">${ICON.clock || ''} Add training days to my calendar</button>
       <label class="toggle"><input type="checkbox" id="st-missed" data-input="st-missed" ${st.missedReminders === false ? '' : 'checked'}><span><b>Missed-workout reminders</b><small>Offer to do a missed day today. Turn off if you train on whatever days suit you</small></span></label>
       ${seg('Warm-up sets', 'st-warm', st.autoWarmup === true ? 'all' : st.autoWarmup === 'barbell' ? 'barbell' : 'off', [['off', 'Off'], ['barbell', 'Barbell'], ['all', 'All lifts']])}
       <p class="fine">Ramp-up sets added before your first working set. Barbell: only barbell and Smith lifts, with plates per side shown for each.</p></div>
@@ -512,6 +532,7 @@ function settings() {
       <p><b>Not medical advice.</b> Suggestions are general training guidance from your own logs. Stop and see a doctor for chest pain, fainting, unusual breathlessness, palpitations, numbness, or sharp or radiating pain.</p>
       <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it. Only feedback you choose to send leaves the phone.</p>
       <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
+      <p>3D view: three.js (MIT). 3D muscle model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas, CC BY-SA 4.0. Details in anatomy/ATTRIBUTION.txt.</p>
       <p class="links"><a href="https://github.com/fir1412/we-go-gim/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
     <p class="fine">we go gim ${APP_VERSION}. Heart-rate and weight sync with Health Connect needs the Android app wrapper; for now, log them here.</p>`;
   return { title: 'Settings', sub: 'Make it yours', back: 'more', html: h, color: 'rest' };
@@ -562,6 +583,9 @@ async function markBackup() { if (S.settings.lastBackup !== todayIso()) await sa
 const backupName = () => `wegogim-backup-${todayIso()}.json`;
 
 export const actions = {
+  async 'mus-fix'(el) { const x = S.exById[el.dataset.id]; if (x) await saveExercise({ ...x, muscles: guessMuscles(x.name), musclesKept: true }); },
+  async 'mus-keep'(el) { const x = S.exById[el.dataset.id]; if (x) await saveExercise({ ...x, musclesKept: true }); },
+  async 'mus-fix-all'() { for (const { x, g } of muscleRechecks()) await saveExercise({ ...x, muscles: g, musclesKept: true }); toast('Muscles updated', 'up'); },
   'setup-hide': () => saveSettings({ hideSetup: true }),
   async install() { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
   'sheet-close': () => closeSheet(),
@@ -786,9 +810,10 @@ export const actions = {
     const dates = d.sessions.map(s => s.date).sort();
     const cnt = a => Number(Array.isArray(a) ? a.length : 0);
     const saved = typeof d.exported === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.exported) ? `, saved ${fmtDate(d.exported.slice(0, 10), { year: true })}` : '';
-    const body = `<b>${esc(f.name)}</b>${saved}: ${plural(cnt(d.sessions), 'session')}${dates.length ? ` (${fmtDate(dates[0], { year: true })} to ${fmtDate(dates[dates.length - 1], { year: true })})` : ''}, ${plural(cnt(d.exercises), 'exercise')}, ${plural(cnt(d.body), 'weigh-in')}.<br><br>It replaces the ${plural(S.sessions.length, 'session')} on this phone. ${S.draft ? '<b>Your workout in progress will be discarded.</b> ' : ''}An undo copy of your current data is kept.`;
-    if (!(await confirmSheet({ title: 'Restore this backup?', body, ok: 'Restore', danger: true }))) return;
-    await withUndo('restore', () => importAll(d));
+    const body = `<b>${esc(f.name)}</b>${saved}: ${plural(cnt(d.sessions), 'session')}${dates.length ? ` (${fmtDate(dates[0], { year: true })} to ${fmtDate(dates[dates.length - 1], { year: true })})` : ''}, ${plural(cnt(d.exercises), 'exercise')}, ${plural(cnt(d.body), 'weigh-in')}.<br><br>${S.sessions.length ? `Merge keeps the ${plural(S.sessions.length, 'session')} on this phone and adds the ones in the file (handy with two phones). Replace swaps everything for the file.` : 'It replaces what is on this phone.'} ${S.draft ? '<b>Your workout in progress will be discarded.</b> ' : ''}An undo copy of your current data is kept.`;
+    const how = await confirmSheet({ title: 'Restore this backup?', body, ok: S.sessions.length ? 'Replace' : 'Restore', danger: true, alt: S.sessions.length ? 'Merge (keep both)' : null });
+    if (!how) return;
+    await withUndo('restore', () => importAll(d, { merge: how === 'alt' }));
     pOrig = null;
     toast('Backup restored', 'up');
     if (location.hash.startsWith('#/import')) go('today');
@@ -976,6 +1001,16 @@ export const actions = {
     await saveSettings({ [el.dataset.f]: el.checked });
   },
   'st-missed': el => saveSettings({ missedReminders: el.checked }),
+  'st-pause'(el) {
+    const t = todayIso(), list = (S.settings.streakPauses || []).filter(p => p && p.from).slice(-20);
+    if (el.checked && !list.some(p => !p.to)) list.push({ from: t, to: null });
+    if (!el.checked) for (const p of list) if (!p.to) p.to = t;
+    return saveSettings({ streakPauses: list });
+  },
+  'st-text': el => saveSettings({ textSize: ['large', 'xl'].includes(el.dataset.v) ? el.dataset.v : 'normal' }),
+  'st-daystart': el => saveSettings({ dayStart: +el.dataset.v || 0 }),
+  'st-remind': el => { if (/^\d{2}:\d{2}$/.test(el.value)) saveSettings({ remindAt: el.value }); },
+  'cal-export'() { exportCalendar(); },
   'st-warm': el => saveSettings({ autoWarmup: el.dataset.v === 'all' ? true : el.dataset.v === 'barbell' ? 'barbell' : false }),
   // Units and wording apply straight away: saving settings repaints every screen.
   'st-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
@@ -1106,3 +1141,37 @@ Object.assign(actions, {
     go('program');
   },
 });
+
+/** Training days as a calendar file: the phone's calendar app takes over the reminders. */
+export function exportCalendar() {
+  // Event text in the app's language: it is read later inside the calendar app, outside this screen.
+  const tr = s => translate(plainText(s));
+  const days = S.program.days.filter(d => d.slots.length).map(d => ({ dow: d.dow, name: d.name, title: tr(d.name), minutes: Math.round(estimateDay(d, S.exById, S.sessions) / 60) }));
+  if (!days.length) return toast('No training days in your programme yet', 'flat');
+  const url = location.href.split('#')[0] + '#/start';
+  const time = S.settings.remindAt || '18:00';
+  const words = { train: tr('Time to train') };
+  const links = days.map(d => `<a class="btn ghost" href="${esc(googleCalendarUrl(d, time, { title: `we go gim: ${d.title}`, details: `${words.train} · ${url}` }))}" target="_blank" rel="noopener noreferrer">${esc(dowName(d.dow, true))} · ${esc(d.name)}</a>`).join('');
+  const google = `<p class="fine">Google Calendar (most Android phones): tap each day and save. It repeats every week at ${esc(time)}.</p><div class="callist">${links}</div>`;
+  const file = `<p class="fine">Any other calendar (iPhone, Samsung, Huawei, Xiaomi, OPPO, vivo, Outlook): download one file with every day, then open it.</p><button class="btn ghost" data-x="ics">Download calendar file</button>`;
+  const el = openSheet(`<h2 class="sh-title">Add training days to my calendar</h2>${getLang() === 'zh' ? file + google : google + file}`, { label: 'Training reminders' });
+  el.addEventListener('click', ev => {
+    if (ev.target.closest('a[href^="https://calendar.google.com"]')) saveSettings({ calAdded: true });
+    if (!ev.target.closest('[data-x="ics"]')) return;
+    download('we-go-gim-training.ics', trainingIcs(days, time, url, new Date(), words), 'text/calendar');
+    saveSettings({ calAdded: true });
+    toast('Open the downloaded file to add the reminders to your calendar', 'up');
+  });
+}
+
+/** Imported exercises whose stored muscles differ from what the name now suggests (and not already kept). */
+function muscleRechecks() {
+  const out = [];
+  for (const x of S.exercises) {
+    if (!x.imported || x.musclesKept) continue;
+    const g = guessMuscles(x.name);
+    if (g.length && JSON.stringify([...g].sort()) !== JSON.stringify([...(x.muscles || [])].sort())) out.push({ x, g });
+  }
+  return out;
+}
+
