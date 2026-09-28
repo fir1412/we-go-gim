@@ -1,6 +1,7 @@
-import { S, todayIso, dayForDate, setReadiness, startWorkout, suggestionCtx, isPoor, deloadActive, saveSettings, saveBody, discardDraft, refresh } from '../state.js';
-import { suggest, weekStart, addDays, deloadCheck, fmtLoad, unitShort, dowOf, estimateDay } from '../engine.js';
-import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, dowName, num } from '../ui.js';
+import { S, todayIso, dayForDate, setReadiness, startWorkout, suggestionCtx, isPoor, deloadActive, saveSettings, saveBody, discardDraft, refresh, trimmedCounts } from '../state.js';
+import { suggest, weekStart, addDays, deloadCheck, fmtLoad, unitShort, dowOf, estimateDay, planSec, SESSION_LENGTHS, toDisp, fromDisp, getUnits } from '../engine.js';
+import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, dowName, num, T, helpTip, expertWording } from '../ui.js';
+import { dailyCard } from './daily.js';
 import { go } from '../app.js';
 
 const open = new Set();
@@ -51,40 +52,53 @@ export function render(route) {
   const ctx = suggestionCtx(isToday ? date : t);
   const sgs = day.slots.map(slot => S.exById[slot.exId] ? suggest(slot, S.exById[slot.exId], ctx) : null);
   // Count what will actually be done (a deload halves the sets), not just the plan.
-  const planned = { ...day, slots: day.slots.map((x, i) => ({ ...x, sets: sgs[i]?.reps.length ?? x.sets })) };
-  const sets = planned.slots.reduce((a, x) => a + +x.sets, 0);
+  const counts = day.slots.map((x, i) => sgs[i]?.reps.length ?? +x.sets);
+  const resume = S.draft && S.draft.name === day.name && S.draft.date === t;
+  // "How long today?" only shapes a workout about to start from Today.
+  const choosing = isToday && !doneToday && !resume;
+  const len = choosing ? +S.settings.sessionLen || null : null;
+  const trim = trimmedCounts(day, counts, len);
+  const isTrimmed = trim.some((n, i) => n !== counts[i]);
+  const sets = trim.reduce((a, n) => a + n, 0), exN = day.slots.filter((x, i) => S.exById[x.exId] && trim[i] > 0).length;
+  const estSec = isTrimmed ? planSec(day.slots, trim, S.exById, S.sessions) : estimateDay({ ...day, slots: day.slots.map((x, i) => ({ ...x, sets: counts[i] })) }, S.exById, S.sessions);
   const last = S.sessions.find(s => (s.name === day.name || s.color === day.color) && s.date <= date);
   h += `<div class="hero"><div><h2>${esc(day.name)}</h2><p>${esc(day.sub || '')}</p></div>
-    <div class="meta"><span><b>${day.slots.length}</b>exercises</span><span><b>${sets}</b>work sets</span><span><b>~${Math.round(estimateDay(planned, S.exById, S.sessions) / 60)}</b>min</span><span><b>${last ? (last.date === t ? 'Today' : fmtDate(last.date)) : '—'}</b>last done</span></div></div>`;
+    <div class="meta"><span><b>${exN}</b>exercises</span><span><b>${sets}</b>work sets</span><span><b>~${Math.round(estSec / 60)}</b>min</span><span><b>${last ? (last.date === t ? 'Today' : fmtDate(last.date)) : '—'}</b>last done</span></div></div>`;
 
-  const resume = S.draft && S.draft.name === day.name && S.draft.date === t;
   // Readiness only shapes a workout at the moment it starts: hide it once today's is logged or under way.
-  if (isToday && !doneToday && !resume) {
+  if (choosing) {
+    const xp = expertWording();
     h += `<div class="box ready">
-      <div class="rrow"><span>Sleep last night</span><div class="seg" role="group" aria-label="Sleep">${['<6', '6–7', '7+'].map(v => `<button data-act="sleep" data-v="${v}" aria-pressed="${S.readiness.sleep === v}">${v} h</button>`).join('')}</div></div>
-      <div class="rrow"><span>Pain or joint niggle</span><div class="seg" role="group" aria-label="Pain">${['No', 'Yes'].map(v => `<button data-act="pain" data-v="${v}" aria-pressed="${(v === 'Yes') === !!S.readiness.pain}">${v}</button>`).join('')}</div></div>
-      ${isPoor() ? `<div class="warn"><b>Hold day.</b><span>Suggestions use last session's numbers at 2–3 RIR. Sharp or radiating pain, chest pain, fainting or unusual breathlessness: skip training and get checked.</span></div>` : ''}
+      <div class="rrow"><span>Sleep last night</span><div class="seg" role="group" aria-label="Sleep last night">${['<6', '6–7', '7+'].map(v => `<button data-act="sleep" data-v="${v}" aria-pressed="${S.readiness.sleep === v}">${v} h</button>`).join('')}</div></div>
+      <div class="rrow"><span>${esc(T('pain'))}</span><div class="seg" role="group" aria-label="${esc(T('pain'))}">${['No', 'Yes'].map(v => `<button data-act="pain" data-v="${v}" aria-pressed="${(v === 'Yes') === !!S.readiness.pain}">${v}</button>`).join('')}</div></div>
+      <div class="rrow"><span>How long today?</span><div class="seg" role="group" aria-label="How long today">${[...SESSION_LENGTHS, null].map(v => `<button data-act="len" data-v="${v ?? ''}" aria-pressed="${len === v}" aria-label="${v ? v + ' minutes' : 'Full workout'}">${v ? v + ' min' : 'Full'}</button>`).join('')}</div></div>
+      ${isTrimmed ? `<p class="fine lenfine">Short session: ${trim.some(n => n === 0) ? 'extra exercises skipped and ' : ''}fewer sets, main lifts kept first.</p>` : ''}
+      ${isPoor() ? `<div class="warn"><b>${esc(T('holdDay'))}.</b>${helpTip('hold')}<span>${xp ? "Suggestions use last session's numbers at 2–3 RIR." : 'Same weights as last time, stopping with 2–3 reps left in the tank.'} Sharp or radiating pain, chest pain, fainting or unusual breathlessness: skip training and get checked.</span></div>` : ''}
     </div>`;
   } else if (!isToday) {
     h += `<p class="fine">Preview for ${fmtDate(date, { dow: true })}. Suggestions assume your current readiness.</p>`;
   }
+  if (isToday) h += dailyCard(date);
 
   h += `<p class="lbl">${doneToday ? 'Next time · tap for why' : 'Suggested · tap for why'}</p><ul class="box sug">`;
   const groups = groupLabels(day.slots);
   day.slots.forEach((slot, i) => {
     const ex = S.exById[slot.exId];
     if (!ex) return;
-    const sg = sgs[i];
+    const sg = sgs[i], n = trim[i];
     const lastExp = S.sessions.find(s => s.date <= ctx.date && s.entries.some(e => e.exId === ex.id && e.sets.some(x => x.done && !x.warm)));
     const le = lastExp?.entries.find(e => e.exId === ex.id);
     const ls = le ? le.sets.filter(x => x.done && !x.warm) : [];
     const lastTxt = ls.length ? `Last ${fmtLoad(ex, Math.max(...ls.map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${ls.map(x => x.r ?? '?').join('·')} · ${fmtDate(lastExp.date)}` : 'No comparable log yet';
     const isOpen = open.has(i);
-    h += `<li><button class="head" data-act="why" data-i="${i}" aria-expanded="${isOpen}">
+    const reps = sg.reps.slice(0, n || sg.reps.length);
+    const load = sg.w == null ? (ex.unit === 'bw' ? T('bw') : expertWording() ? '?' : 'Find weight') : fmtLoad(ex, sg.w);
+    h += `<li class="${n === 0 ? 'skip' : ''}"><button class="head" data-act="why" data-i="${i}" aria-expanded="${isOpen}">
       <span class="name">${groups[i] ? `<em class="grp">${groups[i]}</em>` : ''}${esc(ex.name)}</span>
-      <span class="to"><span class="num">${sg.w == null ? (ex.unit === 'bw' ? 'BW' : '?') : esc(fmtLoad(ex, sg.w))}<small>${sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit)}</small> × ${sg.reps.join('·')}</span>${chip(sg, ex)}</span>
-      <span class="last">${esc(lastTxt)} · ${slot.sets}×${slot.lo}–${slot.hi}</span></button>
-      ${isOpen ? `<p class="why">${esc(sg.why)} <span class="rir">Target ${esc(sg.rir)} RIR.</span> <a href="#/ex/${esc(ex.id)}">History ${ICON.chev}</a></p>` : ''}</li>`;
+      ${n === 0 ? `<span class="to">${pill('Skipped today')}</span>` : `<span class="to"><span class="num">${esc(load)}<small>${sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit)}</small> × ${reps.join('·')}</span>${chip(sg, ex)}</span>`}
+      ${slot.note ? `<span class="snote">${esc(slot.note)}</span>` : ''}
+      <span class="last">${esc(lastTxt)} · ${n && n !== sg.reps.length ? `${n} of ` : ''}${slot.sets}×${slot.lo}–${slot.hi}</span></button>
+      ${isOpen ? `<p class="why">${esc(sg.why)} ${sg.t === 'cal' ? helpTip('calibrate') : ''}<span class="rir">Aim for ${esc(sg.rir)} ${expertWording() ? 'RIR' : 'reps left'} on each set.</span>${helpTip('rir')} <a href="#/ex/${esc(ex.id)}">History ${ICON.chev}</a></p>` : ''}</li>`;
   });
   h += `</ul>`;
   const pastNoLog = date < t && !doneHere.length;
@@ -96,7 +110,7 @@ export function render(route) {
 }
 
 const sub = (t, gym) => `${fmtDate(t, { dow: true })} · <button class="linkbtn" data-act="gym">${ICON.pin}${esc(gym?.name || 'Gym')}</button>`;
-const bwBtn = b => `<button class="chipbtn" data-act="bw" aria-label="${b ? `${num(b.kg)} kg, log body weight` : 'Weigh in'}">${ICON.scale}<span>${b ? num(b.kg) + ' kg' : 'Weigh in'}</span></button>`;
+const bwBtn = b => `<button class="chipbtn" data-act="bw" aria-label="${b ? `${num(toDisp(b.kg))} ${getUnits()}, log body weight` : 'Weigh in'}">${ICON.scale}<span>${b ? num(toDisp(b.kg)) + ' ' + getUnits() : 'Weigh in'}</span></button>`;
 
 export function groupLabels(slots) {
   const out = [], count = {};
@@ -111,13 +125,14 @@ export function groupLabels(slots) {
 }
 
 function deloadCard(t) {
+  const xp = expertWording();
   if (deloadActive(t)) {
-    return `<div class="banner" style="--k:var(--legs)"><span><b>Deload week until ${fmtDate(S.settings.deloadUntil)}</b><small>About half the sets, 85–90% load, 3–4 RIR.</small></span><button class="mini" data-act="deload-end">End</button></div>`;
+    return `<div class="banner" style="--k:var(--legs)"><span><b>${xp ? 'Deload week' : 'Lighter week'} until ${fmtDate(S.settings.deloadUntil)}</b><small>${xp ? 'About half the sets, 85–90% load, 3–4 RIR.' : 'About half the sets and a bit less weight, stopping with 3–4 reps left.'}</small></span><button class="mini" data-act="deload-end">End</button></div>`;
   }
   if (S.settings.deloadDismissed && S.settings.deloadDismissed > addDays(t, -7)) return '';
   const chk = deloadCheck(S.sessions, S.exercises, t);
   if (!chk.should) return '';
-  return `<div class="banner" style="--k:var(--flat)"><span><b>Consider a deload week</b><small>${chk.reasons.map(esc).join('. ')}.</small></span>
+  return `<div class="banner" style="--k:var(--flat)"><span><b>${xp ? 'Consider a deload week' : 'Time for a lighter week?'}</b>${helpTip('deload')}<small>${chk.reasons.map(esc).join('. ')}.</small></span>
     <span class="bcol"><button class="mini" data-act="deload-start">Start</button><button class="mini" data-act="deload-dismiss">Not now</button></span></div>`;
 }
 
@@ -126,7 +141,9 @@ export const actions = {
     const { logPast } = await import('./history.js');
     await logPast(el.dataset.date, dayForDate(el.dataset.date));
   },
-  sleep: el => setReadiness({ sleep: el.dataset.v }),
+  // Tapping the chosen option again clears it, so nothing is recorded unless you mean it.
+  sleep: el => setReadiness({ sleep: S.readiness.sleep === el.dataset.v ? null : el.dataset.v }),
+  len: el => saveSettings({ sessionLen: el.dataset.v ? +el.dataset.v : null }),
   pain: el => setReadiness({ pain: el.dataset.v === 'Yes' }),
   why: el => { const i = +el.dataset.i; open.has(i) ? open.delete(i) : open.add(i); refresh(); },
   async start(el) {
@@ -138,7 +155,7 @@ export const actions = {
       if (!ok) return;
       await discardDraft();
     }
-    await startWorkout(day, t);
+    await startWorkout(day, t, { minutes: +S.settings.sessionLen || null });
     go('workout');
   },
   'pick-day'() {
@@ -162,18 +179,19 @@ export const actions = {
     const last = S.body[S.body.length - 1];
     openSheet(`<h2 class="sh-title">Body weight</h2>
       <label class="field"><span>Date</span><input id="bw-date" type="date" value="${t}" max="${t}"></label>
-      <label class="field"><span>Weight (kg)</span><input id="bw-kg" type="number" inputmode="decimal" step="0.1" min="20" max="300" value="${cur ? cur.kg : last ? last.kg : ''}" autofocus></label>
-      <p class="fine">Same time of day, ideally morning, gives the cleanest trend. Goal: ${esc(S.settings.goalKg)} kg.</p>
+      <label class="field"><span>Weight (${getUnits()})</span><input id="bw-kg" type="number" inputmode="decimal" step="0.1" min="20" max="${getUnits() === 'lb' ? 660 : 300}" value="${cur ? num(toDisp(cur.kg)) : last ? num(toDisp(last.kg)) : ''}" autofocus></label>
+      <p class="fine">Same time of day, ideally morning, gives the cleanest trend.${S.settings.goalKg ? ` Goal: ${esc(num(toDisp(S.settings.goalKg)))} ${getUnits()}.` : ''}</p>
       <div class="row2"><a class="btn ghost" href="#/body">See trend</a><button class="btn" data-act="bw-save">Save</button></div>`, { label: 'Body weight' });
   },
   async 'bw-save'() {
     const date = document.getElementById('bw-date').value || todayIso();
-    const kg = parseFloat(document.getElementById('bw-kg').value);
-    if (!(kg > 20 && kg < 300)) return toast('Enter a weight between 20 and 300 kg', 'down');
+    const typed = parseFloat(document.getElementById('bw-kg').value);
+    const kg = +(+fromDisp(typed)).toFixed(2);
+    if (!(kg > 20 && kg < 300)) return toast(getUnits() === 'lb' ? 'Enter a weight between 45 and 660 lb' : 'Enter a weight between 20 and 300 kg', 'down');
     if (date > todayIso()) return toast("Can't log a future date", 'down');
     closeSheet();
     await saveBody({ id: 'b-' + date, date, kg });
-    toast(`Saved ${kg} kg`, 'up');
+    toast(`Saved ${num(typed)} ${getUnits()}`, 'up');
   },
   gym() {
     openSheet(`<h2 class="sh-title">Where are you training?</h2><p class="sh-body">Machine and cable loads are only compared within the same gym.</p><div class="list">${S.settings.gyms.map(g => `<button class="li" data-act="gym-set" data-id="${esc(g.id)}" aria-pressed="${g.id === S.settings.gymId}">${ICON.pin}<span><b>${esc(g.name)}</b></span>${g.id === S.settings.gymId ? pill('Current', 'up') : ''}</button>`).join('')}</div><a class="btn ghost" href="#/gyms">Manage gyms</a>`, { label: 'Choose gym' });

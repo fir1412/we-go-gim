@@ -1,7 +1,7 @@
 // App state held in memory, persisted through db.js.
 import * as db from './db.js';
 import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY } from './seed.js';
-import { suggest, dowOf, warmup, estimateDay, invalidateCaches } from './engine.js';
+import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec } from './engine.js';
 
 export const S = {
   backend: null,
@@ -9,8 +9,9 @@ export const S = {
   program: null,
   settings: null,
   sessions: [], body: [], cardio: [],
+  daily: {}, // date -> {protein, kcal, water, steps, sleep}
   draft: null,
-  readiness: { date: null, sleep: '7+', pain: false },
+  readiness: { date: null, sleep: null, pain: false }, // sleep stays null until the user taps an option
 };
 
 let rerender = () => {};
@@ -61,8 +62,10 @@ export async function load() {
   S.body = (await db.all('body')).sort((a, b) => a.date.localeCompare(b.date));
   S.cardio = (await db.all('cardio')).sort((a, b) => b.date.localeCompare(a.date));
   S.draft = await db.getKv('draft');
+  S.daily = {};
+  for (const x of await db.all('kv')) if (x.key.startsWith('daily:')) S.daily[x.key.slice(6)] = x.value;
   const r = await db.getKv('readiness');
-  S.readiness = r && r.date === todayIso() ? r : { date: todayIso(), sleep: '7+', pain: false };
+  S.readiness = r && r.date === todayIso() ? r : { date: todayIso(), sleep: null, pain: false };
 }
 
 // ---- settings / program / exercises ---------------------------------------
@@ -121,16 +124,44 @@ function entryFromSlot(slot, ctx) {
   return { uid: uid('e'), exId: ex.id, slot: { ...slot }, sg: { t: sg.t, why: sg.why, rir: sg.rir, w: sg.w, reps: sg.reps, inc: sg.inc }, sets, rir: null, pain: false, note: '' };
 }
 
-export async function startWorkout(day, date = todayIso()) {
+/** Readiness to store with a workout: only what the user actually told us (null when nothing was tapped). */
+const readinessNow = () => (S.readiness.sleep == null && !S.readiness.pain ? null : { sleep: S.readiness.sleep ?? null, pain: !!S.readiness.pain });
+
+/** Per-slot work-set counts for a day after an optional "how long today?" limit. counts: suggested sets per slot. */
+export function trimmedCounts(day, counts, minutes = null) {
+  return trimToFit(day.slots, counts, S.exById, S.sessions, minutes);
+}
+
+/** opts.minutes: short-session limit (20/30/45); trims sets and accessories to fit. */
+export async function startWorkout(day, date = todayIso(), { minutes = null } = {}) {
   const ctx = suggestionCtx(date);
-  const entries = day.slots.filter(s => S.exById[s.exId]).map(s => entryFromSlot(s, ctx));
+  const slots = day.slots.filter(s => S.exById[s.exId]);
+  let entries = slots.map(s => entryFromSlot(s, ctx));
+  let trimmed = false;
+  if (minutes > 0 && entries.length) {
+    const counts = trimToFit(slots, entries.map(e => e.sg.reps.length), S.exById, S.sessions, minutes);
+    entries = entries.filter((e, i) => {
+      const n = counts[i];
+      if (!n) { trimmed = true; return false; }
+      if (n < e.sg.reps.length) {
+        trimmed = true;
+        let k = 0; // keep warm-ups plus the first n work sets
+        e.sets = e.sets.filter(s => s.warm || k++ < n);
+        e.sg = { ...e.sg, reps: e.sg.reps.slice(0, n) };
+      }
+      return true;
+    });
+  }
   // Plan the time from the sets actually suggested (a deload has fewer than the programme).
   const planned = { ...day, slots: entries.map(e => ({ ...e.slot, sets: e.sg.reps.length })) };
+  const plannedSec = !entries.length ? null
+    : trimmed ? planSec(planned.slots, planned.slots.map(s => s.sets), S.exById, S.sessions)
+    : estimateDay(planned, S.exById, S.sessions);
   S.draft = {
     id: uid('s'), date, dow: day.dow, name: day.name, color: day.color, gymId: S.settings.gymId,
-    past: date < todayIso(), minutes: null,
-    start: Date.now(), readiness: date < todayIso() ? null : { sleep: S.readiness.sleep, pain: S.readiness.pain },
-    deload: ctx.deload, plannedSec: entries.length ? estimateDay(planned, S.exById, S.sessions) : null,
+    past: date < todayIso(), minutes: null, ...(trimmed ? { short: minutes } : {}),
+    start: Date.now(), readiness: date < todayIso() ? null : readinessNow(),
+    deload: ctx.deload, plannedSec,
     entries,
     hr: null, feel: null, note: '', timer: null, summary: false,
   };
@@ -141,7 +172,7 @@ export async function startFromSession(sess) {
   const ctx = suggestionCtx();
   S.draft = {
     id: uid('s'), date: todayIso(), dow: dowOf(todayIso()), name: sess.name, color: sess.color || 'upper', gymId: S.settings.gymId,
-    start: Date.now(), readiness: { sleep: S.readiness.sleep, pain: S.readiness.pain }, deload: ctx.deload,
+    start: Date.now(), readiness: readinessNow(), deload: ctx.deload,
     entries: sess.entries.filter(e => S.exById[e.exId]).map(e => {
       const planned = S.program.days.flatMap(d => d.slots).find(s => s.exId === e.exId);
       const slot = e.slot || (planned ? { ...planned, group: '' } : { exId: e.exId, sets: Math.max(1, e.sets.filter(s => !s.warm).length), lo: 8, hi: 12, group: '' });
@@ -227,7 +258,7 @@ export async function exportAll() {
   return {
     app: 'setlist', version: 1, exported: new Date().toISOString(),
     settings: S.settings, program: S.program, exercises: S.exercises,
-    sessions: S.sessions, body: S.body, cardio: S.cardio,
+    sessions: S.sessions, body: S.body, cardio: S.cardio, daily: S.daily,
   };
 }
 
@@ -254,6 +285,7 @@ export async function importAll(data, { merge = false } = {}) {
   await db.putMany('cardio', data.cardio || []);
   if (!merge || !S.program) await db.setKv('program', data.program || PROGRAM);
   if (!merge) await db.setKv('settings', data.settings || DEFAULT_SETTINGS);
+  if (data.daily && typeof data.daily === 'object') for (const [d, v] of Object.entries(data.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(d) && v && typeof v === 'object') await db.setKv('daily:' + d, v);
   await load();
   refresh();
 }
@@ -270,5 +302,30 @@ export async function removeSeedData() {
   S.sessions = S.sessions.filter(s => !s.seed);
   for (const b of S.body.filter(b => b.seed)) await db.del('body', b.id);
   S.body = S.body.filter(b => !b.seed);
+  refresh();
+}
+
+// ---- daily targets: protein, calories, water, steps, sleep ------------------------------------
+export const DAILY_FIELDS = ['protein', 'kcal', 'water', 'steps', 'sleep'];
+/** Targets from settings, falling back to sensible defaults (protein ~1.8 g per kg of body weight). */
+export function dailyTargets() {
+  const t = S.settings.targets || {};
+  const bw = S.body[S.body.length - 1]?.kg;
+  // A target set to null by the user is hidden; one never set uses the default.
+  const pick = (k, dflt) => (k in t ? t[k] : dflt);
+  return {
+    protein: pick('protein', bw ? Math.round(bw * 1.8 / 5) * 5 : 140),
+    kcal: pick('kcal', null),
+    water: pick('water', 3),
+    steps: pick('steps', 8000),
+    sleep: pick('sleep', 8),
+  };
+}
+export async function saveDaily(date, patch) {
+  const cur = S.daily[date] || {};
+  const next = { ...cur, ...patch };
+  for (const k of DAILY_FIELDS) if (next[k] == null || !(next[k] >= 0)) delete next[k];
+  S.daily[date] = next;
+  await db.setKv('daily:' + date, next);
   refresh();
 }

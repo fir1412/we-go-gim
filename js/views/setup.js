@@ -4,7 +4,7 @@ import { S, saveProgram, saveSettings, refresh } from '../state.js';
 import { PROGRAM } from '../seed.js';
 import { buildSplit, explainSplit, weeklyVolume, targetsFor, planGaps, dayMinutes, baseSets } from '../split.js';
 import { MUSCLES } from '../engine.js';
-import { esc, pill, cvar, dowName, toast, ICON } from '../ui.js';
+import { esc, pill, cvar, dowName, toast, ICON, T, helpTip } from '../ui.js';
 import { go, showTour } from '../app.js';
 
 const Q = [
@@ -92,16 +92,28 @@ function start() {
     </div>
     <button class="linkbtn center" data-act="wz-cancel">Keep my current programme</button>`
     : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="72" height="72"><h2>Let's set you up</h2><p>we go gim plans every session from your last one. How do you want to start?</p></div>
+    ${prefs()}
     <div class="list box wz-choices">
       <button class="li" data-act="wz-begin" style="--k:var(--push)"><i class="sw"></i><span><b>Build my split</b><small>7 quick questions, then a weekly plan made for you. About a minute.</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Start fresh with the example split</b><small>A 5-day push, pull, legs, upper, lower plan for a full gym. Edit it any time.</small></span>${ICON.chev}</button>
-      <button class="li" data-act="wz-logs" style="--k:var(--legs)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes or a spreadsheet, or restore a backup. Your levels start from your real history.</small></span>${ICON.chev}</button>
+      <button class="li" data-act="wz-logs" style="--k:var(--legs)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes, or a Hevy, Strong or spreadsheet CSV, or restore a backup from this app. Your levels start from your real history.</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-own" style="--k:var(--upper)"><i class="sw"></i><span><b>I have my own split</b><small>Paste your plan as text (from a note, a coach or a chat) and it becomes your programme.</small></span>${ICON.chev}</button>
     </div>
-    <button class="linkbtn center" data-act="wz-skip">Skip for now</button>`;
+    <button class="linkbtn center" data-act="wz-skip">Skip for now</button>
+    <p class="fine center-t">Skipping keeps the example 5-day split (push, pull, legs, upper, lower). Change or rebuild it any time under More.</p>`;
   return back
     ? { title: 'Rebuild my split', sub: 'Programme', html: h, color: 'push', back: 'settings' }
     : { title: 'Welcome', sub: 'we go gim', html: h, color: 'push' };
+}
+
+/** Units and wording, asked up front so every screen after this reads right. Both change straight away. */
+function prefs() {
+  const w = S.settings.wording || (st.a.experience === 'experienced' ? 'expert' : 'plain');
+  const u = S.settings.units === 'lb' ? 'lb' : 'kg';
+  const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
+  return `<div class="box pad stack wz-prefs">${seg('Weights in', 'wz-units', u, [['kg', 'kg'], ['lb', 'lb']])}
+    ${seg('Words', 'wz-wording', w, [['plain', 'Plain'], ['expert', 'Gym terms']])}
+    <p class="fine">Plain words suit you if you're new to lifting ("reps left", "find your weight"); gym terms if you're experienced (RIR, calibrate). Both can be changed in Settings.</p></div>`;
 }
 
 function preview() {
@@ -117,14 +129,14 @@ function preview() {
     }).join('')}</ul></section>`;
   }
   const lo = baseSets(st.a.experience);
-  h += `<div class="box pad wz-vol"><p class="lbl">Hard sets per muscle, per week</p><div class="chips">${MUSCLES.filter(m => vol[m] || tg[m]).map(m => {
+  h += `<div class="box pad wz-vol"><p class="lbl">${esc(T('sets').replace(/^\w/, c => c.toUpperCase()))} per muscle, per week</p><div class="chips">${MUSCLES.filter(m => vol[m] || tg[m]).map(m => {
     const raw = vol[m] || 0, v = Math.round(raw), t = tg[m];
     return pill(`${m} ${v}`, !t ? 'mute' : raw >= t[0] - 1 ? 'up' : v >= t[0] / 2 ? 'flat' : 'down');
   }).join('')}</div>
-    <p class="fine">A compound lift's helper muscles count as half a set. Around ${lo}–20 sets a week suits most people at your level; more isn't always better.</p>`;
+    <p class="fine">Muscles that only help in ${esc(T('compound'))} ${helpTip('compound')} count as half a set. Around ${lo}–20 sets a week suits most people at your level; more isn't always better.</p>`;
   // Many gaps: one summary line, plus any gap with its own reason (like side delts at home).
   const listed = gaps.length > 4 ? gaps.filter(g => !g.generic) : gaps;
-  if (gaps.length > 4) h += `<p class="fine">${gaps.length} muscles are under that with this many days and minutes. That's fine to start with; add a day or longer sessions later to do more.</p>`;
+  if (gaps.length > 4) h += `<p class="fine">Room to grow: ${gaps.length} muscles have fewer sets than that for now, which is a fine place to start. Add a day or longer sessions later to do more.</p>`;
   if (listed.length) h += `<ul class="wz-gaps">${listed.map(g => `<li><b>${esc(g.m)} ${g.sets}</b> <span>${esc(g.why)}</span></li>`).join('')}</ul>`;
   if (st.a.protect.length) h += `<p class="fine">${esc(st.a.protect.map(x => PROTECT_NOTE[x]).join(' '))}</p>`;
   h += `<p class="fine">Change anything later under More → Programme.</p></div>`;
@@ -156,7 +168,13 @@ export const actions = {
   },
   async 'wz-logs'() { await finish('import', { tour: false }); },
   async 'wz-own'() { await finish('paste', { tour: false }); },
-  async 'wz-skip'() { await finish('today'); },
+  // Skip: straight to Today, no tour, and one line saying which plan is loaded.
+  async 'wz-skip'() {
+    await finish('today', { tour: false });
+    toast('Example 5-day split loaded. Change it under More → Programme.', 'up');
+  },
+  'wz-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
+  'wz-wording': el => saveSettings({ wording: el.dataset.v === 'expert' ? 'expert' : 'plain' }),
   'wz-cancel'() { st = null; try { sessionStorage.removeItem(DRAFT); } catch {} go('settings'); },
   'wz-day'(el) {
     const d = +el.dataset.v, a = st.a.days;

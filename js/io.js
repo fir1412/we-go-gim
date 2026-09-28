@@ -19,7 +19,14 @@ export function toCSV(sessions, exById, gyms = []) {
   return rows.join('\n');
 }
 
-export function parseCSV(text) {
+/** The delimiter a CSV uses: comma, semicolon (Strong in many European locales) or tab, judged on its header line. */
+export function csvDelimiter(text) {
+  const first = String(text).split(/\r?\n/, 1)[0].replace(/"[^"]*"/g, '');
+  const n = c => first.split(c).length - 1;
+  return [';', '\t'].reduce((best, c) => (n(c) > n(best) ? c : best), ',');
+}
+
+export function parseCSV(text, delim = ',') {
   const rows = [];
   let row = [], cell = '', inQ = false;
   for (let i = 0; i < text.length; i++) {
@@ -29,7 +36,7 @@ export function parseCSV(text) {
       else if (c === '"') inQ = false;
       else cell += c;
     } else if (c === '"') inQ = true;
-    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === delim) { row.push(cell); cell = ''; }
     else if (c === '\n' || c === '\r') {
       if (c === '\r' && text[i + 1] === '\n') i++;
       row.push(cell); rows.push(row); row = []; cell = '';
@@ -39,41 +46,72 @@ export function parseCSV(text) {
   return rows.filter(r => r.some(x => x.trim() !== ''));
 }
 
-/** CSV (in our export format) -> parsed sessions [{date, name, entries:[{exName, unit, sets, rir, pain, note}]}] */
-export function sessionsFromCSV(text) {
-  const rows = parseCSV(text);
+/**
+ * CSV -> parsed sessions [{date, name, notes, entries:[{exName, unit, sets, rir, pain, note}]}].
+ * Reads our own export, hand-made sheets, Hevy (title, start_time, exercise_title, set_index, set_type,
+ * weight_kg | weight_lbs, reps, duration_seconds, rpe…) and Strong (comma or semicolon, "Set Order" W = warm-up).
+ * Pounds are converted to kg: a "weight_lbs"/"lbs" column, a "Weight Unit" of lbs, or opts.lb for a bare "weight".
+ * Numeric dates are read day first unless the file is clearly month first (a "9/21/2026") or opts.dateOrder says so.
+ */
+export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto' } = {}) {
+  const rows = parseCSV(String(text).replace(/^\uFEFF/, ''), csvDelimiter(text));
   if (!rows.length) throw new Error('The file is empty.');
   // Accept common header spellings from other apps and hand-made sheets.
-  const ALIAS = { day: 'date', when: 'date', 'exercise name': 'exercise', lift: 'exercise', movement: 'exercise', kg: 'weight', load: 'weight', 'weight kg': 'weight', rep: 'reps', repetitions: 'reps', notes: 'note', comment: 'note', comments: 'note', workout: 'session', 'workout name': 'session' };
-  const head = rows[0].map(h => { const k = h.trim().toLowerCase().replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim(); return ALIAS[k] || k; });
-  const need = ['date', 'exercise', 'weight', 'reps'];
-  const miss = need.filter(n => !head.includes(n));
+  const ALIAS = {
+    day: 'date', when: 'date', 'start time': 'date', 'exercise name': 'exercise', 'exercise title': 'exercise', lift: 'exercise', movement: 'exercise',
+    kg: 'weight', load: 'weight', 'weight kg': 'weight', 'weight kgs': 'weight', 'weight lbs': 'weightlb', 'weight lb': 'weightlb', lbs: 'weightlb', lb: 'weightlb', pounds: 'weightlb',
+    rep: 'reps', repetitions: 'reps', notes: 'note', comment: 'note', comments: 'note', 'exercise notes': 'note',
+    workout: 'session', 'workout name': 'session', title: 'session', 'workout title': 'session', description: 'wnote', 'workout notes': 'wnote',
+    'set type': 'settype', 'set order': 'setorder', 'set index': 'setindex', 'duration seconds': 'seconds', seconds: 'seconds', 'weight unit': 'wunit',
+  };
+  const head = rows[0].map(h => { const k = h.trim().toLowerCase().replace(/[()_]/g, ' ').replace(/\s+/g, ' ').trim(); return ALIAS[k] || k; });
+  const has = n => head.includes(n);
+  const miss = [['date', has('date')], ['exercise', has('exercise')], ['weight', has('weight') || has('weightlb')], ['reps', has('reps') || has('seconds')]].filter(x => !x[1]).map(x => x[0]);
   if (miss.length) throw new Error(`Missing column${miss.length > 1 ? 's' : ''}: ${miss.join(', ')}. Expected at least date, exercise, weight, reps.`);
   const ix = n => head.indexOf(n);
+  const order = dateOrder === 'auto' ? detectDateOrder(rows.slice(1).map(r => r[ix('date')])) : dateOrder;
+  const kgHeader = /kg/i.test(rows[0][ix('weight')] || '');
   const map = new Map();
+  const num = v => { const x = String(v ?? '').replace(',', '.').replace(/\s*(kgs?|lbs?|reps?|s)$/i, '').trim(); return x === '' || !isFinite(+x) ? null : +x; };
   for (const r of rows.slice(1)) {
-    const date = normDate(r[ix('date')]);
+    const date = normDate(r[ix('date')], order);
     if (!date) continue;
-    const name = (ix('session') >= 0 && r[ix('session')]) || 'Imported';
-    const key = date + '|' + name;
-    if (!map.has(key)) map.set(key, { date, name, entries: [] });
-    const sess = map.get(key);
-    const exName = (r[ix('exercise')] || '').trim();
-    if (!exName) continue;
-    let ent = sess.entries.find(e => e.exName === exName);
     const cell = n => (ix(n) >= 0 ? String(r[ix(n)] ?? '').trim() : '');
+    const name = cell('session') || 'Imported';
+    const key = date + '|' + name;
+    if (!map.has(key)) map.set(key, { date, name, entries: [], notes: [] });
+    const sess = map.get(key);
+    const wn = cell('wnote');
+    if (wn && !sess.notes.includes(wn)) sess.notes.push(wn);
+    const exName = cell('exercise');
+    if (!exName) continue;
+    // Pounds: its own column, a unit column that says so, or the whole file (opts.lb) when the column doesn't say kg.
+    const lbRow = cell('weightlb') !== '' || /^(lbs?|pounds?)$/i.test(cell('wunit')) || (lb && !kgHeader && !/^kgs?$/i.test(cell('wunit')));
+    let w = cell('weightlb') !== '' ? num(cell('weightlb')) : num(cell('weight'));
+    let reps = num(cell('reps'));
+    // Timed sets (a plank in Hevy or Strong): seconds count as reps.
+    if (reps == null && num(cell('seconds'))) reps = num(cell('seconds'));
+    // Cardio and distance rows have no load and no reps: nothing to log as a set.
+    if (reps == null && w == null) continue;
+    if (lbRow && w != null) w = lbToKg(w);
+    let ent = sess.entries.find(e => e.exName === exName);
     if (!ent) { ent = { exName, unit: ['kg', 'kg/DB', 'L', 'bw'].includes(cell('unit')) ? cell('unit') : '', sets: [], rir: null, pain: false, note: '' }; sess.entries.push(ent); }
-    const num = v => { const x = String(v ?? '').replace(',', '.').replace(/\s*(kgs?|reps?)$/i, '').trim(); return x === '' || !isFinite(+x) ? null : +x; };
-    const set = { w: num(cell('weight')), r: num(cell('reps')), done: cell('done') !== '0', ...(cell('warmup') === '1' ? { warm: true } : {}) };
+    const warm = cell('warmup') === '1' || /^warm/i.test(cell('settype')) || /^w$/i.test(cell('setorder'));
+    const set = { w, r: reps, done: cell('done') !== '0', ...(warm ? { warm: true } : {}) };
     const k = Math.min(12, Math.max(1, Math.round(num(cell('sets')) || 1)));
     for (let i = 0; i < k; i++) ent.sets.push({ ...set });
     if (cell('rir')) ent.rir = cell('rir');
+    // RPE 8 = about 2 reps left.
+    else if (num(cell('rpe')) != null && !warm) ent.rir = String(Math.max(0, Math.round(10 - num(cell('rpe')))));
     const note = cell('note');
     if (cell('pain') === '1' || (note && hasPain(note))) ent.pain = true;
     if (note && !ent.note.includes(note)) ent.note = ent.note ? ent.note + ' ' + note : note;
   }
-  return [...map.values()];
+  return [...map.values()].filter(s => s.entries.length);
 }
+
+/** Pounds to kg, kept to 3 decimals so it shows back as the same number of pounds. */
+export const lbToKg = v => Math.round(+v * 0.45359237 * 1000) / 1000;
 
 // ---- dates ------------------------------------------------------------------------------
 const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
@@ -94,18 +132,39 @@ const RE_MDY = new RegExp(String.raw`\b${MONTH}(?![a-z])\s+(\d{1,2})(?:st|nd|rd|
 const RE_DM = new RegExp(String.raw`^\s*(\d{1,2})[/.](\d{1,2})\b(?![/.]\d)${NOT_DAY}`);
 export const MONTH_RE = new RegExp(String.raw`\b${MONTH}(?![a-z])`, 'gi');
 
-/** Find a date in a line. Day-first for numeric dates (Malaysian/UK style). Returns {iso, index} via findDateAt. */
-export function findDateAt(line, fallbackYear) {
+/** Find a date in a line. Numeric dates are day first (Malaysian/UK style) unless order is 'mdy' (US). Returns {iso, index}. */
+export function findDateAt(line, fallbackYear, order = 'dmy') {
   let m;
+  const us = order === 'mdy';
   if ((m = line.match(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/))) return { iso: mk(+m[1], +m[2], +m[3]), index: m.index };
-  if ((m = line.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/))) return { iso: mk(+m[3], +m[2], +m[1]), index: m.index };
+  if ((m = line.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/))) return { iso: us ? mk(+m[3], +m[1], +m[2]) : mk(+m[3], +m[2], +m[1]), index: m.index };
   if ((m = line.match(RE_DMY))) return { iso: mk(m[3] ? +m[3] : fallbackYear, MON[m[2].toLowerCase().slice(0, 3)], +m[1]), index: m.index };
   if ((m = line.match(RE_MDY))) return { iso: mk(m[3] ? +m[3] : fallbackYear, MON[m[1].toLowerCase().slice(0, 3)], +m[2]), index: m.index };
-  if ((m = line.match(RE_DM))) return { iso: mk(fallbackYear, +m[2], +m[1]), index: m.index };
+  if ((m = line.match(RE_DM))) return { iso: us ? mk(fallbackYear, +m[1], +m[2]) : mk(fallbackYear, +m[2], +m[1]), index: m.index };
   return null;
 }
-export function findDate(line, fallbackYear) { return findDateAt(line, fallbackYear)?.iso || null; }
-export function normDate(v) { return v ? findDate(String(v), new Date().getFullYear()) : null; }
+export function findDate(line, fallbackYear, order) { return findDateAt(line, fallbackYear, order)?.iso || null; }
+export function normDate(v, order) { return v ? findDate(String(v), new Date().getFullYear(), order) : null; }
+
+/**
+ * Day first or month first? 'mdy' only when the numeric dates are clearly American: some can only be
+ * month first (9/21/2026) and none can only be day first (21/9/2026). Otherwise 'dmy'.
+ */
+export function detectDateOrder(lines) {
+  const v3 = { dmy: 0, mdy: 0 }, v2 = { dmy: 0, mdy: 0 };
+  const vote = (v, a, b) => { if (a > 31 || b > 31 || !a || !b) return; if (a > 12 && b <= 12) v.dmy++; else if (b > 12 && a <= 12) v.mdy++; };
+  for (const l of lines) {
+    const t = String(l ?? '');
+    if (/\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b/.test(t)) continue;
+    const re = /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b/g;
+    let m, any = false;
+    while ((m = re.exec(t))) { any = true; vote(v3, +m[1], +m[2]); }
+    if (!any && t.length <= 40 && (m = t.match(RE_DM))) vote(v2, +m[1], +m[2]);
+  }
+  if (v3.mdy && !v3.dmy) return 'mdy';
+  if (!v3.mdy && !v3.dmy && v2.mdy >= 2 && !v2.dmy) return 'mdy';
+  return 'dmy';
+}
 
 // ---- free-text log parser ------------------------------------------------------------------
 const NUM = String.raw`(\d+(?:[.,]\d+)?)`;
@@ -114,8 +173,17 @@ const NUM = String.raw`(\d+(?:[.,]\d+)?)`;
  * Returns {sets:[{w,r}], unit?, before, after, rest}: `before` is text ahead of the first set (an inline
  * exercise name, e.g. "Incline DB press 25 kg 8,8,8"); `after` is text behind the sets (a remark).
  */
-export function parseSetLine(line) {
-  const s = line.replace(/[×✕]/g, 'x').replace(/,(?=\d{3}\b)/g, '');
+export function parseSetLine(line, { lb = false } = {}) {
+  let s = line.replace(/[×✕]/g, 'x').replace(/,(?=\d{3}\b)/g, '');
+  // Pounds become kg ("135 lbs x5" -> "61.235kg x5"). A line that gives both ("80lbs or 36kg x8") keeps its kg.
+  const saysKg = /\d\s*(?:kgs?|kilos?)\b/i.test(s);
+  if (!saysKg) s = s.replace(/(\d+(?:[.,]\d+)?)\s*(?:lbs?|pounds?)\b/gi, (m, v) => `${lbToKg(+v.replace(',', '.'))}kg`);
+  const r = parseSets(s);
+  // A log kept in pounds (opts.lb): bare numbers are pounds too. Cable levels are never converted.
+  if (r && lb && !saysKg && r.unit !== 'L') for (const x of r.sets) if (x.w) x.w = lbToKg(x.w);
+  return r;
+}
+function parseSets(s) {
   const sets = [];
   let unit = null, m;
   const num = v => +String(v).replace(',', '.');
@@ -129,6 +197,11 @@ export function parseSetLine(line) {
   // "3x8 @ 25" / "4 x 6 @25kg" / "3 sets of 8 at 60kg"
   if ((m = s.match(new RegExp(String.raw`\b(\d{1,2})\s*(?:x|sets?\s*(?:of|x)?)\s*(\d{1,3})\s*(?:reps?)?\s*(?:@|at|with)\s*${NUM}\s*(?:kgs?)?`, 'i')))) {
     for (let i = 0; i < +m[1]; i++) sets.push({ w: num(m[3]), r: +m[2] });
+    return out(m.index, m.index + m[0].length);
+  }
+  // "Deadlift 100kg 5x3", "Press banca 40kg 3x10": a load with its unit, then sets × reps
+  if ((m = s.match(new RegExp(String.raw`${NUM}\s*(?:kgs?|kilos?|lbs?)\s+(\d{1,2})\s*x\s*(\d{1,3})\b(?!\s*x)`, 'i')))) {
+    for (let i = 0; i < Math.min(+m[2], 12); i++) sets.push({ w: num(m[1]), r: +m[3] });
     return out(m.index, m.index + m[0].length);
   }
   // Bodyweight sets: "BW x16", "Bodyweight x6", "Bodyweight 70 x10" (70 = body weight), "Bodyweight +5kg x6" (added load)
@@ -150,9 +223,10 @@ export function parseSetLine(line) {
   }
   if (sets.length) return out(first, last);
   // "25kg 8,8,6,6" / "25 kg: 8/8/8" / "L6: 15, 15"
-  if ((m = s.match(new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?)?${NUM}\s*(?:kgs?)?\s*(?:each|ea)?\s*[:\-–]?\s*((?:\d{1,3}\s*[,/;]\s*)+\d{1,3})`, 'i')))) {
-    const w = num(m[1]);
-    for (const r of m[2].split(/[,/;]/)) sets.push({ w, r: +r.trim() });
+  // (needs a unit, a colon or "level" so a bare "12/9" isn't read as sets; the three forms capture the load in groups 1–3)
+  if ((m = s.match(new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?${NUM}\s*[:\-–]?|${NUM}\s*(?:kgs?|lbs?)\s*(?:each|ea|dbs?)?\s*[:\-–]?|${NUM}\s*:)\s*((?:\d{1,3}\s*[,/;]\s*)+\d{1,3})`, 'i')))) {
+    const w = num(m[1] ?? m[2] ?? m[3]);
+    for (const r of m[4].split(/[,/;]/)) sets.push({ w, r: +r.trim() });
     return out(m.index, m.index + m[0].length);
   }
   // "15kg 8 8 7" / "45 kg 12" (needs the kg so plain numbers aren't mistaken for sets)
@@ -207,13 +281,20 @@ const ALIASES = [
   [/\bsquad\b/g, 'squat'], [/\binclined\b/g, 'incline'], [/\breversed\b/g, 'reverse'], [/\bpreachers\b/g, 'preacher'],
   [/\bdec\b/g, 'deck'], [/\bromanian deadlifts?\b/g, 'rdl'], [/\begypt\b/g, 'egyptian'], [/\bwrisr\b/g, 'wrist'],
   [/\bbar\b/g, 'barbell'], [/\bdl\b/g, 'deadlift'], [/\bpec fly\b/g, 'pec deck'], [/\boverheat\b/g, 'overhead'], [/\begyptian raises?\b/g, 'egyptian lateral raise'],
-  [/\bcheat(?:ed|ing|er)?\b/g, 'cheat'],
+  [/\bcheat(?:ed|ing|er)?\b/g, 'cheat'], [/\bohp\b|\bmilitary press\b/g, 'overhead press'], [/\bhex barbell\b/g, 'trap barbell'],
+  [/\bbiceps?\b/g, 'bicep'], [/\bhamstrings?\b|\bhams\b/g, 'hamstring'], [/\bglutes?\b/g, 'glute'],
+  // A bent-over or Pendlay row is a barbell row unless the name says dumbbell or cable.
+  [/(?<!\b(?:db|cable|machine|one arm|single arm) )\b(?:bent ?over|pendlay) rows?\b/g, 'barbell row'],
 ];
 const norm = s => ALIASES.reduce((a, [re, to]) => a.replace(re, to), s.toLowerCase()).replace(/[^a-z0-9 ]/g, ' ').replace(/\b([a-z]{2,}?)(es|s)\b/g, (w, st, suf) => (w.endsWith('ss') ? w : suf === 'es' && !/(ch|sh|x)$/.test(st) ? st + 'e' : st)).replace(/\s+/g, ' ').trim();
 const squash = s => norm(s).replace(/ /g, '');
 // Words that name the equipment, and words that don't change which lift it is.
-const EQUIP_WORD = { db: 'db', machine: 'machine', cable: 'machine', rope: 'machine', smith: 'smith', barbell: 'barbell', bw: 'bw', bodyweight: 'bw' };
-const SOFT = new Set(['flat', 'seated', 'standing', 'one', 'arm', 'hand', 'triceps', 'tricep', 'the', 'with', 'on']);
+// "Competition bench", "Bench press (BB)" and an Olympic bar are barbell lifts: never matched to a dumbbell one, or the other way round.
+const EQUIP_WORD = { db: 'db', machine: 'machine', cable: 'machine', rope: 'machine', smith: 'smith', barbell: 'barbell', bb: 'barbell', competition: 'barbell', comp: 'barbell', olympic: 'barbell', bw: 'bw', bodyweight: 'bw' };
+// A body part in the logged name must be one the exercise trains: "Hamstring curl" is not "DB curl".
+const BODY_WORD = { hamstring: ['Hamstrings'], ham: ['Hamstrings'], leg: ['Quads', 'Hamstrings', 'Glutes', 'Calves'], bicep: ['Biceps'], triceps: ['Triceps'], tricep: ['Triceps'],
+  calf: ['Calves'], glute: ['Glutes'], quad: ['Quads'], ab: ['Abs'], core: ['Abs'], lat: ['Back'], delt: ['Front delts', 'Side delts', 'Rear delts'], shoulder: ['Front delts', 'Side delts', 'Rear delts'], wrist: ['Biceps'] };
+const SOFT = new Set(['flat', 'seated', 'standing', 'one', 'arm', 'hand', 'triceps', 'tricep', 'bicep', 'the', 'with', 'on', 'and']);
 // "Bench press" and "Chest press" are one pattern; "bench" is folded into "chest" when matching.
 // Unit words aren't part of a lift's name: "Pec deck (levels)" is the pec deck.
 const keepTok = w => w.length > 1 && !/\d/.test(w) && !/^(kg|lb|level|lvl)$/.test(w);
@@ -248,13 +329,19 @@ export function matchExercise(name, exercises, { prefer = null, unit = null } = 
   let best = null;
   for (const ex of exercises) {
     let c = libCache.get(ex.name);
-    if (!c) { const bw = toks(ex.name); libCache.set(ex.name, c = { sq: rawToks(ex.name).join(''), bw, b: new Set(bw), raw: new Set(rawToks(ex.name)) }); }
+    if (!c) {
+      // A note in brackets ("Plank (seconds as reps)") isn't part of the name; equipment in brackets is ("Overhead press (barbell)").
+      const nm = ex.name.replace(/\(([^)]*)\)/g, (m, x) => (/barbell|dumb+el+|\bdb\b|cable|machine|smith|body ?weight/i.test(x) ? ` ${x} ` : ' '));
+      const bw = toks(nm);
+      libCache.set(ex.name, c = { sq: rawToks(ex.name).join(''), bw, b: new Set(bw), raw: new Set(rawToks(nm)) });
+    }
     if (c.sq === sq) return { ex, score: 1 };
     const { bw, b } = c;
     const soft = w => SOFT.has(w) || EQUIP_WORD[w] || (w === 'chest' && b.has('fly'));
     if (![...b].every(w => soft(w) || a.has(w))) continue;
     if (MODIFIERS.some(w => a.has(w) !== b.has(w))) continue;
     if (qEq.size) { const cEq = equipOf(bw, ex); if (![...qEq].every(e => cEq.has(e))) continue; }
+    if (ex.muscles?.length && aw.some(w => BODY_WORD[w] && !b.has(w) && !BODY_WORD[w].some(m => ex.muscles.includes(m)))) continue;
     let hit = 0;
     // Counted on the words as written, so "Bench press" is nearer "Flat DB bench press" than "Machine chest press".
     for (const w of ar) if (c.raw.has(w)) hit++;
@@ -263,6 +350,7 @@ export function matchExercise(name, exercises, { prefer = null, unit = null } = 
     let sc = 0.5 + 0.4 * hit / Math.max(a.size, b.size);
     if (prefer?.has(ex.id)) sc += 0.12; // the programme's own lifts win a close call
     if (unit && ex.unit === unit) sc += 0.03;
+    if (unit === 'kg/DB' && ex.equip === 'db') sc += 0.1; // "20kg each": a dumbbell lift unless the name says otherwise
     if (!best || sc > best.score) best = { ex, score: sc };
   }
   return best;
@@ -277,18 +365,20 @@ export function matchExercise(name, exercises, { prefer = null, unit = null } = 
  * - A line without sets names an exercise only when sets follow it and it doesn't read like a remark.
  *   Everything else ("Lazy", a remark wrapped onto its own line) is a note.
  */
-export function parseLogText(text, exercises, { year = new Date().getFullYear(), sessionName = 'Imported' } = {}) {
+export function parseLogText(text, exercises, { year = new Date().getFullYear(), sessionName = 'Imported', dateOrder = 'auto', lb = false } = {}) {
   const sessions = [];
   let sess = null, ent = null, skipped = 0;
   const rows = [];
   let blank = true;
-  for (const raw of text.split(/\r?\n/)) {
+  const lines = text.split(/\r?\n/);
+  const order = dateOrder === 'auto' ? detectDateOrder(lines) : dateOrder;
+  for (const raw of lines) {
     const l = raw.replace(/\s+/g, ' ').trim();
     if (!l) { blank = true; continue; }
     // "Calves raises on 30 mar 2023" mentions a date; it doesn't start a session.
-    const fd = findDateAt(l, year);
+    const fd = findDateAt(l, year, order);
     const date = fd && !/\b(on|at|from|since|until|till|by|before|after|of|in|than|like)\s*$/i.test(l.slice(0, fd.index)) ? fd.iso : null;
-    const si = parseSetLine(date ? l.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '') : l);
+    const si = parseSetLine(date ? l.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/^\s*\d{1,2}[/.]\d{1,2}\b(?![/.]\d)/, '') : l, { lb }); // a date is never a set: \"12/9\"
     rows.push({ l, date, si, kind: date && !si?.sets.length ? 'date' : si?.sets.length ? 'sets' : 'text', blank });
     blank = false;
   }
@@ -344,7 +434,9 @@ export function parseLogText(text, exercises, { year = new Date().getFullYear(),
       const si = row.si;
       // An inline name must read like one ("Incline DB press 25 kg 8,8,8"), not a unit note ("80lbs or 36kg x8").
       const lead = si.before.replace(/\d+(?:[.,]\d+)?\s*(lbs?|pounds?|kgs?)\b/gi, '').replace(/\b(kg|kgs|lbs?|or|and|reps?|sets?|each|ea|x|@|bw|level|lvl)\b/gi, '').replace(/[^A-Za-z ]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (lead.length >= 4 && /[a-z]{3}/i.test(lead) && (/^[A-Z]/.test(lead) || matchExercise(lead, exercises))) {
+      // Lowercase names count too ("lunges 10kg 10,10,8") when short and not a remark.
+      const nameLike = /^[A-Z]/.test(lead) || matchExercise(lead, exercises) || (lead.split(' ').length <= 4 && !PAIN_RE.test(lead) && !COMMENT_RE.test(lead) && !/\b(then|and|also|again|same|next|last|up to|drop)\b/i.test(lead));
+      if (lead.length >= 4 && /[a-z]{3}/i.test(lead) && nameLike) {
         const [n, extra] = splitName(lead);
         ent = newEnt(sess, n);
         if (extra) addNote(ent, extra);
@@ -477,28 +569,64 @@ const PAIN_RE = /\b(pain|painful|hurt|hurts|hurting|ache|aching|achy|ping|pinged
 const COMMENT_RE = /\b(felt|feel|feels|feeling|tired|lazy|sleep|slept|heavy|easy|hard|strong|weak|good|bad|great|awful|hr|bpm|rpe|rir|pump|form|failure|failed|energy|sick|fever|dizzy|skipped|missed|didn'?t|couldn'?t|was|were|a bit|very|really)\b/i;
 const SESSION_RE = /\b(slept|sleep|felt|feel|tired|energy|rpe|session|today|workout|gym|sick|fever)\b/i;
 
-/** Guess target muscles from an exercise name, so imported exercises count toward the right muscles. */
+/** Guess target muscles from an exercise name, so imported exercises count toward the right muscles. First match wins. */
 const MUSCLE_GUESS = [
-  [/leg curl|ham(string)? curl|nordic/, ['Hamstrings']],
+  [/nordic|leg curl|ham(string)? curl|glute.?ham/, ['Hamstrings']],
+  [/snatch|clean|\bjerk/, ['Quads', 'Glutes', 'Hamstrings']],
+  [/push press|thruster/, ['Front delts', 'Triceps', 'Quads']],
+  [/trap.?bar|hex.?bar/, ['Quads', 'Glutes', 'Hamstrings']],
+  // Glute work, but a triceps kickback stays triceps.
+  [n => !/tricep/.test(n) && /hip thrust|bridge|frog|donkey|hip ext|(glute|cable|leg|hip|standing|machine) kick.?back/.test(n), ['Glutes', 'Hamstrings']],
+  [n => !/tricep/.test(n) && /glute|abduct|clam|fire hydrant/.test(n), ['Glutes']],
   [/lateral|side raise|upright/, ['Side delts']],
   [/rear|reverse (pec|fly)|face ?pull/, ['Rear delts']],
-  [/pushdown|push down|tricep|skull|dip|kickback|(overhead|oh) ext|close.?grip/, ['Triceps']],
+  [/pushdown|push down|tricep|skull|dip|kickback|(overhead|oh) ext|close.?grip|jm press/, ['Triceps']],
   [/curl/, ['Biceps']],
   [/shoulder|overhead press|ohp|military|arnold/, ['Front delts', 'Triceps']],
   [/fly|flye|pec deck|crossover/, ['Chest']],
   [/bench|chest|pec|push.?up|incline|decline/, ['Chest', 'Front delts', 'Triceps']],
   [/swing|kettlebell|kb /, ['Glutes', 'Hamstrings']],
   [/pull.?up|chin|pulldown|pull down|\blat\b/, ['Back', 'Biceps']],
-  [/row|shrug|back ext/, ['Back']],
+  [/row|shrug|back ext|hyperext/, ['Back']],
   [/rdl|romanian|stiff|good ?morning|deadlift|hamstring/, ['Hamstrings', 'Glutes', 'Back']],
-  [/hip thrust|glute|bridge|abduct/, ['Glutes']],
-  [/squat|leg press|lunge|split|step.?up|hack|leg ext|quad/, ['Quads', 'Glutes']],
+  [/squat|leg press|lunge|split|step.?up|hack|leg ext|quad|sissy/, ['Quads', 'Glutes']],
   [/calf|calves/, ['Calves']],
-  [/crunch|plank|\babs?\b|sit.?up|leg raise|core|oblique/, ['Abs']],
+  [/crunch|plank|\babs?\b|sit.?up|leg raise|knee raise|core|oblique|dead ?bug|hollow|pallof|rollout/, ['Abs']],
 ];
 export function guessMuscles(name) {
   const n = String(name).toLowerCase();
-  return (MUSCLE_GUESS.find(([re]) => re.test(n)) || [0, []])[1].slice();
+  return (MUSCLE_GUESS.find(([t]) => (typeof t === 'function' ? t(n) : t.test(n))) || [0, []])[1].slice();
+}
+
+/** Units and equipment in the order the review sheets offer them. */
+export const EQUIP_UNIT = { db: 'kg/DB', barbell: 'kg', smith: 'kg', machine: 'kg', cable: 'L', bw: 'bw' };
+/**
+ * A new exercise's set-up guessed from its name and how it was logged.
+ * loaded: sets carried a weight (or, for a written plan, the lift is normally loaded).
+ * unit: the unit the log used ('kg', 'kg/DB', 'L', 'bw'), when known.
+ * Unknown lifts default to a barbell when loaded and to bodyweight when not, never to a machine.
+ */
+export function guessNewExercise(name, { loaded = true, unit = null } = {}) {
+  const n = ' ' + String(name).toLowerCase() + ' ';
+  let equip =
+    /smith/.test(n) ? 'smith'
+    : /\b(db|dbs|dumb+el+s?|dumbbells?|kettlebells?|kb)\b/.test(n) ? 'db'
+    : /\b(cable|rope|pulley|crossover)\b|face ?pull|pushdown|push down/.test(n) ? 'cable'
+    : /machine|pec deck|leg press|hack squat|pulldown|pull down|leg ext|leg curl|seated row|abduct|adduct|pendulum|belt squat|hammer strength|\bplate loaded/.test(n) ? 'machine'
+    : /\b(bw|body ?weight|push.?ups?|pull.?ups?|chin.?ups?|dips?|plank|nordic|frog|hanging|sit.?ups?|burpees?|hollow|bridge|pistol|muscle.?ups?|inverted)\b/.test(n) ? 'bw'
+    : /\b(barbell|bb|bar|ez|olympic|snatch|clean|jerk|deadlift|squat|bench|press|row|thrust)\b/.test(n) || loaded ? 'barbell'
+    : 'bw';
+  // How it was logged beats the name: levels are a cable or machine stack, "each" is dumbbells, no load is bodyweight.
+  if (unit === 'L') equip = equip === 'machine' ? 'machine' : 'cable';
+  else if (unit === 'kg/DB') equip = 'db';
+  else if (unit === 'bw' || (!loaded && equip !== 'machine' && equip !== 'cable')) equip = 'bw';
+  else if (loaded && equip === 'bw' && unit !== 'bw') equip = /\b(dips?|pull.?ups?|chin.?ups?|push.?ups?)\b/.test(n) ? 'bw' : 'barbell';
+  const u = unit === 'L' ? 'L' : equip === 'machine' && unit !== 'kg' && /abduct|adduct|pec deck/.test(n) ? 'kg' : EQUIP_UNIT[equip] === 'L' && unit === 'kg' ? 'kg' : EQUIP_UNIT[equip];
+  const big = equip === 'barbell' && /deadlift|squat|bench|press|row|clean|snatch|jerk|thrust/.test(n);
+  return {
+    unit: u, equip, inc: u === 'L' ? 1 : equip === 'machine' ? 5 : equip === 'db' ? 2 : 2.5, rest: big ? 150 : 90,
+    muscles: guessMuscles(name), perGym: equip === 'machine' || equip === 'cable',
+  };
 }
 
 function newEnt(sess, name) {

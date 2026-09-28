@@ -77,7 +77,40 @@ export const EXERCISES = [
   X('onearmcablerow', 'Single-arm cable row', 'kg', 'cable', 2.5, 75, ['Back']),
   X('dbshrug', 'DB shrug', 'kg/DB', 'db', 2, 60, ['Back']),
   X('cheatcurl', 'Cheat curl', 'kg/DB', 'db', 2, 75, ['Biceps']),
+  // Barbell staples, Olympic lifts and common glute work, so experienced lifters' plans and logs match
+  X('bbbench', 'Barbell bench press', 'kg', 'barbell', 2.5, 180, ['Chest', 'Front delts', 'Triceps']),
+  X('deadlift', 'Deadlift', 'kg', 'barbell', 5, 180, ['Hamstrings', 'Glutes', 'Back'], { caution: 'Brace and keep the bar close; stop the set if your lower back rounds.' }),
+  X('ohp', 'Overhead press (barbell)', 'kg', 'barbell', 2.5, 150, ['Front delts', 'Triceps']),
+  X('frontsquat', 'Front squat', 'kg', 'barbell', 2.5, 180, ['Quads', 'Glutes']),
+  X('bbrow', 'Barbell row', 'kg', 'barbell', 2.5, 120, ['Back', 'Biceps', 'Rear delts']),
+  X('trapdl', 'Trap bar deadlift', 'kg', 'barbell', 5, 180, ['Quads', 'Glutes', 'Hamstrings']),
+  X('snatch', 'Snatch', 'kg', 'barbell', 2.5, 150, ['Quads', 'Glutes', 'Hamstrings'], { caution: 'Technique first: add weight only when every rep looks the same.' }),
+  X('cleanjerk', 'Clean & jerk', 'kg', 'barbell', 2.5, 150, ['Quads', 'Glutes', 'Hamstrings'], { caution: 'Technique first: add weight only when every rep looks the same.' }),
+  X('powerclean', 'Power clean', 'kg', 'barbell', 2.5, 150, ['Quads', 'Glutes', 'Hamstrings']),
+  X('pushpress', 'Push press', 'kg', 'barbell', 2.5, 150, ['Front delts', 'Triceps', 'Quads']),
+  X('nordic', 'Nordic curl', 'bw', 'bw', 2.5, 120, ['Hamstrings']),
+  X('dbcurl', 'DB curl', 'kg/DB', 'db', 2, 75, ['Biceps']),
+  X('hipabd', 'Hip abduction machine', 'kg', 'machine', 5, 60, ['Glutes']),
+  X('glutekick', 'Cable glute kickback', 'L', 'cable', 1, 60, ['Glutes', 'Hamstrings']),
+  X('frogpump', 'Frog pump', 'bw', 'bw', 2.5, 60, ['Glutes']),
 ];
+
+// Other names people search for, so "bicep curl" finds the DB curl and "OHP" the overhead press.
+const SYNONYMS = {
+  dbcurl: 'bicep biceps curl dumbbell', inccurl: 'bicep biceps', hammer: 'bicep biceps', ezcurl: 'bicep biceps barbell curl',
+  bench: 'dumbbell chest', bbbench: 'bench bb flat competition chest', incline: 'dumbbell chest', deadlift: 'dl conventional sumo',
+  trapdl: 'hex bar', ohp: 'ohp military press shoulder press standing', frontsquat: 'squat', bbsquat: 'back squat', squat: 'smith',
+  bbrow: 'bent over row pendlay', dbrow: 'dumbbell row', pulldown: 'lat', widepulldown: 'lat', lat: 'side delt shoulder', dblat: 'side delt shoulder',
+  pushdown: 'tricep triceps', ohext: 'tricep triceps', dbohext: 'tricep triceps', skull: 'tricep triceps lying extension', dbskull: 'tricep triceps skull crusher',
+  cleanjerk: 'olympic weightlifting c&j', snatch: 'olympic weightlifting', powerclean: 'olympic clean', pushpress: 'olympic shoulder',
+  nordic: 'hamstring bodyweight', hipabd: 'abductor glute outer thigh', glutekick: 'kickback butt', frogpump: 'glute butt', hipthrust: 'glute butt',
+  glutebridge: 'butt', rdl: 'romanian stiff leg', dbrdl: 'romanian', plank: 'core timed hold', crunch: 'abs core', hanglegraise: 'abs core',
+  legcurl: 'hamstring', lyingcurl: 'hamstring', legext: 'quad quads', calf: 'calves', pullup: 'chin bodyweight', pushup: 'press up',
+};
+/** Lower-case text an exercise search matches against: name, muscles and other names for it. */
+export const searchText = x => `${x.name} ${(x.muscles || []).join(' ')} ${SYNONYMS[x.id] || ''}`.toLowerCase();
+/** Searches that mean cardio, which is logged under Insights → Cardio rather than as an exercise. */
+export const CARDIO_WORDS = /^(tread|walk|run|jog|cardio|bike|cycl|spin|ellip|cross ?train|stair|row(ing)? machine|erg|swim|hike|skip)/i;
 
 const S = (exId, sets, lo, hi, group = '') => ({ exId, sets, lo, hi, group });
 
@@ -96,8 +129,8 @@ export const PROGRAM = {
 
 export const DEFAULT_SETTINGS = {
   theme: 'system',
-  goalKg: 70,
-  heightCm: 170,
+  goalKg: null, // blank until the user sets one
+  heightCm: null,
   gyms: [{ id: 'g1', name: 'Main gym' }],
   gymId: 'g1',
   equip: {
@@ -110,6 +143,7 @@ export const DEFAULT_SETTINGS = {
   wakeLock: true,
   autoWarmup: false,
   deloadUntil: null,
+  units: 'kg', // 'kg' | 'lb': loads are always stored in kg
 };
 
 // ---- starting history -------------------------------------------------------

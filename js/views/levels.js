@@ -1,6 +1,21 @@
 import { S, todayIso, refresh, dayForDate } from '../state.js';
-import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort } from '../engine.js';
-import { esc, fmtDate, pill, STATUS, num, cvar, dowName, ICON } from '../ui.js';
+import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
+import { esc, fmtDate, pill, STATUS, num, cvar, dowName, ICON, T, helpTip } from '../ui.js';
+
+/** Lifters who arrive with real history (experienced in setup, or a big import) never see beginner titles. */
+function seasoned() {
+  const imported = S.sessions.filter(s => s.imported).length;
+  return S.settings.setupAnswers?.experience === 'experienced' || imported >= 12;
+}
+/** The overall title. The first steps are neutral instead of "Rookie". */
+function athleteTitle(L) {
+  if (L < 3) return seasoned() ? 'Experienced lifter' : 'Getting started';
+  if (L < 5) return seasoned() ? 'Experienced lifter' : 'Building momentum';
+  return `${titleFor(L)} lifter`;
+}
+/** A muscle's title; low levels read as a starting point, not a verdict. */
+const muscleTitle = L => (L < 3 ? 'Building a base' : L < 5 ? 'Building' : titleFor(L));
+const setWord = () => (T('sets') === 'sets' ? 'working set' : 'hard set');
 
 let mode = 'level';   // level | week
 let sel = null;       // selected muscle
@@ -99,7 +114,7 @@ export function render() {
   const weekTotal = ranked.reduce((a, x) => a + x.r.week, 0);
 
   let h = `<div class="lvlhero"><div class="lvbadge"><span>LVL</span><b>${ath.level}</b></div>
-    <div class="grow"><b class="lvtitle">${esc(titleFor(ath.level))} lifter</b><small>${xpf(ath.into)} / ${xpf(ath.need)} XP to level ${ath.level + 1} · +${xpf(weekTotal)} XP this week</small>${bar(ath.pct, 'on')}</div></div>`;
+    <div class="grow"><b class="lvtitle">${esc(athleteTitle(ath.level))}</b><small>${xpf(ath.into)} / ${xpf(ath.need)} XP to level ${ath.level + 1} · +${xpf(weekTotal)} XP this week</small>${bar(ath.pct, 'on')}</div></div>`;
 
   // Only level-ups earned in the app: an import of old logs shouldn't fire a burst of banners.
   const fresh = data.levelUps.filter(u => !u.imported && u.date <= t && daysBetween(u.date, t) <= 3);
@@ -115,13 +130,13 @@ export function render() {
   const tr = muscleTrends(S.sessions, S.exercises).find(x => x.muscle === sel);
   const nextDay = nextDayFor(sel, t);
   const days = cur.r.lastDate ? daysBetween(cur.r.lastDate, t) : null;
-  h += `<section class="box mcard"><header><div class="lvbadge sm"><span>LVL</span><b>${cur.L.level}</b></div><div class="grow"><h3>${esc(sel)}</h3><small>${esc(titleFor(cur.L.level))} · ${xpf(cur.r.xp)} XP total</small></div>${cur.r.week ? pill(`+${cur.r.week} this week`, 'up') : ''}</header>
-    ${bar(cur.L.pct)}<p class="fine">${xpf(cur.L.need - cur.L.into)} XP to level ${cur.L.level + 1}. That's about ${Math.ceil((cur.L.need - cur.L.into) / XP_SET)} hard sets, fewer with a PR.</p>
+  h += `<section class="box mcard"><header><div class="lvbadge sm"><span>LVL</span><b>${cur.L.level}</b></div><div class="grow"><h2>${esc(sel)}</h2><small>${esc(muscleTitle(cur.L.level))} · ${xpf(cur.r.xp)} XP total</small></div>${cur.r.week ? pill(`+${cur.r.week} this week`, 'up') : ''}</header>
+    ${bar(cur.L.pct)}<p class="fine">${xpf(cur.L.need - cur.L.into)} XP to level ${cur.L.level + 1}. ${(() => { const n = Math.ceil((cur.L.need - cur.L.into) / XP_SET); return `That's about ${n} ${setWord()}${n === 1 ? '' : 's'}, fewer with a PR.`; })()}</p>
     <dl class="facts">
       <div><dt>Last trained</dt><dd>${days == null ? 'Never' : days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'} ago`}</dd></div>
       <div><dt>Next session</dt><dd>${nextDay ? `${esc(nextDay.name)} · ${nextDay.when}` : 'Not in your programme'}</dd></div>
       ${tr ? `<div><dt>Lead lift</dt><dd><a href="#/ex/${esc(tr.ex.id)}">${esc(tr.ex.name)}</a> ${pill(STATUS[tr.status][0], STATUS[tr.status][1])}</dd></div>` : ''}
-      ${tr && isKg(tr.ex.unit) ? `<div><dt>Est. max</dt><dd>${num(tr.scores[0])} → ${num(tr.scores[tr.scores.length - 1])} ${unitShort(tr.ex.unit)}</dd></div>` : tr ? `<div><dt>Top load</dt><dd>${esc(fmtLoad(tr.ex, tr.from.w))} → ${esc(fmtLoad(tr.ex, tr.to.w))}</dd></div>` : ''}
+      ${tr && isKg(tr.ex.unit) ? `<div><dt>${esc(T('estMax'))} ${helpTip('estMax')}</dt><dd>${num(toDisp(tr.scores[0]))} → ${num(toDisp(tr.scores[tr.scores.length - 1]))} ${unitShort(tr.ex.unit)}</dd></div>` : tr ? `<div><dt>Top load</dt><dd>${esc(fmtLoad(tr.ex, tr.from.w))} → ${esc(fmtLoad(tr.ex, tr.to.w))}</dd></div>` : ''}
     </dl>`;
   const ev = cur.r.events.slice(-5).reverse();
   if (ev.length) h += `<p class="lbl">Recent XP</p><ul class="xplist">${ev.map(e => `<li><a href="#/session/${esc(e.sessionId)}"><span>${fmtDate(e.date)}</span><span class="grow">${esc(e.why)}</span><b>+${e.xp}</b></a></li>`).join('')}</ul>`;
@@ -131,7 +146,7 @@ export function render() {
   h += `<p class="lbl">All muscles</p><ul class="box lvlist">`;
   for (const x of ranked) {
     const ago = x.r.lastDate ? daysBetween(x.r.lastDate, t) : null;
-    const rust = ago == null ? `<small class="rust">never trained</small>` : ago > 9 ? `<small class="rust">${ago} d ago</small>` : '';
+    const rust = ago == null ? `<small class="rust">not trained yet</small>` : ago > 9 ? `<small class="rust">${ago} days ago</small>` : '';
     h += `<li><button data-act="muscle" data-m="${esc(x.m)}" aria-pressed="${x.m === sel}"><span class="lvbadge xs"><b>${x.L.level}</b></span><span class="grow"><span class="rowt"><b>${esc(x.m)} ${rust}</b><small>${x.r.xp ? `${xpf(x.L.into)}/${xpf(x.L.need)}` : '0 XP'}${x.r.week ? ` · <em class="wk">+${x.r.week}</em>` : ''}</small></span>${bar(x.L.pct, x.r.xp ? 'push' : 'mute')}</span></button></li>`;
   }
   h += `</ul>`;
@@ -140,7 +155,7 @@ export function render() {
   if (ups.length) h += `<p class="lbl">Recent level-ups</p><ul class="box xplist pad">${ups.map(u => `<li><span>${fmtDate(u.date)}</span><span class="grow">${esc(u.muscle)} reached level ${u.level}</span><b class="lvstar">${ICON.star}</b></li>`).join('')}</ul>`;
   const nImp = S.sessions.filter(s => s.imported).length;
   if (nImp) h += `<p class="fine">Includes ${nImp} imported session${nImp === 1 ? '' : 's'}: your past training counts, so levels start where your history left you.</p>`;
-  h += `<p class="fine">Bars show progress inside the current level. Muscles not trained for 10+ days are marked, so nothing gets left behind. Each hard set earns ${XP_SET} XP for its main muscle and ${XP_HELPER} for helpers. Beating your best on a lift adds ${XP_PR} (machines and cables only against the same gym). Warm-ups and skipped sets earn nothing, so XP tracks real work, not app opens.</p>`;
+  h += `<p class="fine">Bars show progress inside the current level. Muscles not trained for 10+ days are marked, so nothing gets left behind. Each ${setWord()} earns ${XP_SET} XP for its main muscle and ${XP_HELPER} for helpers. Beating your best on a lift adds ${XP_PR} (machines and cables only against the same gym). Warm-ups and skipped sets earn nothing, so XP tracks real work, not app opens.</p>`;
   return { title: 'Levels', sub: `${data.total.toLocaleString('en-GB')} XP earned`, html: h, color: 'push' };
 }
 

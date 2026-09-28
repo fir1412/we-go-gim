@@ -134,25 +134,52 @@ function snapDown(w, ex, equip) {
   return Math.floor(w / step + EPS) * step;
 }
 
+// ---- display units -------------------------------------------------------------------
+// Loads are always stored in kg. With lb chosen in Settings, kg loads are shown and typed in lb.
+// Cable/machine levels are never converted.
+export const LB_KG = 0.45359237;
+let UNITS = 'kg';
+let BW_LABEL = 'BW';
+export function setUnits(u) { UNITS = u === 'lb' ? 'lb' : 'kg'; }
+export const getUnits = () => UNITS;
+/** Label used for bodyweight loads ("BW" in gym terms, "Bodyweight" in plain wording). */
+export function setBwLabel(s) { BW_LABEL = s || 'BW'; }
+/** kg -> display number (lb rounded to 0.5). Blank/invalid values pass through. */
+export function toDisp(kg) {
+  if (kg == null || kg === '' || !Number.isFinite(+kg)) return kg;
+  return UNITS === 'lb' ? Math.round(+kg / LB_KG * 2) / 2 : +kg;
+}
+/** Display number -> kg (lb converted, kept to 3 decimals). Blank becomes null. */
+export function fromDisp(v) {
+  if (v == null || v === '') return null;
+  if (!Number.isFinite(+v)) return v;
+  return UNITS === 'lb' ? Math.round(+v * LB_KG * 1000) / 1000 : +v;
+}
+/** A kg step (increment, plate jump) as a tidy display step: lb snaps to 2.5 lb. */
+export function stepDisp(kg) {
+  return UNITS === 'lb' ? Math.max(2.5, Math.round(+kg / LB_KG / 2.5) * 2.5) : +(+kg).toFixed(2);
+}
+const dispNum = kg => String(+(+toDisp(kg)).toFixed(2));
+
 export function fmtLoad(ex, w) {
-  if (ex.unit === 'bw') return +w > 0 ? `BW+${+w}` : 'BW';
+  if (ex.unit === 'bw') return +w > 0 ? (BW_LABEL === 'BW' ? `BW+${dispNum(w)}` : `${BW_LABEL} + ${dispNum(w)} ${UNITS}`) : BW_LABEL;
   if (w == null || w === '') return '—';
   if (ex.unit === 'L') return 'L' + w;
-  return String(+(+w).toFixed(2));
+  return dispNum(w);
 }
 
 export function unitShort(u) {
-  return u === 'kg/DB' ? 'kg ea' : u === 'kg' ? 'kg' : '';
+  return u === 'kg/DB' ? `${UNITS} ea` : u === 'kg' ? UNITS : '';
 }
 
 export function unitLong(u) {
-  return u === 'kg/DB' ? 'kg per dumbbell' : u === 'kg' ? 'kg total' : u === 'L' ? 'cable/machine level' : 'bodyweight';
+  return u === 'kg/DB' ? `${UNITS} per dumbbell` : u === 'kg' ? `${UNITS} total` : u === 'L' ? 'cable/machine level' : 'bodyweight';
 }
 
 export function incLabel(ex, step = ex.inc || 1) {
   if (ex.unit === 'L') return `+${step} level`;
-  if (ex.unit === 'bw') return '+2.5 kg';
-  return `+${+(+step).toFixed(2)} kg`;
+  if (ex.unit === 'bw') return `+${stepDisp(2.5)} ${UNITS}`;
+  return `+${stepDisp(step)} ${UNITS}`;
 }
 
 /**
@@ -165,7 +192,7 @@ export function suggest(slot, ex, ctx) {
   const lo = Math.max(1, +slot.lo || 8), hi = Math.max(lo, +slot.hi || lo), n = Math.max(1, Math.round(+slot.sets) || 3);
   const mid = Math.round((lo + hi) / 2);
   const exps = exposures(ctx.sessions || [], ex, { gymId: ctx.gymId, before: ctx.date });
-  const unitWord = ex.unit === 'L' ? ' level' : ' kg';
+  const unitWord = ex.unit === 'L' ? ' level' : ' ' + UNITS;
   const caution = ex.caution ? ' ' + ex.caution : '';
 
   if (ex.unitUnclear) {
@@ -201,18 +228,24 @@ export function suggest(slot, ex, ctx) {
   if (last.pain) {
     return { t: 'hold', w, reps: held, rir: '2-3', why: `You flagged pain on this lift last time (${shortDate(last.date)}). Hold the load and stop if it returns.` };
   }
+  // Last set went to failure (0 reps left) and reps fell below the range: keep the load, no +1 rep.
+  const failedShort = String(last.rir) === '0' && lastReps.slice(0, n).some(x => x < lo);
+  if (failedShort) {
+    const next0 = prev.map(x => clamp(x, lo, hi));
+    return { t: 'reps', w, reps: next0, rir: '1-2', why: `Last time the final set went to failure (0 reps left) and reps fell short of ${lo}–${hi}. Same load; aim to get every set into the range with a rep or two to spare.${caution}` };
+  }
   // Only add load when every planned set actually reached the top (a single logged set doesn't count for three).
   if (lastReps.length >= n && lastReps.slice(0, n).every(x => x >= hi)) {
     if (ex.unit === 'bw') {
-      return { t: 'load', w: w + 2.5, inc: 2.5, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi}. Add 2.5 kg with a belt (or slow the tempo); reps drop back toward ${lo}.` };
+      return { t: 'load', w: w + 2.5, inc: 2.5, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi}. Add ${stepDisp(2.5)} ${UNITS} with a belt (or slow the tempo); reps drop back toward ${lo}.` };
     }
     const nw = snapLoad(w + (ex.inc || 1), ex, ctx.equip);
     if (!(nw > w + EPS)) {
       return { t: 'reps', w, reps: fill(n, hi), rir: '1-2', why: `Every set reached ${hi}, but there's no heavier dumbbell in your equipment list. Add a set, slow the lowering to 3 seconds, or switch to a harder variation.` };
     }
     const step = +(nw - w).toFixed(2);
-    const per = ex.unit === 'L' ? ' level' : ex.unit === 'kg/DB' ? ' kg per dumbbell' : ' kg';
-    return { t: 'load', w: nw, inc: step, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi} last time. Add ${step}${per} and let reps drop back toward ${lo}.${caution}` };
+    const per = ex.unit === 'L' ? ' level' : ex.unit === 'kg/DB' ? ` ${UNITS} per dumbbell` : ' ' + UNITS;
+    return { t: 'load', w: nw, inc: step, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi} last time. Add ${ex.unit === 'L' ? step : stepDisp(step)}${per} and let reps drop back toward ${lo}.${caution}` };
   }
   const next = prev.map(x => clamp(x + 1, lo, hi));
   const tr = trend(exps, ex.unit);
@@ -222,7 +255,7 @@ export function suggest(slot, ex, ctx) {
       : `Two sessions without beating your best on this lift. One more flat session confirms a plateau. Log RIR on every set.${caution}`;
     return { t: 'plat', status: tr.status, w, reps: next, rir: '1-2', why };
   }
-  return { t: 'reps', w, reps: next, rir: '1-3', why: `Last time ${lastReps.join('·')} at ${fmtLoad(ex, w)}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}. Keep the load and add a rep per set until all ${n} sets reach ${hi}, then add ${ex.inc || 1}${unitWord}.${caution}` };
+  return { t: 'reps', w, reps: next, rir: '1-3', why: `Last time ${lastReps.join('·')} at ${fmtLoad(ex, w)}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}. Keep the load and add a rep per set until all ${n} sets reach ${hi}, then add ${ex.unit === 'L' ? ex.inc || 1 : stepDisp(ex.inc || 1)}${unitWord}.${caution}` };
 }
 
 /** What to do next time, judged from a just-finished entry. */
@@ -249,9 +282,12 @@ export function volume(ex, sets) {
 /** Warm-up ramp toward a working load. */
 export function warmup(w, ex, equip) {
   if (!isKg(ex.unit) || !(w > 0)) return [];
-  const bar = ex.equip === 'barbell' || ex.equip === 'smith' ? (equip?.barKg ?? 20) : 0;
+  const barbell = ex.equip === 'barbell' || ex.equip === 'smith';
+  const bar = barbell ? (ex.equip === 'smith' ? (equip?.smithBarKg ?? equip?.barKg ?? 20) : (equip?.barKg ?? 20)) : 0;
   const steps = w >= 40 ? [[0.4, 8], [0.6, 5], [0.8, 3]] : w >= 15 ? [[0.5, 8], [0.75, 4]] : [[0.6, 8]];
   const out = [];
+  // Barbell and Smith lifts start with the empty bar.
+  if (barbell && bar > 0 && bar < w - EPS) out.push({ w: bar, r: 10, warm: true, done: false });
   for (const [p, r] of steps) {
     let x = Math.max(bar, p * w);
     x = ex.unit === 'kg/DB' ? snapDown(x, ex, equip) : round(x, 2.5);
@@ -371,9 +407,9 @@ export function compareExposure(exps, i, unit) {
   const pr = sc != null && older.length > 0 && sc > Math.max(...older) + EPS;
   if (!prev) return { dir: 'first', text: 'first log', pr: false };
   const a = topLoad(cur), b = topLoad(prev);
-  const unitWord = unit === 'L' ? ' lvl' : unit === 'bw' ? ' kg' : ' kg';
+  const unitWord = unit === 'L' ? ' lvl' : ' ' + UNITS;
   if (Math.abs(a.w - b.w) > EPS) {
-    const d = +(a.w - b.w).toFixed(2);
+    const d = unit === 'L' ? +(a.w - b.w).toFixed(2) : +(toDisp(a.w) - toDisp(b.w)).toFixed(2);
     return { dir: d > 0 ? 'up' : 'down', kind: 'load', text: `${d > 0 ? '+' : ''}${d}${unitWord}`, pr, prevDate: prev.date };
   }
   // Reps are compared set by set over the sets both sessions have; a different set count is reported separately.
@@ -531,8 +567,11 @@ export function estimateDay(day, exById, sessions) {
 
 /**
  * Time left in a running workout, in seconds.
- * Adjusts the plan by your pace so far today (clamped 0.7–1.5×).
+ * Based on the planned sets still to do × each exercise's expected set cycle. Today's actual pace is
+ * blended in only once there is enough of it (5+ work sets over 8+ minutes), and then only partly,
+ * so a few quick early sets can't halve the estimate.
  */
+export const PACE_MIN_SETS = 5, PACE_MIN_SEC = 8 * 60;
 export function estimateRemaining(entries, exById, sessions, now = Date.now(), start = null) {
   let left = 0, plannedDone = 0, firstAt = Infinity, lastAt = 0, doneCount = 0;
   entries.forEach((e, i) => {
@@ -542,14 +581,60 @@ export function estimateRemaining(entries, exById, sessions, now = Date.now(), s
     const work = e.sets.filter(s => !s.warm);
     const todo = work.filter(s => !s.done).length, done = work.length - todo;
     if (todo) left += todo * cyc + (done === 0 && i > 0 ? TRANSITION_SEC : 0);
-    plannedDone += done * cyc;
-    for (const s of work) if (s.done && s.at) { firstAt = Math.min(firstAt, s.at); lastAt = Math.max(lastAt, s.at); doneCount++; }
+    for (const s of work) if (s.done && s.at) { firstAt = Math.min(firstAt, s.at); lastAt = Math.max(lastAt, s.at); doneCount++; plannedDone += cyc; }
   });
   let pace = 1;
-  const t0 = start ?? (isFinite(firstAt) ? firstAt : null);
-  if (t0 && doneCount >= 3 && plannedDone > 0) {
-    const actual = (Math.max(lastAt, t0) - t0) / 1000 + SET_WORK_SEC;
-    pace = clamp(actual / plannedDone, 0.7, 1.5);
+  const span = isFinite(firstAt) ? (lastAt - firstAt) / 1000 : 0;
+  if (doneCount >= PACE_MIN_SETS && span >= PACE_MIN_SEC && plannedDone > 0) {
+    // n ticks span n-1 set cycles.
+    const ratio = clamp(span / (plannedDone * (doneCount - 1) / doneCount), 0.75, 1.4);
+    const weight = Math.min(0.6, doneCount / 20);
+    pace = 1 + (ratio - 1) * weight;
   }
   return Math.round(left * pace);
+}
+
+// ---- short sessions -------------------------------------------------------------------
+export const SESSION_LENGTHS = [20, 30, 45];
+
+/** Raw plan length in seconds for per-slot set counts (no blend with past durations). */
+export function planSec(slots, counts, exById, sessions) {
+  let sec = 0, first = true;
+  slots.forEach((sl, i) => {
+    const ex = exById[sl.exId], n = +counts[i] || 0;
+    if (!ex || !n) return;
+    sec += n * setCycleSec(ex, sessions) + (first ? 0 : TRANSITION_SEC);
+    first = false;
+  });
+  return Math.round(sec);
+}
+
+/**
+ * Trim a day to fit about `minutes`. counts: planned work sets per slot (e.g. after a deload).
+ * Priority: the first two exercises are the main lifts. In order: accessories lose sets down to 2,
+ * then accessories are dropped from the end, then main lifts go down to 2 sets, then to 1.
+ * Returns new counts; 0 means skipped today. No minutes (full) returns the counts unchanged.
+ */
+export function trimToFit(slots, counts, exById, sessions, minutes) {
+  const out = counts.map(n => +n || 0);
+  if (!(minutes > 0)) return out;
+  const target = minutes * 60;
+  const est = () => planSec(slots, out, exById, sessions);
+  if (est() <= target) return out;
+  const idx = out.map((n, i) => i).filter(i => exById[slots[i].exId] && out[i] > 0);
+  const main = idx.slice(0, 2), acc = idx.slice(2);
+  const shave = (list, floor) => {
+    let changed = true;
+    while (est() > target && changed) {
+      changed = false;
+      for (const i of [...list].reverse()) {
+        if (out[i] > floor) { out[i]--; changed = true; if (est() <= target) return; }
+      }
+    }
+  };
+  shave(acc, 2);
+  for (const i of [...acc].reverse()) { if (est() <= target) break; out[i] = 0; }
+  shave(main, 2);
+  shave(main, 1);
+  return out;
 }

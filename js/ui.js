@@ -1,4 +1,5 @@
 // Shared UI helpers: escaping, formatting, chips, charts, sheets, toasts.
+import { incLabel } from './engine.js';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -23,24 +24,29 @@ export const kfmt = v => Math.round(v).toLocaleString('en-GB');
 export const COLORS = ['push', 'pull', 'legs', 'upper', 'legsb', 'arms', 'rest'];
 export const cvar = c => `var(--${COLORS.includes(c) ? c : 'upper'})`;
 
+// Labels are looked up at render time so they follow the plain/gym wording setting.
 export const CHIP = {
-  reps: ['+1 rep', 'up'], load: ['', 'up'], cal: ['Calibrate', 'upper'], check: ['Set units', 'flat'],
-  log: ['Log reps', 'flat'], hold: ['Hold', 'mute'], plat: ['Plateau watch', 'flat'], deload: ['Deload', 'legs'],
+  reps: ['+1 rep', 'up'], load: ['', 'up'], cal: ['@calibrate', 'upper'], check: ['Set units', 'flat'],
+  log: ['Log reps', 'flat'], hold: ['@hold', 'mute'], plat: ['@plateauWatch', 'flat'], deload: ['@deload', 'legs'],
 };
+const word = t => (t && t[0] === '@' ? T(t.slice(1)) : t);
 export function chip(sg, ex) {
   if (!sg) return '';
   const [t, k] = CHIP[sg.t] || ['', 'mute'];
-  let txt = t;
-  if (sg.t === 'load') txt = ex.unit === 'L' ? `+${sg.inc} level` : `+${num(sg.inc, 2)} kg`;
-  if (sg.t === 'plat' && sg.status === 'plateau') txt = 'Plateau';
+  let txt = word(t);
+  if (sg.t === 'load') txt = incLabel(ex, sg.inc);
+  if (sg.t === 'plat' && sg.status === 'plateau') txt = T('plateau');
   return `<span class="pill" style="--k:var(--${k})">${esc(txt)}</span>`;
 }
 export const pill = (txt, k = 'mute') => `<span class="pill" style="--k:var(--${k})">${esc(txt)}</span>`;
 
-export const STATUS = {
+const STATUS_RAW = {
   up: ['Progressing', 'up'], flat: ['Flat', 'flat'], down: ['Dipped', 'down'],
-  watch: ['Plateau watch', 'flat'], plateau: ['Plateau', 'down'], new: ['New', 'upper'], none: ['No data', 'mute'],
+  watch: ['@plateauWatch', 'flat'], plateau: ['@plateau', 'down'], new: ['New', 'upper'], none: ['No data', 'mute'],
 };
+/** STATUS[key] -> [label, colour], label in the current wording. */
+export const STATUS = {};
+for (const [key, [t, k]] of Object.entries(STATUS_RAW)) Object.defineProperty(STATUS, key, { enumerable: true, get: () => [word(t), k] });
 
 /** Small sparkline. */
 export function spark(pts, k = 'up', W = 64, H = 28) {
@@ -176,15 +182,54 @@ export function confirmSheet({ title, body = '', ok = 'Confirm', danger = false 
   });
 }
 
-let toastT;
+let toastT, toastClearT, toastAt = 0;
+/** Short message in the shared live region. Longer text stays up longer; it clears itself and on navigation. */
 export function toast(msg, k = 'ink') {
   let el = $('#toast');
-  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
   el.textContent = msg;
   el.style.setProperty('--k', `var(--${k})`);
   el.classList.add('on');
+  toastAt = Date.now();
+  clearTimeout(toastT); clearTimeout(toastClearT);
+  const ms = Math.min(7000, Math.max(2600, String(msg).length * 55));
+  toastT = setTimeout(hideToast, ms);
+}
+export function hideToast() {
+  const el = $('#toast');
+  if (!el) return;
   clearTimeout(toastT);
-  toastT = setTimeout(() => el.classList.remove('on'), 2600);
+  el.classList.remove('on');
+  // Empty the live region once it has faded, so screen readers never find stale text.
+  clearTimeout(toastClearT);
+  toastClearT = setTimeout(() => { if (!el.classList.contains('on')) el.textContent = ''; }, 250);
+}
+// A toast fired just before a route change ("Session deleted" → History) stays; an older one goes.
+window.addEventListener('hashchange', () => { if (Date.now() - toastAt > 800) hideToast(); });
+
+/** Polite screen-reader announcement (visually hidden). */
+export function announce(msg) {
+  const el = $('#sr-status');
+  if (!el) return;
+  el.textContent = '';
+  setTimeout(() => { el.textContent = msg; }, 60);
+}
+// Rest timer: the countdown itself is silent (role="timer"); only its state changes are announced.
+{
+  let lastState = null;
+  const watch = () => {
+    const tm = $('#timer');
+    if (!tm) return;
+    new MutationObserver(() => {
+      const st = tm.hidden ? '' : tm.querySelector('.st')?.textContent || '';
+      if (st === lastState) return;
+      const was = lastState; lastState = st;
+      if (st === 'Rest') announce(`Rest timer started${tm.querySelector('.num')?.textContent ? `, ${tm.querySelector('.num').textContent}` : ''}.`);
+      else if (st && st !== 'Rest') announce(st);
+      else if (was) announce('Rest timer closed.');
+    }).observe(tm, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+  };
+  if (typeof document !== 'undefined') document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', watch) : watch();
 }
 
 export const ICON = {
@@ -228,3 +273,44 @@ Object.assign(ICON, {
 for (const k of Object.keys(ICON)) ICON[k] = ICON[k].replace(/^<svg (?!aria-hidden)/, '<svg aria-hidden="true" focusable="false" ');
 /** Old glyph markers mapped to line icons. */
 export const GLYPH_ICON = { '↓': ICON.trendDown, '!': ICON.alert, '⚑': ICON.flag, '✎': ICON.pencil, '⏱': ICON.clock, '♥': ICON.heart, '↑': ICON.trendUp, '≡': ICON.bars, '?': ICON.help, '★': ICON.star };
+
+// ---- wording: plain (beginner) or gym terms (expert), set in Settings ----------------------------
+// T('key') returns the label for the current wording; TIP('key') returns a one-line explanation.
+const TERMS = {
+  rir:        ['Reps left', 'RIR'],
+  rirLong:    ['Reps you could still have done', 'Reps in reserve (RIR)'],
+  calibrate:  ['Find your weight', 'Calibrate'],
+  hold:       ['Easy day', 'Hold'],
+  holdDay:    ['Easy day', 'Hold day'],
+  plateau:    ['Stuck', 'Plateau'],
+  plateauWatch: ['Stalling?', 'Plateau watch'],
+  deload:     ['Lighter week', 'Deload'],
+  e1rm:       ['Est. 1-rep max', 'e1RM'],
+  bw:         ['Bodyweight', 'BW'],
+  pain:       ['Pain or discomfort', 'Pain or joint niggle'],
+  sets:       ['sets', 'hard sets'],
+  volume:     ['Total weight lifted', 'Volume'],
+  superset:   ['Pair (do back to back)', 'Superset'],
+  compound:   ['big lifts', 'compounds'],
+  weeklySets: ['Sets per muscle each week', 'Weekly sets per muscle'],
+  estMax:     ['est. 1-rep max', 'est. max'],
+};
+const TIPS = {
+  rir: 'How many more reps you could have done before failing. 0 = none left, 2 = you had 2 more in you.',
+  calibrate: 'New exercise: pick a weight you can lift for the target reps with about 2 reps to spare. Next time the app builds on it.',
+  hold: 'Short sleep or pain today, so the app repeats last time\'s weights instead of adding more.',
+  plateau: 'No progress on this lift for 3 sessions in a row. Check sleep and effort; a lighter week or a variation can help.',
+  deload: 'A lighter week (fewer sets, a bit less weight) to recover before pushing again.',
+  e1rm: 'An estimate of the most you could lift once, worked out from your sets. Useful as a trend, not a real max.',
+  volume: 'Weight × reps added up. Dumbbell exercises count both hands.',
+  superset: 'Two exercises done back to back, resting after the pair.',
+  sets: 'Working sets that end a few reps short of failure. Warm-ups do not count.',
+  weeklySets: 'Working sets a muscle gets in a week. An exercise counts fully for its main muscle and half for helper muscles (bench: chest 1, shoulders and triceps ½ each).',
+  estMax: 'An estimate of the most you could lift once, worked out from your sets. Useful as a trend, not a real max.',
+};
+export const expertWording = () => (globalThis.__wording || 'plain') === 'expert';
+export const setWording = w => { globalThis.__wording = w === 'expert' ? 'expert' : 'plain'; };
+export const T = k => (TERMS[k] ? TERMS[k][expertWording() ? 1 : 0] : k);
+export const TIP = k => TIPS[k] || '';
+/** A small "?" that explains a term on tap (uses the native title for desktop, a toast on phones). */
+export const helpTip = k => (TIPS[k] ? `<button class="tipq" data-act="tip" data-k="${k}" aria-label="What does ${T(k)} mean?">${ICON.help}</button>` : '');

@@ -285,27 +285,64 @@ export function explainSplit(answers) {
 
 // ---- a split written out as text ("Monday – Chest", "1. Bench Press – 4 × 6–8") ----------------
 const DAY_NAMES = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
+// Day names in English, Malay, Spanish and Japanese → weekday (0 = Sunday)
+const DAY_WORDS = [
+  [/^(mon(day)?|isnin|lunes|月(曜日?)?)(?=[\s.,:–—-]|$)/i, 1], [/^(tue(s(day)?)?|selasa|martes|火(曜日?)?)(?=[\s.,:–—-]|$)/i, 2],
+  [/^(wed(nesday)?|rabu|mi[ée]rcoles|水(曜日?)?)(?=[\s.,:–—-]|$)/i, 3], [/^(thu(r(s(day)?)?)?|khamis|jueves|木(曜日?)?)(?=[\s.,:–—-]|$)/i, 4],
+  [/^(fri(day)?|jumaat|viernes|金(曜日?)?)(?=[\s.,:–—-]|$)/i, 5], [/^(sat(urday)?|sabtu|s[áa]bado|土(曜日?)?)(?=[\s.,:–—-]|$)/i, 6],
+  [/^(sun(day)?|ahad|minggu|domingo|日(曜日?)?)(?=[\s.,:–—-]|$)/i, 0],
+];
+const SETS_RE = /(\d+)\s*(?:[x×]\s*\d+|sets?\b)/i;
+/** "Monday – Chest", "Mon upper", "Isnin: Dada", "月曜日 胸", "Day 1 – Push" → {dow|null, name} or null. */
+function dayHeader(line) {
+  if (SETS_RE.test(line)) return null;
+  const clean = line.replace(/^[#*\s]+|[*]+$/g, '');
+  for (const [re, dow] of DAY_WORDS) {
+    const m = clean.match(re);
+    if (m) { const n = clean.slice(m[0].length).replace(/^[\s.,:–—-]+/, '').trim(); return { dow, name: n.charAt(0).toUpperCase() + n.slice(1) }; }
+  }
+  const d = clean.match(/^(?:day|hari|d[íi]a|workout)\s*(\d{1,2}|[a-f])\b[\s.,:–—-]*(.*)$/i);
+  return d ? { dow: null, name: d[2].trim() || `Day ${d[1].toUpperCase()}` } : null;
+}
 const COLOR_FOR = [[/chest|push/i, 'push'], [/back|pull/i, 'pull'], [/leg|lower|squat/i, 'legs'], [/arm|bicep|tricep/i, 'arms'], [/shoulder|upper|delt/i, 'upper'], [/full/i, 'legsb']];
+// "Push A", "Upper B", "Legs", "Full body 2", "Lower (hinge)": a workout named on its own line.
+const WORKOUT_RE = /^(push|pull|legs?|lower|upper|full(?: ?body)?|chest(?: (?:and|&) \w+)?|back(?: (?:and|&) \w+)?|arms?|shoulders?|glutes?|posterior(?: chain)?|anterior|torso|limbs|hinge|squat|bench|deadlift|conditioning|strength|hypertrophy|power|heavy|light|volume)(?: (?:day|session|workout))?(?: ?(?:[a-f]|\d))?(?: ?\([^)]{1,30}\))?$/i;
+// Lines that can't be a set × rep slot: timed rounds and distances.
+const TIMED_RE = /\b(e\d?mom|tabata|for time|every \d+ ?(?:min|minutes|sec)|amrap \d+ ?(?:min|minutes)|\d+ ?(?:min|minutes) amrap|intervals?|rounds? for)\b/i;
+const DIST_AFTER = /^\s*(m|km|k|meters?|metres?|yd|yards?|cal|kcal|calories|mins?|minutes|miles?|mi|ft|feet|steps)\b/i;
+const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
 
 /**
- * Read a written split. Returns {days:[{dow, name, sub, color, items:[{name, sets, lo, hi, note}]}], skipped:[lines]}.
- * Understands "4 × 6–8", "3 x 10", "4 sets", "2 sets to near failure", "3 × 12 each leg";
- * section words ("Biceps", "Finish with:", "Optional:") become notes, cardio lines become the day's subtitle.
+ * Read a written split. Returns {days:[{dow, name, sub, color, items:[{name, sets, lo, hi, note, group}]}], skipped:[lines], notAdded:[lines]}.
+ * Understands "4 × 6–8", "3 x 10", "4 sets", "5 sets of 5", "2 sets to near failure", "3 × 12 each leg", "3 x AMRAP",
+ * "Squat 65% x5, 75% x5, 85% x5+"; intensity ("@ 90%", "RPE 8", "5+", "AMRAP") is kept as the slot's note.
+ * Day lines: weekdays, "Day 1", "Day A", or a workout name on its own line ("Push A", "Upper B") after a blank line.
+ * "A1."/"A2." superset labels become the slot's group; "B. Trap bar deadlift" loses its letter.
+ * Section words ("Biceps", "Finish with:", "Optional:") become notes, cardio lines become the day's subtitle.
+ * notAdded: lines inside a day that can't become a slot (distances, timed rounds like EMOM), shown on the review.
  */
 export function parseSplitText(text) {
-  const days = [], skipped = [];
-  let day = null, section = '';
+  const days = [], skipped = [], notAdded = [];
+  let day = null, section = '', blank = true, explicit = false;
   for (const raw of String(text).split(/\r?\n/)) {
     const line = raw.replace(/\s+/g, ' ').trim();
-    if (!line) continue;
-    const dm = line.match(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*(?:[–—:-]\s*(.*))?$/i);
-    if (dm) {
-      const name = (dm[2] || '').trim() || 'Workout';
-      day = { dow: DAY_NAMES[dm[1].toLowerCase()], name, sub: '', color: (COLOR_FOR.find(([re]) => re.test(name)) || [0, 'upper'])[1], items: [] };
+    if (!line) { blank = true; continue; }
+    const wasBlank = blank;
+    blank = false;
+    const dh = dayHeader(line);
+    // A workout name alone on a line starts a day, unless the plan already names its days by weekday or number
+    // (then "Arms" after a gap is a section of that day).
+    const bare = line.replace(/^[#*\s]+|[*:]+$/g, '').trim();
+    const wh = !dh && !explicit && (wasBlank || !day) && (!day || day.items.length) && WORKOUT_RE.test(bare);
+    if (dh || wh) {
+      if (dh) explicit = true;
+      const name = dh ? dh.name || 'Workout' : capFirst(bare);
+      day = { dow: dh ? dh.dow : null, name, sub: '', color: (COLOR_FOR.find(([re]) => re.test(name)) || [0, 'upper'])[1], items: [] };
       days.push(day); section = '';
       continue;
     }
     if (!day) { skipped.push(line); continue; }
+    if (TIMED_RE.test(line)) { skipped.push(line); notAdded.push(line); continue; }
     // Cardio and other non-lifting lines describe the day.
     if (/\b(walk|cardio|treadmill|bike|cycling|swim|run|km\/h|incline|speed|min|minutes)\b/i.test(line) && !/[x×]\s*\d/.test(line)) {
       const c = day.cardio ||= {};
@@ -317,25 +354,64 @@ export function parseSplitText(text) {
       if ((mm = t.match(/\b(incline walk|walk|treadmill|bike|cycling|swim|run)\b/i))) c.kind = mm[1].toLowerCase();
       continue;
     }
-    const body = line.replace(/^(?:\d+[.)]|[-•*])\s*/, '');
-    const m = body.match(/^(.+?)\s*[–—:-]\s*(\d+)\s*(?:[x×]\s*(\d+)(?:\s*[–—-]\s*(\d+))?|sets?)\b(.*)$/i);
+    let body = line.replace(/^(?:\d+[.)]|[-•*])\s*/, '');
+    // "A1. Bench press" / "A2) Row": a superset pair. "B. Trap bar deadlift": just a label.
+    let group = '', lm;
+    if ((lm = body.match(/^([A-H])\s?([1-9])\s*[.):–—-]?\s+(?=\S)/i))) { group = lm[1].toUpperCase(); body = body.slice(lm[0].length); }
+    else if ((lm = body.match(/^([A-H])[.)]\s+(?=\S)/))) body = body.slice(lm[0].length);
+    // "5 sets of 5" / "3 sets of 8-12 reps" -> "5 × 5"; "3 x AMRAP" -> 3 sets, as many reps as you can.
+    body = body.replace(/(\d+)\s*sets?\s*(?:of|x|×)\s*(\d+)(\s*[–—-]\s*\d+)?(?:\s*reps?\b)?/i, '$1 × $2$3')
+      .replace(/(\d+)\s*[x×]\s*(amrap|max(?: reps)?|failure)\b/i, '$1 sets $2');
+    // "Squat 65% x5, 75% x5, 85% x5+": one set per percentage, the scheme kept as the note.
+    const pct = body.match(/^(.+?)\s*[–—:-]?\s*((?:\d+(?:\.\d+)?\s*%\s*[x×]\s*\d+\+?(?:\s*[,/;]\s*|\s+|$))+)(.*)$/i);
+    let m;
+    if (pct) {
+      const reps = [...pct[2].matchAll(/[x×]\s*(\d+)/gi)].map(x => +x[1]);
+      m = [null, pct[1], String(reps.length), String(Math.min(...reps)), String(Math.max(...reps)), [pct[2].trim().replace(/[,;/]$/, ''), pct[3].trim()].filter(Boolean).join(' ')];
+    } else {
+      // "Bench Press – 4 × 6–8", "Bench press 3x8", "Squat: 5 sets"
+      m = body.match(/^(.+?)\s*(?:[–—:-]\s*)?(\d+)\s*(?:[x×]\s*(\d+)(?:\s*[–—-]\s*(\d+))?|sets?)(?:\b|(?=[a-z]))(.*)$/i);
+    }
     if (!m) {
       // A heading inside a day ("Biceps", "Finish with:", "Optional:") labels what follows.
       if (/^[A-Za-z][A-Za-z /&]{1,24}:?$/.test(body)) { section = body.replace(/:$/, ''); continue; }
-      skipped.push(line); continue;
+      skipped.push(line); if (day.items.length || /\d/.test(line)) notAdded.push(line); continue;
     }
+    let rest = (m[5] || '').trim();
+    // "Row 5 × 500m", "Bike 3 × 10 min": distance or time, not reps.
+    if (!pct && m[3] && DIST_AFTER.test(rest)) { skipped.push(line); notAdded.push(line); continue; }
     const sets = Math.max(1, Math.min(10, +m[2]));
     let lo = m[3] ? +m[3] : null, hi = m[4] ? +m[4] : lo;
-    const rest = (m[5] || '').trim();
-    if (lo == null) { lo = /failure/i.test(rest) ? 8 : 6; hi = /failure/i.test(rest) ? 20 : 10; } // "4 sets" / "to near failure"
-    const note = [/optional/i.test(section) ? 'Optional' : /finish/i.test(section) ? 'Finisher' : '', rest.replace(/^[,;·-]\s*/, '')].filter(Boolean).join(' · ');
-    day.items.push({ name: m[1].replace(/\s*\(.*?\)\s*$/, '').trim(), sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note });
+    // "5+" means the last set goes for as many reps as you can.
+    if (/^\+/.test(rest)) rest = `${hi}+ ${rest.slice(1).trim()}`.trim();
+    const open = /failure|amrap|\bmax\b/i.test(rest);
+    if (lo == null) { lo = open ? 8 : 6; hi = open ? 20 : 10; } // "4 sets" / "to near failure" / "AMRAP"
+    // Intensity written into the name ("Squat @ 80%", "Bench RPE 8") moves to the note.
+    let name = m[1].replace(/\s*\(.*?\)\s*$/, '').trim();
+    const inten = name.match(/\s*(@\s*\S.*|\bRPE\s*\d.*|\d+(?:\.\d+)?\s*%.*)$/i);
+    if (inten && inten.index > 1) { rest = [inten[1].trim(), rest].filter(Boolean).join(' '); name = name.slice(0, inten.index).replace(/[\s–—:-]+$/, ''); }
+    rest = rest.replace(/^[,;·-]\s*/, '').replace(/^amrap$/i, 'AMRAP').replace(/^max(?: reps)?$/i, 'AMRAP');
+    const note = [/optional/i.test(section) ? 'Optional' : /finish/i.test(section) ? 'Finisher' : '', rest].filter(Boolean).join(' · ');
+    day.items.push({ name, sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note, group });
   }
+  // A superset label on its own ("A1" with no A2) is just numbering.
+  for (const d of days) for (const it of d.items) if (it.group && d.items.filter(x => x.group === it.group).length < 2) it.group = '';
   // "+ 15 min incline walk (10%, 5.5 km/h)"
   for (const d of days) if (d.cardio) {
     const c = d.cardio, extra = [c.incline && `${c.incline}%`, c.speed && `${c.speed} km/h`].filter(Boolean).join(', ');
     d.sub = `+ ${c.min ? c.min + ' min ' : ''}${c.kind || (c.incline ? 'incline walk' : 'cardio')}${extra ? ` (${extra})` : ''}`;
     delete d.cardio;
   }
-  return { days: days.filter(d => d.items.length), skipped };
+  // "Day 1 / Day 2 …" or "Push A / Pull A …" without weekdays: spread them over the week like the split builder does.
+  const kept = days.filter(d => d.items.length);
+  const free = kept.filter(d => d.dow == null);
+  if (free.length) {
+    const used = new Set(kept.filter(d => d.dow != null).map(d => d.dow));
+    const spread = { 1: [1], 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6] }[Math.min(6, kept.length)] || [1, 2, 3, 4, 5, 6, 0];
+    const order = [...spread, 1, 2, 3, 4, 5, 6, 0].filter((d, i, a) => a.indexOf(d) === i && !used.has(d));
+    free.forEach((d, i) => { d.dow = order[i] ?? null; });
+  }
+  // More than seven workouts can't all get a weekday: say so rather than drop them silently.
+  for (const d of kept) if (d.dow == null) notAdded.push(`${d.name} (no free weekday left)`);
+  return { days: kept.filter(d => d.dow != null), skipped, notAdded };
 }

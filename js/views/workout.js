@@ -1,7 +1,7 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise } from '../state.js';
 import { guessMuscles } from '../io.js';
-import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES } from '../engine.js';
-import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, num, kfmt } from '../ui.js';
+import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp } from '../engine.js';
+import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
 
@@ -40,11 +40,21 @@ function focusSet() {
   return e ? { e, si: pending(e) } : null;
 }
 
-/** A finished exercise folds to one line once you've moved on (ticked something else) or logged its RIR. */
+/** A finished exercise folds to one line once its reps-left is logged, or once you've clearly moved on
+ *  (two sets ticked elsewhere since), so there's always a rest period to set it. */
 function folded(e) {
   if (openDone.has(e.uid) || !e.sets.length || e.sets.some(s => !s.done)) return false;
-  return e.rir != null || S.draft.entries.some(o => o !== e && lastAt(o) > lastAt(e));
+  if (e.rir != null) return true;
+  const t = lastAt(e);
+  let later = 0;
+  for (const o of S.draft.entries) if (o !== e) for (const x of o.sets) if (x.done && (x.at || 0) > t) later++;
+  return later >= 2;
 }
+
+/** Loads shown and typed in the display unit (kg or lb); cable levels are never converted. */
+const conv = ex => ex.unit !== 'L';
+const shown = (ex, w) => (w == null || w === '' ? '' : conv(ex) ? toDisp(w) : w);
+const rirWords = r => (expertWording() ? `${r} RIR` : `${r} reps left`);
 
 /** "25 kg ea × 9·9·9" style text for the work sets done, grouped by load. */
 function setsText(ex, sets) {
@@ -69,8 +79,9 @@ export function render() {
   // Backfilling a past day: no clock, no rest timer; an optional duration instead.
   if (d.past) h += `<div class="warn" style="--k:var(--upper)"><b>Past workout.</b><span>Logging ${fmtDate(d.date, { dow: true, year: true })}. Tick the sets you did.</span></div>
     <div class="rrow"><label for="past-min">How long did it take?</label><input class="inp sm" id="past-min" type="number" inputmode="numeric" min="1" max="300" placeholder="min" value="${d.minutes ?? ''}" data-input="past-min"></div>`;
-  if (d.deload) h += `<div class="warn" style="--k:var(--legs)"><b>Deload.</b><span>Fewer sets, lighter loads, 3–4 reps in reserve.</span></div>`;
-  else if (d.readiness?.sleep === '<6' || d.readiness?.pain) h += `<div class="warn"><b>Hold day.</b><span>Loads held at last session's numbers. Stop 2–3 reps short of failure.</span></div>`;
+  if (d.deload) h += `<div class="warn" style="--k:var(--legs)"><b>${esc(T('deload'))}.</b>${helpTip('deload')}<span>Fewer sets, lighter loads, stop with 3–4 reps left.</span></div>`;
+  else if (d.readiness?.sleep === '<6' || d.readiness?.pain) h += `<div class="warn"><b>${esc(T('holdDay'))}.</b>${helpTip('hold')}<span>Same weights as last session. Stop 2–3 reps short of failure.</span></div>`;
+  if (d.short) h += `<p class="fine">Short session (${d.short} min): fewer sets, main lifts first. Add sets with + Set if you have time.</p>`;
 
   const groups = groupLabels(d.entries.map(e => e.slot || {}));
   const focus = focusSet();
@@ -82,7 +93,12 @@ export function render() {
     <div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([v, l]) => `<button data-act="feel" data-v="${v}" aria-pressed="${d.feel === v}" title="${l}">${v}</button>`).join('')}</div></div>
     <div class="rrow"><label for="hr">Peak heart rate</label><input class="inp sm" id="hr" type="number" inputmode="numeric" placeholder="bpm" value="${d.hr ?? ''}" data-input="hr"></div>
     <textarea class="inp" id="snote" rows="2" placeholder="Anything worth remembering: sleep, energy, technique" data-input="snote">${esc(d.note || '')}</textarea></section>`;
-  h += `<button class="btn" data-act="finish" style="--c:var(--up)">Finish workout</button>
+  // Every set ticked: the Finish button sticks to the bottom of the screen, within thumb reach.
+  const allDone = all.length > 0 && done === all.length;
+  h += allDone
+    ? `<button class="linkbtn danger center" data-act="discard">Discard workout</button>
+    <div class="finbar"><button class="btn" data-act="finish" style="--c:var(--up)">${ICON.check} Finish workout</button></div>`
+    : `<button class="btn" data-act="finish" style="--c:var(--up)">Finish workout</button>
     <button class="linkbtn danger center" data-act="discard">Discard workout</button>`;
   return {
     // The bar is sticky, so the clock and time left stay visible while scrolling.
@@ -107,7 +123,7 @@ function card(e, ei, grp, focusSi = -1) {
   if (folded(e)) {
     const ws = workSets(e);
     return `<article class="box exc fold" id="ex-${e.uid}"><button class="foldbtn" data-act="unfold" data-uid="${e.uid}" aria-expanded="false" aria-label="${esc(ex.name)} done. Show sets">
-      <span class="ok">${ICON.check}</span><span class="grow"><b>${g}${esc(ex.name)}</b><small>${esc(ws.length ? setsText(ex, ws) : 'No work sets')}${e.rir != null ? ` · RIR ${esc(e.rir)}` : ''}</small></span>${e.pain ? pill('pain', 'down') : ''}${ICON.chev}</button></article>`;
+      <span class="ok">${ICON.check}</span><span class="grow"><b>${g}${esc(ex.name)}</b><small>${esc(ws.length ? setsText(ex, ws) : 'No work sets')}${e.rir != null ? ` · ${esc(rirWords(e.rir))}` : ''}</small></span>${e.pain ? pill('pain', 'down') : ''}${ICON.chev}</button></article>`;
   }
   const slot = e.slot;
   const exps = exposures(S.sessions, ex, { gymId: S.settings.gymId, before: S.draft.date });
@@ -119,23 +135,24 @@ function card(e, ei, grp, focusSi = -1) {
     const bw = ex.unit === 'bw';
     const who = `${esc(ex.name)}, ${s.warm ? 'warm-up set' : 'set ' + label}`;
     return `<div class="set ${s.done ? 'done' : ''} ${s.warm ? 'warm' : ''} ${si === focusSi ? 'next' : ''}"><span class="i" aria-hidden="true">${label}</span>
-      <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="-1" aria-label="${who}: less weight">−</button><input id="w-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="w" type="number" inputmode="decimal" step="any" value="${bw && !+s.w ? '' : s.w ?? ''}" placeholder="${bw ? 'BW' : ex.unit === 'L' ? 'lvl' : 'kg'}" aria-label="${who}: ${bw ? 'added weight' : 'weight'}"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="1" aria-label="${who}: more weight">+</button></div>
+      <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="-1" aria-label="${who}: less weight">−</button><input id="w-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="w" type="number" inputmode="decimal" step="any" value="${bw && !+s.w ? '' : shown(ex, s.w)}" placeholder="${bw ? esc(T('bw')) : ex.unit === 'L' ? 'lvl' : getUnits()}" aria-label="${who}: ${bw ? `added weight in ${getUnits()}` : ex.unit === 'L' ? 'level' : `weight in ${getUnits()}`}"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="1" aria-label="${who}: more weight">+</button></div>
       <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="r" data-d="-1" aria-label="${who}: one rep fewer">−</button><input id="r-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="r" type="number" inputmode="numeric" value="${s.r ?? ''}" placeholder="reps" aria-label="${who}: reps"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="r" data-d="1" aria-label="${who}: one rep more">+</button></div>
       <button class="check" data-act="done" data-e="${ei}" data-s="${si}" aria-label="${who} done" aria-pressed="${!!s.done}">${ICON.check}</button></div>`;
   }).join('');
   const whyOpen = openWhy.has(e.uid);
   // The suggestion chip doubles as the "why" toggle, so the reason costs no space until asked for.
-  const tag = e.sg?.why ? `<button class="whybtn" data-act="why" data-uid="${e.uid}" aria-expanded="${whyOpen}" aria-label="Why this target">${chip(e.sg, ex)}<i class="whyq">${ICON.help}</i></button>` : chip(e.sg, ex);
+  const tag = e.sg?.why ? `<button class="whybtn" data-act="why" data-uid="${e.uid}" aria-expanded="${whyOpen}" aria-label="Why this target for ${esc(ex.name)}">${chip(e.sg, ex)}<i class="whyq">${ICON.help}</i></button>` : chip(e.sg, ex);
   return `<article class="box exc" id="ex-${e.uid}">
     <header><div><h3>${g}<a href="#/ex/${esc(ex.id)}">${esc(ex.name)}</a></h3>
+      ${slot?.note ? `<p class="snote">${esc(slot.note)}</p>` : ''}
       <p>${slot ? `${e.sg?.reps?.length || slot.sets}×${slot.lo}–${slot.hi} · ` : ''}${esc(lastTxt)}</p></div>
       <span class="hdr-r">${tag}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
-    ${whyOpen ? `<p class="whyp">${esc(e.sg.why)} Target ${esc(e.sg.rir)} RIR.</p>` : ''}
+    ${whyOpen ? `<p class="whyp">${esc(e.sg.why)} Aim for ${esc(rirWords(e.sg.rir))} on each set.${e.sg.t === 'cal' ? helpTip('calibrate') : ''}</p>` : ''}
     ${helper(e, ex)}
     <div class="sets">${rows}</div>
     ${e.note ? `<p class="enote">${esc(e.note)}</p>` : ''}
-    <div class="exf"><div class="seg sm" role="group" aria-label="Reps left in the tank on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="fine grow" title="Reps in reserve on the last set">RIR</span>
-      <button class="mini" data-act="add-set" data-e="${ei}">+ Set</button><button class="mini" data-act="pain" data-e="${ei}" aria-pressed="${!!e.pain}">Pain</button></div>
+    <div class="exf"><span class="rirlbl">${esc(T('rir'))}${helpTip('rir')}</span><div class="seg sm" role="group" aria-label="${esc(ex.name)}: ${esc(T('rirLong'))} on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="grow"></span>
+      <button class="mini" data-act="add-set" data-e="${ei}" aria-label="Add a set to ${esc(ex.name)}">+ Set</button><button class="mini" data-act="pain" data-e="${ei}" aria-pressed="${!!e.pain}" aria-label="${esc(ex.name)}: pain">Pain</button></div>
   </article>`;
 }
 
@@ -148,11 +165,12 @@ function helper(e, ex) {
   if (ex.equip === 'barbell' || ex.equip === 'smith') {
     const bar = barFor(ex);
     const p = platesPerSide(w, bar, eq.plates);
-    if (!p.ok) return `<p class="helper">${w < bar ? `Below the ${bar} kg bar.` : `Can't make ${w} kg exactly with your plates (${num(p.rem, 2)} kg/side short).`}</p>`;
-    return `<p class="helper">${w} kg: <b>${p.plates.length ? p.plates.join(' + ') : 'empty bar'}</b>${p.plates.length ? ' per side' : ''} on the ${bar} kg bar</p>`;
+    const U = getUnits(), wt = `${num(toDisp(w))} ${U}`;
+    if (!p.ok) return `<p class="helper">${w < bar ? `Below the ${num(toDisp(bar))} ${U} bar.` : `Can't make ${wt} exactly with your plates (${num(toDisp(p.rem), 2)} ${U}/side short).`}</p>`;
+    return `<p class="helper">${wt}: <b>${p.plates.length ? p.plates.join(' + ') + ' kg' : 'empty bar'}</b>${p.plates.length ? ' per side' : ''} on the ${num(toDisp(bar))} ${U} bar</p>`;
   }
   if (ex.unit === 'kg/DB' && eq.dumbbells?.length && !eq.dumbbells.includes(w)) {
-    return `<p class="helper">No ${w} kg dumbbell in your list. Nearest: <b>${nearestDumbbell(w, eq.dumbbells)} kg</b></p>`;
+    return `<p class="helper">No ${num(toDisp(w))} ${getUnits()} dumbbell in your list. Nearest: <b>${num(toDisp(nearestDumbbell(w, eq.dumbbells)))} ${getUnits()}</b></p>`;
   }
   return '';
 }
@@ -167,7 +185,7 @@ function platesShort(ex, w) {
 }
 
 function summary(d) {
-  let vol = 0, v = 0, lv = 0, done = 0, tot = 0; // vol: this workout; v/lv: like-for-like with last time
+  let vol = 0, v = 0, lv = 0, done = 0, tot = 0, reps = 0, anyKg = false; // vol: this workout; v/lv: like-for-like with last time
   const prs = [];
   // Next-time targets come from the same engine as the Today screen, with this workout counted as the latest log.
   const asSess = { id: d.id, date: d.date, gymId: d.gymId, end: Date.now(), entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sets: e.sets, rir: e.rir, pain: e.pain })) };
@@ -178,6 +196,8 @@ function summary(d) {
     if (!ex) return '';
     const ws = workSets(e);
     done += ws.length; tot += e.sets.filter(s => !s.warm).length;
+    if (ws.length && isKg(ex.unit)) anyKg = true;
+    reps += ws.reduce((a, s) => a + (+s.r || 0), 0);
     const prevExps = exposures(S.sessions, ex, { gymId: S.settings.gymId, before: d.date });
     const last = prevExps[0];
     vol += volume(ex, ws);
@@ -190,19 +210,19 @@ function summary(d) {
       const pb = personalBests(prevExps, ex.unit);
       const bestNow = Math.max(0, ...ws.map(s => e1rm(+s.w, +s.r) || 0));
       const heavyNow = Math.max(...ws.map(s => +s.w || 0));
-      if (pb.best && bestNow > pb.best.v + 1e-6) prs.push(`${ex.name}: best estimated max, ${num(bestNow)} kg`);
+      if (pb.best && bestNow > pb.best.v + 1e-6) prs.push(`${ex.name}: best ${expertWording() ? 'e1RM' : 'estimated 1-rep max'}, ${num(toDisp(bestNow))} ${getUnits()}`);
       else if (pb.heavy && heavyNow > pb.heavy.w && ex.unit !== 'bw') prs.push(`${ex.name}: heaviest load, ${fmtLoad(ex, heavyNow)}${ex.unit === 'L' ? '' : ' ' + unitShort(ex.unit)}`);
     }
     const nx = nextFor(e, e.slot, ex);
     if (!ws.length || !e.slot) return `<div class="nt"><span>${esc(ex.name)}${e.pain ? ' ' + pill('pain', 'down') : ''}</span><b class="t-${nx.t}">${esc(nx.text)}</b></div>`;
     const sg = suggest(e.slot, ex, ctx), u = sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit);
-    return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? (ex.unit === 'bw' ? 'BW' : '?') : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
+    return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? (ex.unit === 'bw' ? esc(T('bw')) : expertWording() ? '?' : 'Find weight') : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
   }).join('');
   const pct = lv ? Math.round((v / lv - 1) * 100) : null;
   const mins = d.past ? d.minutes : Math.max(1, Math.round((Date.now() - d.start) / 60000));
   const planned = d.plannedSec ? Math.round(d.plannedSec / 60) : null;
   let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
-    <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div><div class="kpi"><b>${kfmt(vol)}</b><span>kg volume*</span></div>
+    <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
@@ -212,7 +232,7 @@ function summary(d) {
   if (gains.length) h += `<a class="box prbox" href="#/levels"><p class="lbl">XP earned · +${gains.reduce((a, x) => a + x.g, 0)}</p><div class="xpgain">${gains.map(x => pill(`${x.up ? '▲ ' : ''}${x.m} +${x.g}${x.up ? ` · level ${x.L}` : ''}`, x.up ? 'push' : 'up')).join('')}</div></a>`;
   h += `<div class="box pad0"><p class="lbl in">Next time</p>${rows}</div>
     <div class="box ready"><div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([val, l]) => `<button data-act="feel" data-v="${val}" aria-pressed="${d.feel === val}" title="${l}">${val}</button>`).join('')}</div></div></div>
-    <p class="fine">*Volume counts both dumbbells. "vs last time" compares the same number of sets on lifts logged in kg last time; cable levels and bodyweight are left out.</p>
+    <p class="fine">*${anyKg ? `${esc(T('volume'))} is weight × reps added up and counts both dumbbells. ` : ''}"vs last time" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.</p>
     <button class="btn" data-act="save" style="--c:var(--up)">Save workout</button>
     <button class="btn ghost" data-act="back-to-workout">Back to workout</button>`;
   return { title: 'Summary', sub: fmtDate(d.date, { dow: true }), color: 'up', html: h };
@@ -235,12 +255,8 @@ export const actions = {
     refresh();
   },
   bump(el) {
-    const e = E(el), ex = S.exById[e.exId], s = e.sets[+el.dataset.s], dir = +el.dataset.d;
-    if (el.dataset.f === 'w') {
-      const old = s.w;
-      s.w = Math.max(0, +((+s.w || 0) + stepFor(ex) * dir).toFixed(2));
-      carry(e, +el.dataset.s, old, s.w);
-    } else s.r = Math.max(0, (+s.r || 0) + dir);
+    if (holdClick) { holdClick = false; return; } // the press-and-hold already stepped
+    bumpOnce(el);
     commit();
   },
   // Typing never re-renders (that would close the phone keyboard); carried weights are patched in place.
@@ -249,16 +265,18 @@ export const actions = {
     const v = el.value === '' || !Number.isFinite(+el.value) ? null : Math.max(0, +el.value);
     if (v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
     if (f === 'w') {
-      const old = s.w; s.w = v; carry(e, si, old, v);
-      e.sets.forEach((x, j) => { if (j > si) { const inp = document.getElementById(`w-${e.uid}-${j}`); if (inp && document.activeElement !== inp) inp.value = x.w ?? ''; } });
+      const ex = S.exById[e.exId];
+      const kg = v == null ? null : conv(ex) ? fromDisp(v) : v;
+      const old = s.w; s.w = kg; carry(e, si, old, kg);
+      paintLater(e, ex, si);
     } else s.r = v == null ? null : Math.round(v);
     saveDraft();
   },
   done(el) {
     const e = E(el), si = +el.dataset.s, s = e.sets[si], ex = S.exById[e.exId];
     if (!s.done) {
-      if (ex.unit !== 'bw' && !(s.w > 0)) return toast('Enter the weight first', 'flat');
-      if (!(s.r > 0)) return toast('Enter the reps first', 'flat');
+      if (ex.unit !== 'bw' && !(s.w > 0)) { toast('Enter the weight first', 'flat'); return focusField('w', e, si); }
+      if (!(s.r > 0)) { toast('Enter the reps first', 'flat'); return focusField('r', e, si); }
     }
     s.done = !s.done;
     if (s.done) s.at = Date.now(); else delete s.at;
@@ -404,6 +422,73 @@ export const actions = {
   },
 };
 
+function focusField(f, e, si) {
+  const inp = document.getElementById(`${f}-${e.uid}-${si}`);
+  if (!inp) return;
+  inp.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  inp.focus({ preventScroll: true });
+}
+
+/** Refresh the later weight fields of an entry in place (no re-render, so the keyboard stays up). */
+function paintLater(e, ex, si) {
+  e.sets.forEach((x, j) => { if (j > si) { const inp = document.getElementById(`w-${e.uid}-${j}`); if (inp && document.activeElement !== inp) inp.value = shown(ex, x.w); } });
+}
+
+/** One −/+ step. Weights step in the display unit (kg: the exercise's jump; lb: the same jump in tidy lb). */
+function bumpOnce(el) {
+  const e = S.draft?.entries[+el.dataset.e];
+  if (!e) return;
+  const si = +el.dataset.s, ex = S.exById[e.exId], s = e.sets[si], dir = +el.dataset.d;
+  if (!s) return;
+  if (el.dataset.f === 'w') {
+    const old = s.w;
+    if (conv(ex) && getUnits() === 'lb') {
+      const d = Math.max(0, (+toDisp(s.w) || 0) + stepDisp(stepFor(ex)) * dir);
+      s.w = fromDisp(d);
+    } else s.w = Math.max(0, +((+s.w || 0) + stepFor(ex) * dir).toFixed(2));
+    carry(e, si, old, s.w);
+    const inp = document.getElementById(`w-${e.uid}-${si}`);
+    if (inp) inp.value = shown(ex, s.w);
+    paintLater(e, ex, si);
+  } else {
+    s.r = Math.max(0, (+s.r || 0) + dir);
+    const inp = document.getElementById(`r-${e.uid}-${si}`);
+    if (inp) inp.value = s.r;
+  }
+}
+
+// Press and hold −/+ to keep stepping: after a short pause it repeats, speeding up; one save at the end.
+let hold = null, holdClick = false;
+function endHold() {
+  if (!hold) return;
+  clearTimeout(hold.t);
+  const fired = hold.fired;
+  hold = null;
+  if (fired) {
+    holdClick = true; // swallow the click that follows the release
+    setTimeout(() => { holdClick = false; }, 450);
+    commit();
+  }
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', ev => {
+    const b = ev.target.closest?.('[data-act="bump"]');
+    if (!b || !S.draft || (ev.button != null && ev.button !== 0)) return;
+    endHold();
+    const h = { b, fired: false, n: 0 };
+    const tick = () => {
+      if (hold !== h) return;
+      h.fired = true; h.n++;
+      bumpOnce(b);
+      h.t = setTimeout(tick, h.n > 8 ? 60 : 120);
+    };
+    h.t = setTimeout(tick, 420);
+    hold = h;
+  });
+  for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, endHold);
+  document.addEventListener('contextmenu', ev => { if (ev.target.closest?.('[data-act="bump"]')) ev.preventDefault(); });
+}
+
 function carry(e, si, old, now) {
   const s = e.sets[si];
   for (const n of e.sets.slice(si + 1)) if (!n.done && !!n.warm === !!s.warm && (n.w === old || n.w == null)) n.w = now;
@@ -478,7 +563,7 @@ function paintQuick() {
     <label class="field"><span>Name</span><input class="inp" id="qn-name" value="${esc(qn.name)}" maxlength="60" placeholder="e.g. Hack squat" ${qn.name ? '' : 'autofocus'}></label>
     <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${QN_UNITS.map(([v, l]) => `<button class="mini" data-act="qn-unit" data-v="${v}" aria-pressed="${qn.unit === v}">${l}</button>`).join('')}</div></div>
     <div class="field"><span>Main muscle</span><div class="chips" role="group" aria-label="Main muscle">${MUSCLES.map(m => `<button class="mini" data-act="qn-muscle" data-v="${m}" aria-pressed="${qn.muscle === m}">${m}</button>`).join('')}</div></div>
-    <p class="fine">It starts with a calibration set, then progresses like any other lift. Helper muscles, rest time and more can be set later under More → Exercises.</p>
+    <p class="fine">${expertWording() ? 'It starts with a calibration set' : 'First time, you find a weight that suits you'}, then it progresses like any other lift. Helper muscles, rest time and more can be set later under More → Exercises.</p>
     <div class="row2"><button class="btn ghost" data-act="qn-full">More options</button><button class="btn" data-act="qn-save" style="--c:var(--up)">Add to workout</button></div>`, { label: 'New exercise' });
 }
 const qnName = () => { const el = document.getElementById('qn-name'); if (el) qn.name = el.value.trim(); };

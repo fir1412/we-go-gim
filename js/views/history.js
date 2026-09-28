@@ -1,6 +1,6 @@
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
-import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession } from '../engine.js';
-import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, MONTHS, kfmt, dowName, openSheet, closeSheet } from '../ui.js';
+import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits } from '../engine.js';
+import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 
 let editing = null; // session id being edited
@@ -43,7 +43,7 @@ export function render(route) {
     g += ss ? `<a href="#/session/${esc(ss[0].id)}" class="on ${d === t ? 'now' : ''}" style="--k:${cvar(ss[0].color)}" aria-label="${esc(lab)}">${+d.slice(8)}</a>`
       : `<span class="${d === t ? 'now' : ''} ${d > t ? 'fut' : ''}" aria-label="${esc(lab)}">${+d.slice(8)}</span>`;
   }
-  h += `<div class="box cal"><div class="cap"><b>${fmtDate(start)} – ${fmtDate(addDays(start, 41))}</b><span>${S.sessions.length} sessions logged</span></div><div class="g">${g}</div></div>`;
+  h += `<div class="box cal"><div class="cap"><b>${fmtDate(start)} – ${fmtDate(addDays(start, 41))}</b><span>${S.sessions.length} session${S.sessions.length === 1 ? '' : 's'} logged</span></div><div class="g">${g}</div></div>`;
 
   h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} imported` : 'Show imported'}</button>` : ''}</div>`;
   if (!list.length) h += nImp && !showSeed ? `<div class="empty"><b>No sessions logged in the app yet.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>` : `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here.</p></div>`;
@@ -80,14 +80,17 @@ function detail(id) {
   if (!s) return { title: 'Not found', back: 'history', html: `<div class="empty"><b>This session doesn't exist.</b><p>It may have been deleted.</p></div>` };
   const ed = editing === id;
   const dur = s.start && s.end ? Math.round((s.end - s.start) / 60000) : s.minutes ?? null;
-  let vol = 0, sets = 0;
-  for (const e of s.entries) { const ex = S.exById[e.exId]; if (ex) { vol += volume(ex, workSets(e)); sets += workSets(e).length; } }
-  let h = `<div class="kpis"><div class="kpi"><b>${sets}</b><span>work sets</span></div><div class="kpi"><b>${kfmt(vol)}</b><span>kg volume</span></div><div class="kpi"><b>${dur == null ? '—' : dur < 1 ? '&lt;1' : dur}</b><span>minutes</span></div></div>`;
+  let vol = 0, sets = 0, reps = 0;
+  for (const e of s.entries) { const ex = S.exById[e.exId]; if (ex) { vol += volume(ex, workSets(e)); sets += workSets(e).length; reps += workSets(e).reduce((a, x) => a + (+x.r || 0), 0); } }
+  // Bodyweight-only sessions have no load to add up, so show reps instead of "0 kg".
+  const volKpi = vol > 0 ? `<b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}</span>` : `<b>${reps}</b><span>reps</span>`;
+  let h = `<div class="kpis"><div class="kpi"><b>${sets}</b><span>set${sets === 1 ? '' : 's'} done</span></div><div class="kpi">${volKpi}</div><div class="kpi"><b>${dur == null ? '—' : dur < 1 ? '&lt;1' : dur}</b><span>minutes</span></div></div>`;
   const meta = [];
-  if (s.readiness) meta.push(`Sleep ${s.readiness.sleep} h${s.readiness.pain ? ', pain flagged' : ''}`);
+  if (s.readiness?.sleep) meta.push(`Sleep ${s.readiness.sleep} h`);
+  if (s.readiness?.pain) meta.push('Pain flagged');
   if (s.feel) meta.push(`Feel ${s.feel}/5`);
   if (s.hr) meta.push(`Peak HR ${s.hr}`);
-  if (s.deload) meta.push('Deload');
+  if (s.deload) meta.push(T('deload'));
   if (meta.length || s.note) h += `<div class="box pad"><p class="meta-l">${esc(meta.join(' · '))}</p>${s.note ? `<p class="enote">${esc(s.note)}</p>` : ''}</div>`;
   const sx = xpBySession(muscleXP(S.sessions, S.exById))[s.id];
   if (sx && !ed) h += `<a class="box xpstrip" href="#/levels"><b>+${sx.total} XP</b>${Object.entries(sx.muscles).sort((a, b) => b[1] - a[1]).map(([m, g]) => `<span>${esc(m)} +${g}</span>`).join('')}</a>`;
@@ -105,12 +108,12 @@ function detail(id) {
       if (i >= 0) cmp = compareExposure(exps, i, ex.unit);
     }
     const badges = [cmp?.pr ? pill('★ PR', 'arms') : '', cmp && cmp.dir !== 'first' ? pill(cmp.text, cmp.dir === 'up' ? 'up' : cmp.dir === 'same' ? 'mute' : cmp.kind === 'load' ? 'flat' : 'down') : cmp ? pill('first log', 'upper') : '', e.pain ? pill('pain', 'down') : ''].join(' ');
-    h += `<article class="box exc hx"><header><div><h3>${ex ? `<a href="#/ex/${esc(ex.id)}">${esc(name)}</a>` : esc(name)}</h3><p>${ex ? esc(unitShort(ex.unit) || (ex.unit === 'L' ? 'level' : 'bodyweight')) : ''}${e.rir ? ` · RIR ${esc(e.rir)}` : ''}${cmp?.prevDate ? ` · vs ${fmtDate(cmp.prevDate)}` : ''}</p></div><div class="badges">${badges}</div></header>`;
+    h += `<article class="box exc hx"><header><div><h2>${ex ? `<a href="#/ex/${esc(ex.id)}">${esc(name)}</a>` : esc(name)}</h2><p>${ex ? esc(unitShort(ex.unit) || (ex.unit === 'L' ? 'level' : 'bodyweight')) : ''}${e.rir ? ` · ${esc(T('rir'))} ${esc(e.rir)}` : ''}${cmp?.prevDate ? ` · vs ${fmtDate(cmp.prevDate)}` : ''}</p></div><div class="badges">${badges}</div></header>`;
     if (ed) {
       h += `<div class="sets">${e.sets.map((x, si) => `<div class="set edit ${x.done ? 'done' : ''}"><span class="i">${x.warm ? 'W' : ++n}</span>
-        <input class="inp" id="ew-${ei}-${si}" type="number" inputmode="decimal" step="any" value="${x.w ?? ''}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="Weight">
-        <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${x.r ?? ''}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="Reps">
-        <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="Counted as done">${ICON.check}</button></div>`).join('')}</div>`;
+        <input class="inp" id="ew-${ei}-${si}" type="number" inputmode="decimal" step="any" value="${ex && ex.unit !== 'L' ? toDisp(x.w) ?? '' : x.w ?? ''}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name} set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight (${getUnits()})` : `weight (${getUnits()})`}`)}">
+        <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${x.r ?? ''}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="${esc(`${name} set ${si + 1}: reps`)}">
+        <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="${esc(`${name} set ${si + 1} counted as done`)}">${ICON.check}</button></div>`).join('')}</div>`;
     } else {
       const fl = w => (ex ? fmtLoad(ex, w) : String(w ?? '—'));
       const work = workSets(e), warm = e.sets.filter(x => x.warm && x.done), skipped = e.sets.filter(x => !x.done && !x.warm).length;
@@ -179,8 +182,10 @@ export const actions = {
   },
   'edit-set'(el) {
     const s = S.sessions.find(x => x.id === editing);
-    const set = s.entries[+el.dataset.e].sets[+el.dataset.s];
-    set[el.dataset.f] = el.value === '' ? null : +el.value;
+    const entry = s.entries[+el.dataset.e], set = entry.sets[+el.dataset.s];
+    const ex = S.exById[entry.exId];
+    // Loads are typed in the display unit (kg or lb) and stored in kg; cable levels never convert.
+    set[el.dataset.f] = el.value === '' ? null : el.dataset.f === 'w' && ex?.unit !== 'L' ? fromDisp(el.value) : +el.value;
   },
   'edit-done'(el) {
     const s = S.sessions.find(x => x.id === editing);

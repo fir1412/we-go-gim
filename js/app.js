@@ -1,5 +1,6 @@
 import { S, load, onChange, saveDraft, saveSettings } from './state.js';
-import { $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar } from './ui.js';
+import { setUnits, setBwLabel } from './engine.js';
+import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar } from './ui.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
@@ -7,6 +8,7 @@ import * as history from './views/history.js';
 import * as levels from './views/levels.js';
 import * as setup from './views/setup.js';
 import * as more from './views/more.js';
+import * as daily from './views/daily.js';
 
 const TABS = [
   ['today', 'Today', ICON.today],
@@ -19,7 +21,7 @@ const TABS = [
 
 // route name -> [view module, tab]
 const ROUTES = {
-  today: [today, 'today'],
+  today: [today, 'today'], daily: [daily, 'today'],
   workout: [workout, 'workout'],
   insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
   levels: [levels, 'levels'],
@@ -73,7 +75,7 @@ function dispatch(kind, ev) {
   if (!el) return;
   if (kind !== 'click' && !el.matches('input,select,textarea')) return;
   const name = el.dataset[attr];
-  const fn = current?.view.actions?.[name] || GLOBAL[name];
+  const fn = current?.view.actions?.[name] || GLOBAL[name] || daily.actions?.[name]; // daily tiles also live on Today
   if (!fn) return;
   if (kind === 'click') ev.preventDefault();
   Promise.resolve(fn(el, ev, current.route)).catch(err => { console.error(err); toast(err.message || 'Something went wrong', 'down'); });
@@ -87,6 +89,7 @@ document.addEventListener('focusin', ev => {
 });
 
 const GLOBAL = {
+  tip: el => toast(TIP(el.dataset.k)),
   'timer-add': () => { if (S.draft?.timer) { S.draft.timer.end += 30000; saveDraft(); paintTimer(); } },
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); } },
 };
@@ -156,6 +159,9 @@ document.addEventListener('visibilitychange', () => { wake(); paintTimer(); });
 
 // ---- theme ------------------------------------------------------------------------
 export function applyTheme() {
+  setWording(S.settings.wording || (S.settings.setupAnswers?.experience === 'experienced' ? 'expert' : 'plain'));
+  setUnits(S.settings.units || 'kg');
+  setBwLabel(T('bw'));
   const t = S.settings.theme;
   if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
@@ -165,8 +171,26 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.3.1';
+export const APP_VERSION = '1.4.0';
 const WHATS_NEW = {
+  '1.4.0': [
+    'Plain words or gym terms: pick in More → Settings. Plain says "reps left" and "find your weight"; gym terms say RIR and calibrate. Tap a ? to see what a term means',
+    'kg or lb: pick in More → Settings. Weights are stored in kg, so switching never changes your history; imported logs in pounds are converted',
+    'Short on time? Choose 20, 30 or 45 minutes on Today and the workout trims itself to fit',
+    'Hold + or − to change a weight quickly, and a Finish button at the bottom once every set is ticked',
+    'Steadier time-left estimate during workouts',
+    'Your programme can carry notes like "@ 80%", "RPE 8" or "5+": they show on Today and on the workout card',
+    'Daily targets on Today: protein, calories, water, steps and sleep',
+    'Insights stay calm for your first weeks: no "not trained lately" warnings before you have history',
+    'Experienced lifters no longer start as "Rookie"; text scales with your phone\'s font size; better screen-reader labels',
+    'Barbell staples in the library: barbell bench, deadlift, overhead press, front squat, barbell row, trap bar deadlift, snatch, clean & jerk, power clean, push press, plus Nordic curl, DB curl, hip abduction, glute kickback and frog pumps',
+    'Matching never mixes barbell and dumbbell lifts, and search finds other names ("bicep curl", "OHP", "hex bar")',
+    'New exercises get sensible guesses (glutes, Olympic lifts, Nordic curls) and you can check equipment and main muscle before saving',
+    'Paste a split written your way: "Push A" days, A1/A2 supersets, "5 sets of 5", and "@ 80%", "RPE 8" or "AMRAP" kept as notes. Lines that can\'t be added are listed',
+    'Import Hevy and Strong CSV exports, US-style dates (9/21/2026) and logs in pounds',
+    'Restore now finds backup files on Android, including ones saved from Drive or WhatsApp',
+    'Setup: choose kg or lb and plain words or gym terms, restore a backup on the "I already have logs" path, skip without a tour, and it no longer reappears on every launch. Goal weight and height stay blank until you set them',
+  ],
   '1.0.0': ['Levels tab: muscle map with XP and level-ups', 'Time left and finish time during workouts', 'Import your old PDF logs from More → Import'],
   '1.1.0': [
     'New name: we go gim',
@@ -196,19 +220,20 @@ const WHATS_NEW = {
     'iPhone: Add to Home Screen guide and a proper home-screen icon',
   ],
 };
+// Tips are functions so they follow the wording setting (plain words or gym terms).
 const TOUR = [
-  ['today', 'Welcome to we go gim', 'A gym log that plans every session from your last one. It starts empty: import your old logs or restore a backup from More, or just train and new lifts calibrate themselves. Five quick tips, or skip.'],
-  ['today', 'Today, pre-filled', 'Your plan for the day with every set filled in from last time; brand-new lifts ask you to find a starting weight first. Tap a row to see why. Set sleep and pain first: a rough night holds the load.'],
-  ['workout', 'Log with taps', 'Tick each set as you finish it. The rest timer starts itself, weights carry to the next set, and ⋮ has warm-ups, swaps and notes.'],
-  ['insights', 'What to work on', 'Plateaus, pain, lifts to calibrate and weekly volume, plus body weight and cardio.'],
-  ['levels', 'Level up', 'Hard sets earn XP for the muscles they train; personal bests earn bonus XP. Tap the body map to see each muscle.'],
-  ['more', 'Your programme and data', 'Edit your split, import old logs from PDFs or notes, and back up to Drive. Everything stays on your phone. Suggestions are general training guidance, not medical advice.'],
+  ['today', 'Welcome to we go gim', () => 'A gym log that plans every session from your last one. Import old logs or restore a backup from More, or just train: new lifts ask you to find your weight the first time. Five quick tips, or skip.'],
+  ['today', 'Today, pre-filled', () => `Your plan for the day with every set filled in from last time; brand-new lifts ask you to find a starting weight first. Tap a row to see why. Set sleep and pain first: a rough night makes it ${/^[aeiou]/i.test(T('hold')) ? 'an' : 'a'} ${T('hold').toLowerCase()}, with the same weights as last time.`],
+  ['workout', 'Log with taps', () => 'Tick each set as you finish it. The rest timer starts itself, weights carry to the next set, and ⋮ has warm-ups, swaps and notes.'],
+  ['insights', 'What to work on', () => `Lifts that have stalled (${T('plateau').toLowerCase()}), pain, new lifts to weigh up and weekly sets per muscle, plus body weight and cardio.`],
+  ['levels', 'Level up', () => 'Hard sets earn XP for the muscles they train; personal bests earn bonus XP. Tap the body map to see each muscle.'],
+  ['more', 'Your programme and data', () => 'Edit your split, import old logs from PDFs or notes, and back up to Drive. Everything stays on your phone. Suggestions are general training guidance, not medical advice.'],
 ];
 
 /** Walk through the tabs. The sheet stays open while the screen behind it changes, so the tour adds one history entry, not one per step. */
 export function showTour(start = 0, { onDone } = {}) {
   let i = Math.min(Math.max(0, start), TOUR.length - 1);
-  const sheet = openSheet('', { label: 'Quick tour', onClose: () => onDone?.() });
+  const sheet = openSheet('', { label: 'Quick tour', onClose: () => { if (!S.settings.tourDone) saveSettings({ tourDone: true }); onDone?.(); } });
   const show = tab => {
     if (parseRoute().name !== tab) { window.history.replaceState(window.history.state, '', '#/' + tab); render(); }
     const c = $('#app').style.getPropertyValue('--c');
@@ -219,10 +244,12 @@ export function showTour(start = 0, { onDone } = {}) {
     show(tab);
     const last = i === TOUR.length - 1;
     const install = last && canInstall();
-    sheet.innerHTML = `<div class="grab" aria-hidden="true"></div><div class="tour"><div class="tour-ic">${i === 0 ? ICON.workout : ICON[tab] || ICON.today}</div><p class="lbl">${i ? `Tip ${i} of ${TOUR.length - 1}` : 'Hello'}</p><h2 class="sh-title">${esc(title)}</h2><p class="sh-body">${esc(body)}</p>
-      <div class="dots" aria-hidden="true">${TOUR.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
+    // One dot per tip (the welcome card isn't a tip), so "Tip 2 of 5" matches the dots.
+    sheet.innerHTML = `<div class="grab" aria-hidden="true"></div><div class="tour"><div class="tour-ic">${i === 0 ? ICON.workout : ICON[tab] || ICON.today}</div><p class="lbl">${i ? `Tip ${i} of ${TOUR.length - 1}` : 'Hello'}</p><h2 class="sh-title">${esc(title)}</h2><p class="sh-body">${esc(body())}</p>
+      ${i ? `<div class="dots" aria-hidden="true">${TOUR.slice(1).map((_, j) => `<i class="${j + 1 === i ? 'on' : j + 1 < i ? 'done' : ''}"></i>`).join('')}</div>` : ''}
       ${install ? `<button class="btn ghost" data-t="install">${ICON.phone} Add to home screen</button>` : ''}
-      <div class="row2"><button class="btn ghost" data-t="${i ? 'back' : 'skip'}">${i ? 'Back' : 'Skip'}</button><button class="btn" data-t="next">${last ? "Let's train" : i ? 'Next' : 'Show me'}</button></div></div>`;
+      <div class="row2"><button class="btn ghost" data-t="${i ? 'back' : 'skip'}">${i ? 'Back' : 'Skip'}</button><button class="btn" data-t="next">${last ? "Let's train" : i ? 'Next' : 'Show me'}</button></div>
+      ${i && !last ? '<button class="linkbtn tourskip" data-t="skip">Skip the tour</button>' : ''}</div>`;
     setTimeout(() => sheet.querySelector('[data-t="next"]')?.focus({ preventScroll: true }), 40);
   };
   sheet.addEventListener('click', async e => {
@@ -260,10 +287,18 @@ function onboarding() {
   if (new URLSearchParams(location.search).has('notour')) return; // for automated tests
   const seen = S.settings.seenVersion;
   // Brand-new users choose how to start (fresh, their own logs, or a personalised split); the tour follows.
-  // Until they pick, every launch comes back here, so closing the app mid-way never leaves them on a split they didn't choose.
+  // Setup opens by itself once. Left without a choice, the next launch goes straight in and says which plan is loaded.
   if (!S.settings.onboarded && !S.sessions.length) {
-    if (seen !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION });
-    if (!['setup', 'import', 'data'].includes(parseRoute().name)) go('setup');
+    // A reload in the same tab (an update, pull-to-refresh) isn't a new launch: setup comes back.
+    let sameTab = false;
+    try { sameTab = !!sessionStorage.getItem('wgg-setup-open'); sessionStorage.setItem('wgg-setup-open', '1'); } catch {}
+    if (!S.settings.setupShown || sameTab) {
+      if (!S.settings.setupShown || S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION, setupShown: true });
+      if (!['setup', 'import', 'data'].includes(parseRoute().name)) go('setup');
+      return;
+    }
+    saveSettings({ seenVersion: APP_VERSION, onboarded: true });
+    setTimeout(() => toast('Using the example 5-day split. Build your own any time: More → Settings → Rebuild my split.'), 400);
     return;
   }
   if (seen === APP_VERSION) return;

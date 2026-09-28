@@ -98,7 +98,9 @@ test('older and newer copies of a log collapse to one session each', () => {
 
 test('library matching: the right lift or none', () => {
   assert.equal(match('Db bench press'), 'bench');
-  assert.equal(match('Bench press'), 'bench');
+  // A plain name goes to the barbell lift, unless the programme holds the dumbbell one.
+  assert.equal(match('Bench press'), 'bbbench');
+  assert.equal(io.matchExercise('Bench press', EXERCISES, { prefer: new Set(['bench']) }).ex.id, 'bench');
   assert.equal(match('Chest press machine'), 'mchest');
   assert.equal(match('Incline db bench press'), 'incline');
   assert.equal(match('Cable chest fly'), 'fly');
@@ -123,4 +125,24 @@ test('file names become routine names', () => {
   assert.equal(io.sessionNameFromFile('Monday Push 1_260928_054205.pdf'), 'Push 1');
   assert.equal(io.sessionNameFromFile('Wednesday Legs_260902_110842 (1).pdf'), 'Legs');
   assert.equal(io.sessionNameFromFile('Sunset session.txt'), 'Sunset session');
+});
+
+// ---- found by the 100-user simulation ----------------------------------------------------
+import { parseSplitText as _pst } from '../js/split.js';
+test('load then sets x reps: "Deadlift 100kg 5x3" keeps the 100 kg', () => {
+  const r = io.parseSetLine('Deadlift 100kg 5x3');
+  assert.equal(r.sets.length, 5);
+  assert.ok(r.sets.every(s => s.w === 100 && s.r === 3));
+});
+test('a short date line like "12/9" is never read as sets', () => {
+  assert.equal(io.parseSetLine('12/9'), null);
+});
+test('pasted split: no dash, short and localised day names, Day N', () => {
+  const names = t => _pst(t).days.map(d => `${d.dow}:${d.name}:${d.items.length}`);
+  assert.deepEqual(names('Monday\nBench press 3x8'), ['1:Workout:1']);
+  assert.deepEqual(names('Mon upper\nRow 3x10'), ['1:Upper:1']);
+  assert.deepEqual(names('Isnin – Dada\nBench press – 3 × 8'), ['1:Dada:1']);
+  assert.deepEqual(names('lunes – pecho\nPress banca – 3 × 10'), ['1:Pecho:1']);
+  assert.deepEqual(names('月曜日 胸\nBench press – 3 × 8'), ['1:胸:1']);
+  assert.deepEqual(names('Day 1 – Push\nBench 3x8\nDay 2 – Pull\nRow 3x10\nDay 3 – Legs\nSquat 3x5'), ['1:Push:1', '3:Pull:1', '5:Legs:1']);
 });
