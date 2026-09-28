@@ -2,7 +2,7 @@ import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from
 import { setUnits, setBwLabel } from './engine.js';
 import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
 import { setPlain } from './plain.js';
-import { setLang, getLang, translate, LANGS, setUserNames } from './i18n.js';
+import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i18n.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
@@ -224,8 +224,7 @@ document.addEventListener('visibilitychange', () => { wake(); paintTimer(); });
 
 /** First visit: follow the phone's language when the app speaks it. */
 function guessLang() {
-  const want = (navigator.languages || [navigator.language || 'en']).map(l => String(l).slice(0, 2).toLowerCase());
-  return want.find(l => LANGS.some(([k]) => k === l)) || 'en';
+  return pickLang(navigator.languages || [navigator.language || 'en']);
 }
 
 // ---- theme ------------------------------------------------------------------------

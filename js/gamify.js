@@ -30,8 +30,10 @@ export function streakInfo(t = todayIso()) {
     }
     // Sunday closes the week.
     if (new Date(d + 'T00:00:00Z').getUTCDay() === 0 && d < t) {
-      const short = firstWeek ? 0 : Math.max(0, perWeek - weekDone);
-      if (!firstWeek && perWeek > 0 && short === 0) {
+      // One missed workout a week is forgiven (life happens); only more than that needs a shield.
+      const short = firstWeek ? 0 : Math.max(0, perWeek - weekDone - 1);
+      const perfect = !firstWeek && perWeek > 0 && weekDone >= perWeek;
+      if (perfect) {
         out.perfectWeeks++;
         out.shields = Math.min(2, out.shields + 1);
         for (const n of [1, 4, 12]) if (out.perfectWeeks >= n && !out.earned['perfect' + n]) out.earned['perfect' + n] = d;

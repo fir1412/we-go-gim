@@ -17,7 +17,7 @@ function nextDow(dow, from) {
  * days: [{ dow, name, minutes }], time: 'HH:MM', url: link back to the app.
  * Returns iCalendar text in floating local time, so it follows the phone's time zone.
  */
-export function trainingIcs(days, time = '18:00', url = '', now = new Date()) {
+export function trainingIcs(days, time = '18:00', url = '', now = new Date(), words = {}) {
   const [hh, mm] = (/^\d{2}:\d{2}$/.test(time) ? time : '18:00').split(':').map(Number);
   const byday = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//we go gim//training reminders//EN', 'CALSCALE:GREGORIAN'];
@@ -27,10 +27,25 @@ export function trainingIcs(days, time = '18:00', url = '', now = new Date()) {
     const end = new Date(start.getTime() + Math.max(15, Math.min(180, d.minutes || 45)) * 60000);
     lines.push('BEGIN:VEVENT', `UID:wegogim-${byday[d.dow]}-${start.getTime()}@we-go-gim`, `DTSTAMP:${stamp(now)}`,
       `DTSTART:${local(start)}`, `DTEND:${local(end)}`, `RRULE:FREQ=WEEKLY;BYDAY=${byday[d.dow]}`,
-      `SUMMARY:${esc('we go gim: ' + d.name)}`, `DESCRIPTION:${esc(url ? 'Open the app: ' + url : 'Time to train')}`,
+      `SUMMARY:${esc('we go gim: ' + (d.title || d.name))}`, `DESCRIPTION:${esc(`${words.train || 'Time to train'}${url ? ' · ' + url : ''}`)}`,
       ...(url ? [`URL:${esc(url)}`] : []),
-      'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc('we go gim: ' + d.name)}`, 'TRIGGER:-PT10M', 'END:VALARM', 'END:VEVENT');
+      'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc('we go gim: ' + (d.title || d.name))}`, 'TRIGGER:-PT10M', 'END:VALARM', 'END:VEVENT');
   }
   lines.push('END:VCALENDAR');
   return lines.join('\r\n') + '\r\n';
 }
+
+/**
+ * One training day as a Google Calendar "add event" link: a weekly event at the chosen time, in the phone's
+ * own time zone. Works on Android, where Google Calendar can't open a downloaded calendar file.
+ */
+export function googleCalendarUrl(day, time = '18:00', { title, details } = {}, now = new Date()) {
+  const [hh, mm] = (/^\d{2}:\d{2}$/.test(time) ? time : '18:00').split(':').map(Number);
+  const byday = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  const start = nextDow(day.dow, now);
+  start.setHours(hh, mm, 0, 0);
+  const end = new Date(start.getTime() + Math.max(15, Math.min(180, day.minutes || 45)) * 60000);
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: title || `we go gim: ${day.name}`, dates: `${local(start)}/${local(end)}`, details: details || '', recur: `RRULE:FREQ=WEEKLY;BYDAY=${byday[day.dow]}` });
+  return `https://calendar.google.com/calendar/render?${q.toString()}`;
+}
+

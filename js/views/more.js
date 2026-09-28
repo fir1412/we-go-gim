@@ -3,7 +3,9 @@ import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
 import { LANGS, getLang } from '../i18n.js';
-import { trainingIcs } from '../calendar.js';
+import { trainingIcs, googleCalendarUrl } from '../calendar.js';
+import { translate } from '../i18n.js';
+import { plainText } from '../plain.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
@@ -1126,10 +1128,24 @@ Object.assign(actions, {
 
 /** Training days as a calendar file: the phone's calendar app takes over the reminders. */
 export function exportCalendar() {
-  const days = S.program.days.filter(d => d.slots.length).map(d => ({ dow: d.dow, name: d.name, minutes: Math.round(estimateDay(d, S.exById, S.sessions) / 60) }));
+  // Event text in the app's language: it is read later inside the calendar app, outside this screen.
+  const tr = s => translate(plainText(s));
+  const days = S.program.days.filter(d => d.slots.length).map(d => ({ dow: d.dow, name: d.name, title: tr(d.name), minutes: Math.round(estimateDay(d, S.exById, S.sessions) / 60) }));
   if (!days.length) return toast('No training days in your programme yet', 'flat');
   const url = location.href.split('#')[0] + '#/start';
-  download('we-go-gim-training.ics', trainingIcs(days, S.settings.remindAt || '18:00', url), 'text/calendar');
-  saveSettings({ calAdded: true });
-  toast('Open the downloaded file to add the reminders to your calendar', 'up');
+  const time = S.settings.remindAt || '18:00';
+  const words = { train: tr('Time to train') };
+  const links = days.map(d => `<a class="btn ghost" href="${esc(googleCalendarUrl(d, time, { title: `we go gim: ${d.title}`, details: `${words.train} · ${url}` }))}" target="_blank" rel="noopener noreferrer">${esc(dowName(d.dow, true))} · ${esc(d.name)}</a>`).join('');
+  const el = openSheet(`<h2 class="sh-title">Add training days to my calendar</h2>
+    <p class="fine">Google Calendar (most Android phones): tap each day and save. It repeats every week at ${esc(time)}.</p>
+    <div class="callist">${links}</div>
+    <p class="fine">iPhone, Samsung or Outlook calendar: download one file with every day.</p>
+    <button class="btn ghost" data-x="ics">Download calendar file</button>`, { label: 'Training reminders' });
+  el.addEventListener('click', ev => {
+    if (ev.target.closest('a[href^="https://calendar.google.com"]')) saveSettings({ calAdded: true });
+    if (!ev.target.closest('[data-x="ics"]')) return;
+    download('we-go-gim-training.ics', trainingIcs(days, time, url, new Date(), words), 'text/calendar');
+    saveSettings({ calAdded: true });
+    toast('Open the downloaded file to add the reminders to your calendar', 'up');
+  });
 }

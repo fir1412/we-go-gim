@@ -6,7 +6,21 @@
 import { EXERCISES, PROGRAM, TEMPLATES, setSearchLocal } from './seed.js';
 import { plainText } from './plain.js';
 
-export const LANGS = [['en', 'English'], ['ms', 'Bahasa Melayu'], ['zh', '中文'], ['ja', '日本語']];
+export const LANGS = [['en', 'English'], ['ms', 'Bahasa Melayu'], ['zh', '简体中文'], ['zh-Hant', '繁體中文'], ['ja', '日本語']];
+// Chinese in either script: sentences join without spaces and lists use 、.
+const cjk = () => lang === 'zh' || lang === 'zh-Hant' || lang === 'ja';
+
+/** The app language for the phone's language list: zh-TW / zh-HK / zh-MO / zh-Hant-* → 'zh-Hant', other zh → 'zh', else the first two letters when supported, else 'en'. */
+export function pickLang(navigatorLanguages) {
+  const list = (Array.isArray(navigatorLanguages) ? navigatorLanguages : [navigatorLanguages]).filter(Boolean).map(String);
+  for (const raw of list) {
+    const l = raw.toLowerCase().replace(/_/g, '-');
+    if (/^zh-(hant|tw|hk|mo)\b/.test(l)) return 'zh-Hant';
+    const two = l.slice(0, 2);
+    if (LANGS.some(([k]) => k === two)) return two;
+  }
+  return 'en';
+}
 let dict = null, lang = 'en', nameRe = null, userNames = [], userKey = '';
 
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -25,7 +39,7 @@ export function tokenize(s) {
   // A whole date is one placeholder in every language: "Mon 21 Sep 2026", "Sep 2026", "9月21日 周一", "2026年9月".
   const MON = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Mac|Mei|Ogo|Okt|Dis)';
   const WD = '(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat|Ahd|Isn|Sel|Rab|Kha|Jum|Sab)';
-  const CJK = String.raw`(?:\s?[(（]?[日月火水木金土一二三四五六周星期]+[)）]?)?`;
+  const CJK = String.raw`(?:\s?[(（]?[日月火水木金土一二三四五六周週星期]+[)）]?)?`;
   const DATES = String.raw`\d{4}年\d{1,2}月(?:\d{1,2}日)?${CJK}|\d{1,2}月\d{1,2}日${CJK}|\d{1,2}月|\b(?:${WD} )?\d{1,2} ${MON}\b(?: \d{4})?|\b${MON} \d{4}\b|\b${MON}\b`;
   if (!nameRe) nameRe = new RegExp(`(?<![\\p{L}\\d])(${[...new Set([...knownNames(), ...userNames])].sort((a, b) => b.length - a.length).map(escRe).join('|')})(?![\\p{L}\\d])|(${DATES}|\\d+(?:[.,:]\\d+)*)`, 'gu');
   const vals = [];
@@ -39,7 +53,7 @@ const fill = (tpl, vals) => tpl.replace(/\{(\d+)\}/g, (m, i) => { const v = vals
 
 /** "{0}: {1}, {2}, {3} reps" → "{0}: {1} reps" with the numbers joined, so one entry covers any number of sets. */
 export function collapse(key, vals) {
-  const sep = lang === 'zh' || lang === 'ja' ? '、' : ', ';
+  const sep = cjk() ? '、' : ', ';
   const out = [];
   const k = key.replace(/\{(\d+)\}(?:, \{(\d+)\})*/g, (m) => {
     const ids = [...m.matchAll(/\{(\d+)\}/g)].map(x => +x[1]);
@@ -64,7 +78,7 @@ function one(core) {
   const exact = lookup(core);
   if (exact != null) return exact;
   // A label with a closing full stop ("Floor and a chair.") uses the entry without it.
-  if (/[^.]\.$/.test(core)) { const t = one(core.slice(0, -1)); if (t != null) return t + (lang === 'zh' || lang === 'ja' ? '。' : '.'); }
+  if (/[^.]\.$/.test(core)) { const t = one(core.slice(0, -1)); if (t != null) return t + (cjk() ? '。' : '.'); }
   if (dict.names[core]) return dict.names[core];
   const { key, vals } = tokenize(core);
   const t = lookup(key);
@@ -90,7 +104,7 @@ export function translate(s, ctx = null) {
   // A word with two meanings ("Back" the button, "Back" the muscle) has its own entry per context: "nav:Back".
   let t = (ctx && lookup(`${ctx}:${core}`)) ?? one(core);
   // Several sentences, or several pieces joined by " · ", in one piece of text: translate each on its own.
-  if (t == null) t = parts(core, /(?<=[.!?])\s+/, lang === 'zh' || lang === 'ja' ? '' : ' ');
+  if (t == null) t = parts(core, /(?<=[.!?])\s+/, cjk() ? '' : ' ');
   if (t == null) t = parts(core, / · /, ' · ');
   return t == null ? s : m[1] + t + m[3];
 }
@@ -98,7 +112,7 @@ export function translate(s, ctx = null) {
 /** Load a language ('en' clears it). Returns once the dictionary is ready. */
 export async function setLang(want) {
   lang = LANGS.some(([k]) => k === want) ? want : 'en';
-  if (typeof document !== 'undefined') document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : lang;
+  if (typeof document !== 'undefined') document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : lang;  // 'zh-Hant' stays as it is
   if (lang === 'en') { dict = null; return; }
   const mod = await import(`./i18n/${lang}.js`);
   dict = mod.default;

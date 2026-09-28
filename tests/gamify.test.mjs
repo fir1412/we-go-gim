@@ -20,15 +20,24 @@ test('streak: every workout counts, rest days never break it, moved days are fin
   assert.equal(st.shields, 2);
 });
 
-test('streak: a short week uses a shield, then resets when shields run out', () => {
-  // Perfect week 14–20 earns a shield; 21–27 has 2 of 3 (shield used); 28 Sep–4 Oct has 1 of 3 (reset).
-  setup(['2026-09-07', '2026-09-14', '2026-09-16', '2026-09-18', '2026-09-21', '2026-09-23', '2026-09-28']);
+test('streak: one missed workout a week is forgiven', () => {
+  // 21–27 has 2 of 3: forgiven, no shield used.
+  setup(['2026-09-07', '2026-09-14', '2026-09-16', '2026-09-18', '2026-09-21', '2026-09-23']);
+  const st = streakInfo('2026-09-28');
+  assert.equal(st.streak, 6);
+  assert.equal(st.shieldUsed, null);
+});
+
+test('streak: a very short week uses a shield, then resets when shields run out', () => {
+  // Starter shield + perfect week 14–20 = 2 shields. 21–27 has 1 of 3 (one miss forgiven, one shield used).
+  // 28 Sep–4 Oct has 0 of 3: two needed, one left, so the streak resets.
+  setup(['2026-09-07', '2026-09-14', '2026-09-16', '2026-09-18', '2026-09-21']);
   const mid = streakInfo('2026-09-28');
-  assert.equal(mid.streak, 7);
+  assert.equal(mid.streak, 5);
   assert.equal(mid.shieldUsed, '2026-09-27');
   const later = streakInfo('2026-10-05');
   assert.equal(later.streak, 0);
-  assert.equal(later.best, 7);
+  assert.equal(later.best, 5);
 });
 
 test('streak: the week in progress is never judged', () => {

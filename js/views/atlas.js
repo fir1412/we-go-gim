@@ -19,6 +19,7 @@ const X = '<span aria-hidden="true">×</span>';
 export function render(route) {
   const [kind, val] = route.args;
   if (kind === 'g' && BY_GROUP[val]) { groupSel = val; sel = null; exSel = null; }
+  if (kind === 'x' && S.exById[val]) { exSel = val; sel = null; groupSel = null; }
   const b = bodyType();
   const h = `<div class="atlas">
     <div class="atlas-stage" id="atlas-stage"><p class="atlas-msg" id="atlas-msg">${failed ? esc(failed) : 'Loading the 3D body…'}</p></div>

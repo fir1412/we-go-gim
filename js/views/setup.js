@@ -119,7 +119,8 @@ function prefs() {
   const u = S.settings.units === 'lb' ? 'lb' : 'kg';
   const x = S.settings.experience || st.a.experience;
   const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
-  return `<div class="box pad stack wz-prefs">${langPicker(getLang(), LANGS)}<p class="lbl wz-explbl">How long have you lifted weights?</p>
+  return `<div class="box pad stack wz-prefs">${langPicker(getLang(), LANGS)}
+    ${seg('Text size', 'wz-text', S.settings.textSize || 'normal', [['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']])}<p class="lbl wz-explbl">How long have you lifted weights?</p>
     <div class="seg wz-expseg" role="group" aria-label="How long have you lifted weights?">${[['new', 'Under 6 months'], ['some', '6 months to 2 years'], ['experienced', 'Over 2 years']].map(([v, l]) => `<button data-act="wz-exp" data-v="${v}" aria-pressed="${x === v}">${l}</button>`).join('')}</div>
     ${seg('Weights in', 'wz-units', u, [['kg', 'kg'], ['lb', 'lb']])}
     <p class="fine">${getLang() !== 'en' ? 'This sets your starting weights.' : x === 'experienced' ? 'You\'ll see gym terms like RIR and e1RM.' : x ? 'You\'ll see plain words like "reps left" instead of gym jargon.' : 'This sets the words the app uses and your starting weights.'} Change either in Settings.</p></div>`;
@@ -199,6 +200,7 @@ export const actions = {
     toast('Full body, 3 days is your plan. Change it under More → Programme.', 'up');
   },
   'wz-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
+  'wz-text': el => saveSettings({ textSize: ['large', 'xl'].includes(el.dataset.v) ? el.dataset.v : 'normal' }),
   'wz-wording': el => saveSettings({ wording: el.dataset.v === 'expert' ? 'expert' : 'plain' }),
   'wz-exp'(el) {
     const v = el.dataset.v;

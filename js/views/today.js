@@ -32,7 +32,7 @@ export function render(route) {
   for (let i = 0; i < 7; i++) {
     const d = addDays(ws, i), pd = dayForDate(d), done = S.sessions.some(s => s.date === d && !s.seed);
     h += `<a href="#/today/${d}" class="${d === t ? 'is-today' : ''} ${done ? 'is-done' : ''}" aria-current="${d === date ? 'date' : 'false'}" style="${kstyle(pd.color)}">
-      <span>${dowLetter(dowOf(d))}</span><b>${+d.slice(8)}</b><span>${esc(pd.name.split(' ')[0])}</span></a>`;
+      <span>${dowLetter(dowOf(d))}</span><b>${+d.slice(8)}</b><span class="dn">${esc(pd.name)}</span></a>`;
   }
   h += `</div>`;
   if (date === t) h += todayGame(t);

@@ -348,7 +348,7 @@ export function sanitizeBackup(data) {
     for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience', 'textSize', 'remindAt']) if (k in s && typeof s[k] !== 'string') delete s[k];
     if ('dayStart' in s) s.dayStart = Math.max(0, Math.min(6, numOr(s.dayStart, 0)));
     if ('remindAt' in s && !/^\d{2}:\d{2}$/.test(s.remindAt)) delete s.remindAt;
-    if ('lang' in s && !['en', 'ms', 'zh', 'ja'].includes(s.lang)) delete s.lang;
+    if ('lang' in s && !['en', 'ms', 'zh', 'zh-Hant', 'ja'].includes(s.lang)) delete s.lang;
     out.settings = s;
   }
   return out;

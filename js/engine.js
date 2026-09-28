@@ -515,6 +515,8 @@ export const OUTLIER_MIN_GAP = 10;
  *  there first, and a fresh typo is easy to spot and fix). */
 function dropOutliers(cands, newestKey) {
   const list = [...cands].sort((a, b) => b.v - a.v);
+  // Too little history to call anything a slip (two workouts of 20 kg and 60 kg can both be real).
+  if (list.length < 4) return { top: list[0] || null, ignored: [] };
   const top = list[0], next = list.find(c => c.v < top?.v - EPS);
   if (!top || !next || !(next.v > 0) || !(top.v > OUTLIER_RATIO * next.v + EPS) || top.v - next.v <= OUTLIER_MIN_GAP) return { top: top || null, ignored: [] };
   const out = list.filter(c => c.v >= top.v - EPS);

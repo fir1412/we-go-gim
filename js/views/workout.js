@@ -4,6 +4,9 @@ import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, n
 import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
+import { translate, getLang } from '../i18n.js';
+import { plainText } from '../plain.js';
+import { searchText } from '../seed.js';
 import { weekStats, streakLine } from '../streak.js';
 import { streakInfo, badges } from '../gamify.js';
 
@@ -228,7 +231,7 @@ function pairItem(ei) {
 }
 
 // ---- cardio inside a workout ---------------------------------------------------------------------------
-const CW_TYPES = ['Treadmill', 'Bike', 'Rower', 'Stairs', 'Incline walk', 'Run', 'Swim', 'Other'];
+const CW_TYPES = ['Treadmill', 'Incline walk', 'Walk', 'Run', 'Bike', 'Exercise bike', 'Rower', 'Stairs', 'Swim', 'Futsal', 'Badminton', 'Basketball', 'Muay Thai', 'Silat', 'Aerobics', 'Yoga', 'Pilates', 'Other'];
 const cw = { type: 'Treadmill', intensity: 'moderate' };
 function cardioSheet() {
   const keep = id => document.getElementById(id)?.value ?? '';
@@ -415,6 +418,8 @@ export const actions = {
       <button class="li" data-act="swap" data-e="${ei}"><span><b>Swap exercise</b><small>Machine taken? Keeps the set count and rep range</small></span></button>
       ${pairItem(ei)}
       <button class="li" data-act="note" data-e="${ei}"><span><b>${e.note ? 'Edit note' : 'Add note'}</b><small>Grip, seat setting, how it felt</small></span></button>
+      <a class="li" href="${esc(howToUrl(ex))}" target="_blank" rel="noopener noreferrer"><span><b>How to do it</b><small>Opens a video search in your browser</small></span></a>
+      <a class="li" href="#/atlas/x/${esc(ex.id)}"><span><b>See the muscles in 3D</b><small>Main muscles and helpers</small></span></a>
       <button class="li" data-act="del-set" data-e="${ei}"><span><b>Remove last set</b></span></button>
       <button class="li" data-act="move" data-e="${ei}" data-d="-1" ${ei === 0 ? 'disabled' : ''}><span><b>Move up</b></span></button>
       <button class="li" data-act="move" data-e="${ei}" data-d="1" ${ei === S.draft.entries.length - 1 ? 'disabled' : ''}><span><b>Move down</b></span></button>
@@ -682,7 +687,7 @@ function pickExercise(ei) {
   const sheet = openSheet(`<h2 class="sh-title">${cur ? `Swap ${esc(cur.name)}` : 'Add exercise'}</h2>
     <input class="inp" id="exsearch" type="search" placeholder="Search exercises" autocomplete="off">
     <p class="fine" id="exnone" hidden>No exercise matches. Create it below.</p>
-    <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(x.name.toLowerCase())}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
+    <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(searchText(x))}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
     <button class="btn ghost" data-act="quick-new" data-e="${ei ?? ''}">${ICON.plus} <span id="qn-label">Create a new exercise</span></button>`, { label: 'Pick exercise' });
   sheet.querySelector('#exsearch').addEventListener('input', ev => {
     const raw = ev.target.value.trim(), q = raw.toLowerCase();
@@ -712,3 +717,12 @@ function paintQuick() {
     <div class="row2"><button class="btn ghost" data-act="qn-full">More options</button><button class="btn" data-act="qn-save" style="--c:var(--up)">Add to workout</button></div>`, { label: 'New exercise' });
 }
 const qnName = () => { const el = document.getElementById('qn-name'); if (el) qn.name = el.value.trim(); };
+
+/** A video search for good form, in the app's language (the user taps it; nothing is sent until then). */
+function howToUrl(ex) {
+  const lang = getLang();
+  const name = lang === 'en' ? ex.name : translate(plainText(ex.name));
+  const how = { en: 'exercise proper form', ms: 'cara betul senaman', zh: '动作要领', 'zh-Hant': '動作要領', ja: 'やり方 フォーム' }[lang] || 'exercise proper form';
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} ${how}`)}`;
+}
+
