@@ -897,3 +897,44 @@ a.mini { text-decoration: none; display: inline-grid; place-items: center; color
 .wz-more summary::-webkit-details-marker { display: none; }
 .wz-more summary::after { content: ""; width: 9px; height: 9px; border-right: 2.5px solid var(--mute); border-bottom: 2.5px solid var(--mute); transform: rotate(45deg); margin: -4px 6px 0 0; transition: transform .2s; }
 .wz-more[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
+
+/* ---------- Tablets and desktop ---------- */
+/* The bar lays out however many tabs there are (five since Levels moved under Progress). */
+.tabs { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+
+/* Portrait tablets: a wider column with more breathing room. */
+@media (min-width: 700px) {
+  #app { max-width: 760px; }
+  .bar { padding-inline: 24px; }
+  #screen { padding: 8px 24px 28px; gap: 14px; }
+  .finbar { margin-inline: -24px; padding-inline: 24px; }
+  .sheet { max-width: 640px; }
+  .photos { grid-template-columns: repeat(4, 1fr); }
+  .sug .to { max-width: 360px; }
+}
+
+/* Landscape tablets, laptops and desktops: navigation becomes a side rail and pop-ups centred dialogs. */
+@media (min-width: 1000px) and (min-height: 520px) {
+  #app { max-width: 1080px; display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "nav bar" "nav screen" "nav timer"; border-inline: 1px solid var(--line); }
+  .bar { grid-area: bar; padding: 22px 36px 10px; }
+  #screen { grid-area: screen; padding: 8px 36px 36px; }
+  #screen > * { max-width: 780px; }
+  .finbar { margin-inline: -36px; padding-inline: 36px; }
+  #timer { grid-area: timer; padding-inline: 36px; }
+  .tabs { grid-area: nav; container-type: normal; display: flex; flex-direction: column; gap: 4px; border-top: 0; border-right: 1px solid var(--line); padding: 22px 12px; }
+  .tabs::before { content: "we go gim"; font-family: var(--display); font-weight: 700; font-size: 1.5rem; padding: 0 14px 14px; color: var(--ink); }
+  .tabs a { flex-direction: row; justify-content: flex-start; gap: 12px; padding: 12px 14px; font-size: 0.9375rem; overflow: visible; }
+  .tabs a[aria-current="page"] { background: color-mix(in srgb, var(--c) 16%, transparent); }
+  .tabs a span { position: static; width: auto; height: auto; clip-path: none; }
+  .tabs .dot { margin-left: auto; }
+  .scrim { align-items: center; padding: 24px; }
+  .sheet { border-radius: 22px; max-height: 86vh; }
+  #toast { left: calc(50% + 108px); bottom: 28px; }
+}
+
+/* Mouse and trackpad: show what can be clicked. */
+@media (hover: hover) and (pointer: fine) {
+  button, summary, label.filebtn, [data-act] { cursor: pointer; }
+  .btn:hover, .mini:hover, .li:hover, .tabs a:hover, .iconbtn:hover, .subnav a:hover { filter: brightness(1.1); }
+  .tabs a:hover { color: var(--ink); }
+}
