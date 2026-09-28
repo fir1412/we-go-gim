@@ -52,6 +52,10 @@ const BRIDGE = E(GMAX, [...HAMS, ...GSIDE, 'adductor_magnus']);
 const CALFR = E(CALF, ['fibularis_longus', 'fibularis_brevis', 'tibialis_posterior', 'flexor_digitorum_longus', 'flexor_hallucis_longus']);
 const LEGRAISE = E([...ABS, ...HIPFLEX], [...OBL, 'rectus_femoris', 'tensor_fasciae_latae', 'sartorius']);
 const OLY = E([...GMAX, ...HAMS, ...QUADS, ...UPTRAP], [...ERECT, ...FD, ...SD, ...TRI, ...CALF, ...MIDBACK, ...WRISTFLEX]);
+const LOWCHEST = ['pectoralis_major_sternocostal', 'pectoralis_major_abdominal'];
+const PRESS_DEC = E(LOWCHEST, ['pectoralis_major_clavicular', ...FD, ...TRI, ...SERR]);
+const FRONTR = E(FD, ['pectoralis_major_clavicular', ...SD, ...SERR, ...UPTRAP]);
+const UPROW = E([...SD, 'trapezius_upper'], [...FD, 'supraspinatus', 'levator_scapulae', ...BI, 'brachialis', 'brachioradialis_muscle']);
 const DIP = E([...TRI, 'pectoralis_major_abdominal', 'pectoralis_major_sternocostal'], [...FD, 'pectoralis_minor', ...SERR]);
 
 export const EXERCISE_MUSCLES = {
@@ -91,6 +95,83 @@ export const EXERCISE_MUSCLES = {
   pushup: E(CHEST, [...FD, ...TRI, ...SERR, ...ABS]), declpush: E(UPCHEST, [...FD, ...TRI, ...SERR, ...ABS]),
   pikepush: E([...FD, ...SD], [...TRI, 'pectoralis_major_clavicular', ...SERR, ...UPTRAP]),
   snatch: OLY, cleanjerk: OLY, powerclean: E([...GMAX, ...HAMS, ...QUADS, ...UPTRAP], [...ERECT, ...CALF, ...MIDBACK, ...WRISTFLEX, ...BI]),
+  // expanded library
+  // chest
+  declbench: PRESS_DEC, bbincline: PRESS_INC, smithincline: PRESS_INC, mincline: PRESS_INC, smithbench: PRESS_FLAT,
+  floorpress: E(CHEST, [...TRI, ...FD]), inclinefly: E(UPCHEST, [...FD, ...BI]),
+  lowhighfly: E(['pectoralis_major_clavicular'], ['pectoralis_major_sternocostal', ...FD, ...BI, ...SERR]),
+  dbpullover: E([...CHEST, 'latissimus_dorsi'], ['teres_major', 'triceps_long', ...SERR, 'pectoralis_minor']),
+  dip: E([...LOWCHEST, ...TRI], [...FD, 'pectoralis_minor', ...SERR, 'pectoralis_major_clavicular']),
+  incpush: E(LOWCHEST, [...FD, ...TRI, ...SERR, ...ABS]),
+  // back
+  tbarrow: E([...LATS, ...MIDBACK], [...RD, ...ELBOWFLEX, ...ERECT, ...HAMS, ...GMAX]), sealrow: ROW, incdbrow: ROW,
+  meadows: E([...LATS, ...MIDBACK], [...RD, ...ELBOWFLEX, ...ERECT, ...OBL, ...WRISTFLEX]),
+  closepulldown: VPULL,
+  rackpull: E([...ERECT, ...UPTRAP, ...GMAX], [...HAMS, ...LATS, ...MIDBACK, ...WRISTFLEX, 'adductor_magnus']),
+  backext: E(ERECT, [...GMAX, ...HAMS, 'quadratus_lumborum', 'adductor_magnus']),
+  goodmorning: E([...HAMS, ...ERECT], [...GMAX, 'adductor_magnus', 'quadratus_lumborum']),
+  bandrow: E([...MIDBACK, ...LATS], [...RD, ...ELBOWFLEX, 'infraspinatus', 'teres_minor']),
+  // shoulders
+  arnold: E([...FD, ...SD], [...TRI, ...UPTRAP, ...SERR, 'pectoralis_major_clavicular']), smithohp: PRESS_OH,
+  landmine: E([...FD, 'pectoralis_major_clavicular'], [...TRI, ...SD, ...SERR, ...UPTRAP, ...OBL]),
+  hspu: E([...FD, ...SD, ...TRI], [...UPTRAP, 'pectoralis_major_clavicular', ...SERR, ...ABS]),
+  frontraise: FRONTR,
+  mlat: E(SD, [...UPTRAP, 'supraspinatus', 'deltoid_anterior']),
+  uprow: UPROW,
+  yraise: E([...SD, 'trapezius_lower'], [...RD, 'supraspinatus', 'trapezius_middle', 'infraspinatus']),
+  luraise: E([...SD, ...FD], [...UPTRAP, 'supraspinatus', ...SERR]),
+  revcablefly: REAR, pullapart: E([...RD, 'rhomboid_major', 'rhomboid_minor'], ['trapezius_middle', 'trapezius_lower', 'infraspinatus', 'teres_minor']),
+  bandfacepull: E([...RD, 'infraspinatus', 'teres_minor'], [...MIDBACK, ...UPTRAP]),
+  // arms
+  bbcurl: CURL, cablecurl: CURL, bayesian: E(['biceps_brachii_long', 'biceps_brachii_short'], ['brachialis', 'brachioradialis_muscle', 'deltoid_anterior']),
+  conccurl: E([...BI, 'brachialis'], ['brachioradialis_muscle', ...WRISTFLEX]), spidercurl: E([...BI, 'brachialis'], ['brachioradialis_muscle', ...WRISTFLEX]),
+  zottman: E([...BI, 'brachialis', 'brachioradialis_muscle'], [...WRISTEXT, ...WRISTFLEX]),
+  revcurl: E(['brachioradialis_muscle', 'brachialis'], [...BI, ...WRISTEXT]),
+  cgbench: E([...TRI, ...CHEST], [...FD, ...SERR]), jmpress: E(TRI, ['anconeus_muscle', 'pectoralis_major_sternocostal', ...FD]),
+  kickback: E(TRI, ['anconeus_muscle', ...RD]), cablekickback: E(TRI, ['anconeus_muscle', ...RD]),
+  cgpush: E([...TRI, ...CHEST], [...FD, ...SERR, ...ABS]), diamond: E([...TRI, ...CHEST], [...FD, ...SERR, ...ABS]),
+  // quads and glutes
+  sumo: E([...GMAX, ...ADD, ...QUADS], [...HAMS, ...ERECT, ...UPTRAP, ...LATS, ...WRISTFLEX]),
+  boxsquat: E([...QUADS, ...GMAX], [...HAMS, ...ADD, ...ERECT, ...ABS, ...OBL]), pausesquat: SQUAT,
+  smithsplit: LUNGE, bblunge: LUNGE, dbrevlunge: LUNGE, stepup: LUNGE,
+  pistol: E([...QUADS, ...GMAX], [...GSIDE, ...ADD, ...CALF, ...ABS, ...HIPFLEX]),
+  cossack: E([...QUADS, ...GMAX, ...ADD], [...HAMS, ...GSIDE, ...CALF]),
+  sissy: E(QUADS, [...ABS, ...HIPFLEX, ...CALF]),
+  sled: E([...QUADS, ...GMAX], [...CALF, ...HAMS, ...ABS, ...TRI, ...FD]),
+  hipadd: E(ADD, ['gluteus_maximus', 'obturator_externus']),
+  slhipthrust: E(GMAX, [...HAMS, ...GSIDE, 'adductor_magnus', ...OBL]),
+  pullthrough: E([...GMAX, ...HAMS], [...ERECT, 'adductor_magnus', ...WRISTFLEX]),
+  // hamstrings
+  seatcurl: LEGCURL, ghr: E(HAMS, [...GMAX, ...GASTRO, ...ERECT]),
+  slrdl: E([...HAMS, ...GMAX], [...GSIDE, ...ERECT, 'adductor_magnus', ...WRISTFLEX]),
+  // calves
+  seatcalf: E(['soleus'], [...GASTRO, 'tibialis_posterior', 'fibularis_longus', 'fibularis_brevis', 'flexor_hallucis_longus']),
+  donkeycalf: CALFR, lpcalf: CALFR,
+  tibraise: E(['tibialis_anterior'], ['extensor_digitorum_longus', 'extensor_hallucis_longus', 'fibularis_tertius']),
+  // abs and core
+  floorcrunch: E(ABS, OBL), situp: E([...ABS, ...HIPFLEX], [...OBL, 'rectus_femoris']), abmachine: E(ABS, OBL),
+  lyinglegraise: LEGRAISE, vup: E([...ABS, ...HIPFLEX], [...OBL, 'rectus_femoris']),
+  deadbug: E(['rectus_abdominis', 'transversus_abdominis'], ['external_oblique', 'internal_oblique', ...HIPFLEX]),
+  birddog: E(['multifidus_lumborum', 'transversus_abdominis', 'gluteus_maximus'], [...ERECT, 'gluteus_medius', 'external_oblique', 'internal_oblique', ...FD]),
+  abwheel: E([...ABS, ...OBL], [...LATS, ...SERR, ...HIPFLEX, 'triceps_long']),
+  sideplank: E(['external_oblique', 'internal_oblique', 'quadratus_lumborum'], ['transversus_abdominis', 'rectus_abdominis', ...GSIDE]),
+  hollow: E([...ABS, 'transversus_abdominis'], ['external_oblique', 'internal_oblique', ...HIPFLEX, 'rectus_femoris']),
+  russian: E(['external_oblique', 'internal_oblique'], [...ABS, 'transversus_abdominis', ...HIPFLEX]),
+  climber: E([...ABS, ...HIPFLEX], [...OBL, ...FD, ...SERR, 'rectus_femoris']),
+  pallof: E(OBL, [...ABS, 'quadratus_lumborum', ...GSIDE]), woodchop: E(OBL, [...ABS, ...SERR, ...FD, 'gluteus_medius']),
+  // neck, traps and grip
+  necksideraise: E(['sternocleidomastoid', 'scalenus_anterior', 'scalenus_medius', 'scalenus_posterior'], ['splenius_capitis', 'splenius_colli', 'levator_scapulae', 'trapezius_upper']),
+  bbshrug: E(UPTRAP, ['trapezius_middle', 'rhomboid_major', 'rhomboid_minor', ...WRISTFLEX]),
+  plateshrug: E(UPTRAP, ['trapezius_middle', 'rhomboid_major', 'rhomboid_minor', ...WRISTFLEX]),
+  suitcase: E([...WRISTFLEX, 'quadratus_lumborum', 'external_oblique', 'internal_oblique'], [...UPTRAP, ...GSIDE, ...ERECT, 'transversus_abdominis']),
+  platepinch: E(['flexor_pollicis_longus', 'flexor_digitorum_profundus', 'humero_ulnar_head_of_flexor_digitorum_superficialis', 'radial_head_of_flexor_digitorum_superficialis'],
+    ['flexor_carpi_radialis', 'abductor_pollicis_longus', 'extensor_pollicis_brevis', 'extensor_pollicis_longus']),
+  deadhang: E(WRISTFLEX, [...LATS, 'trapezius_lower', 'brachioradialis_muscle', 'pectoralis_major_abdominal']),
+  // kettlebell and full body
+  kbswing: E([...GMAX, ...HAMS], [...ERECT, ...ABS, ...FD, ...UPTRAP, 'adductor_magnus', ...WRISTFLEX]),
+  kbpress: E([...FD, ...SD], [...TRI, ...GMAX, ...HAMS, ...UPTRAP, ...OBL, ...SERR]),
+  tgu: E([...OBL, ...ABS, ...FD], [...GMAX, ...QUADS, ...TRI, ...SERR, 'infraspinatus', 'supraspinatus', 'teres_minor', ...SD]),
+  burpee: E([...QUADS, ...GMAX, ...CHEST], [...FD, ...TRI, ...ABS, ...CALF, ...HIPFLEX]),
 };
 
 /** App muscle group → atlas muscles, for custom exercises and for linking the atlas to Levels. */
