@@ -1,6 +1,6 @@
 import { S, todayIso, refresh, dayForDate } from '../state.js';
 import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort } from '../engine.js';
-import { esc, fmtDate, pill, STATUS, num, cvar, dowName } from '../ui.js';
+import { esc, fmtDate, pill, STATUS, num, cvar, dowName, ICON } from '../ui.js';
 
 let mode = 'level';   // level | week
 let sel = null;       // selected muscle
@@ -103,7 +103,7 @@ export function render() {
 
   // Only level-ups earned in the app: an import of old logs shouldn't fire a burst of banners.
   const fresh = data.levelUps.filter(u => !u.imported && u.date <= t && daysBetween(u.date, t) <= 3);
-  if (fresh.length) h += `<div class="lvup-banner" role="status"><b>★ Level up!</b><span>${fresh.slice(-4).reverse().map(u => `${esc(u.muscle)} → Lv${u.level}${u.date === t ? '' : ` (${fmtDate(u.date)})`}`).join(' · ')}</span></div>`;
+  if (fresh.length) h += `<div class="lvup-banner" role="status"><b>${ICON.star}Level up!</b><span>${fresh.slice(-4).reverse().map(u => `${esc(u.muscle)} → Lv${u.level}${u.date === t ? '' : ` (${fmtDate(u.date)})`}`).join(' · ')}</span></div>`;
   h += nextXP(data, t);
 
   h += `<div class="rrow"><div class="seg" role="group" aria-label="Colour the map by">${[['level', 'Level'], ['week', 'This week']].map(([v, l]) => `<button data-act="mode" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
@@ -137,7 +137,7 @@ export function render() {
   h += `</ul>`;
 
   const ups = data.levelUps.slice(-6).reverse();
-  if (ups.length) h += `<p class="lbl">Recent level-ups</p><ul class="box xplist pad">${ups.map(u => `<li><span>${fmtDate(u.date)}</span><span class="grow">${esc(u.muscle)} reached level ${u.level}</span><b>★</b></li>`).join('')}</ul>`;
+  if (ups.length) h += `<p class="lbl">Recent level-ups</p><ul class="box xplist pad">${ups.map(u => `<li><span>${fmtDate(u.date)}</span><span class="grow">${esc(u.muscle)} reached level ${u.level}</span><b class="lvstar">${ICON.star}</b></li>`).join('')}</ul>`;
   const nImp = S.sessions.filter(s => s.imported).length;
   if (nImp) h += `<p class="fine">Includes ${nImp} imported session${nImp === 1 ? '' : 's'}: your past training counts, so levels start where your history left you.</p>`;
   h += `<p class="fine">Bars show progress inside the current level. Muscles not trained for 10+ days are marked, so nothing gets left behind. Each hard set earns ${XP_SET} XP for its main muscle and ${XP_HELPER} for helpers. Beating your best on a lift adds ${XP_PR} (machines and cables only against the same gym). Warm-ups and skipped sets earn nothing, so XP tracks real work, not app opens.</p>`;

@@ -165,7 +165,7 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.3.0';
 const WHATS_NEW = {
   '1.0.0': ['Levels tab: muscle map with XP and level-ups', 'Time left and finish time during workouts', 'Import your old PDF logs from More → Import'],
   '1.1.0': [
@@ -174,6 +174,12 @@ const WHATS_NEW = {
     'Import reads more log formats and keeps pain and sleep comments',
     'Restore and erase keep an undo copy',
     'Install button in More; phone Back closes pop-ups',
+  ],
+  '1.3.0': [
+    'Move a workout to another day: More → Programme → open a day → Move to another day',
+    'Easier to tap and read: bigger buttons, 12px minimum text, stronger contrast in light mode, feedback on every tap',
+    'Cleaner icons in Insights and Levels',
+    'Exercise setting "Weight jump" now explains itself',
   ],
   '1.2.0': [
     'First-run setup: start fresh, bring your old logs, or build a personalised split',

@@ -68,20 +68,20 @@ export function lineChart(series, { k = 'push', goal = null, unit = '', height =
   const Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   const ticks = niceTicks(y0, y1, 3);
   let g = '';
-  for (const v of ticks) g += `<line x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-dasharray="3 4"/><text x="${L - 6}" y="${(Y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--mute)">${+v.toFixed(1)}</text>`;
-  if (goal != null) g += `<line x1="${L}" x2="${W - R}" y1="${Y(goal)}" y2="${Y(goal)}" stroke="var(--up)" stroke-width="1.5"/><text x="${W - R}" y="${Y(goal) - 4}" text-anchor="end" font-size="10" fill="var(--up)">goal ${goal}</text>`;
+  for (const v of ticks) g += `<line x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-dasharray="3 4"/><text x="${L - 6}" y="${(Y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="12" fill="var(--mute)">${+v.toFixed(1)}</text>`;
+  if (goal != null) g += `<line x1="${L}" x2="${W - R}" y1="${Y(goal)}" y2="${Y(goal)}" stroke="var(--up)" stroke-width="1.5"/><text x="${W - R}" y="${Y(goal) - 4}" text-anchor="end" font-size="12" fill="var(--up)">goal ${goal}</text>`;
   const pts = series.map(p => [X(Date.parse(p.date)), Y(p.v)]);
   const line = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ');
   if (pts.length > 1) g += `<polygon points="${pts[0][0].toFixed(1)},${H - B} ${line} ${pts[pts.length - 1][0].toFixed(1)},${H - B}" fill="var(--${k})" opacity=".13"/><polyline points="${line}" fill="none" stroke="var(--${k})" stroke-width="2.5" stroke-linejoin="round"/>`;
   pts.forEach((p, i) => {
     const last = i === pts.length - 1;
     g += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${last ? 4.5 : 3}" fill="${last ? `var(--${k})` : 'var(--panel)'}" stroke="var(--${k})" stroke-width="2"><title>${fmtDate(series[i].date)}: ${+series[i].v.toFixed(dp)} ${unit}</title></circle>`;
-    if (series[i].label) g += `<text x="${p[0].toFixed(1)}" y="${(p[1] + 16).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--mute)">${esc(series[i].label)}</text>`;
+    if (series[i].label) g += `<text x="${p[0].toFixed(1)}" y="${(p[1] + 16).toFixed(1)}" text-anchor="middle" font-size="12" fill="var(--mute)">${esc(series[i].label)}</text>`;
   });
   const lp = pts[pts.length - 1], lv = series[series.length - 1].v;
   g += `<text x="${Math.min(lp[0], W - R) - 8}" y="${lp[1] - 8}" text-anchor="end" font-size="12" font-weight="700" fill="var(--ink)">${+lv.toFixed(dp)}</text>`;
-  g += `<text x="${L}" y="${H - 6}" font-size="10" fill="var(--mute)">${fmtDate(series[0].date)}</text>`;
-  if (series.length > 1) g += `<text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="10" fill="var(--mute)">${fmtDate(series[series.length - 1].date)}</text>`;
+  g += `<text x="${L}" y="${H - 6}" font-size="12" fill="var(--mute)">${fmtDate(series[0].date)}</text>`;
+  if (series.length > 1) g += `<text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="12" fill="var(--mute)">${fmtDate(series[series.length - 1].date)}</text>`;
   return `<svg class="chartsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${g}</svg>`;
 }
 
@@ -94,8 +94,8 @@ export function barChart(data, { height = 120, unit = '', label = 'chart' } = {}
   data.forEach((d, i) => {
     const h = d.v / mx * (H - T - B), x = L + i * bw + bw * 0.18, w = bw * 0.64, y = H - B - h;
     g += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="3" fill="var(--${d.k || 'upper'})"><title>${esc(d.label)}: ${d.v} ${unit}</title></rect>`;
-    if (d.v) g += `<text x="${(x + w / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--mute)">${d.v}</text>`;
-    g += `<text x="${(x + w / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9.5" fill="var(--mute)">${esc(d.label)}</text>`;
+    if (d.v) g += `<text x="${(x + w / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="12" fill="var(--mute)">${d.v}</text>`;
+    g += `<text x="${(x + w / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="12" fill="var(--mute)">${esc(d.label)}</text>`;
   });
   return `<svg class="chartsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${g}</svg>`;
 }
@@ -209,3 +209,22 @@ export const ICON = {
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>',
 };
+
+// Line icons in the same 24px / 2px-stroke family as the tab bar, replacing glyph characters.
+const I = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+Object.assign(ICON, {
+  alert: I('<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.5"/>'),
+  flag: I('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
+  clock: I('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/>'),
+  trendUp: I('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
+  trendDown: I('<path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/>'),
+  bars: I('<path d="M5 20V10M12 20V4M19 20v-7"/>'),
+  heart: I('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>'),
+  pencil: I('<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13 7l4 4"/>'),
+  star: I('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z"/>'),
+  help: I('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.1M12 17v.5"/>'),
+});
+// Every icon is decorative (controls carry their own labels), so screen readers skip it.
+for (const k of Object.keys(ICON)) ICON[k] = ICON[k].replace(/^<svg (?!aria-hidden)/, '<svg aria-hidden="true" focusable="false" ');
+/** Old glyph markers mapped to line icons. */
+export const GLYPH_ICON = { '↓': ICON.trendDown, '!': ICON.alert, '⚑': ICON.flag, '✎': ICON.pencil, '⏱': ICON.clock, '♥': ICON.heart, '↑': ICON.trendUp, '≡': ICON.bars, '?': ICON.help, '★': ICON.star };

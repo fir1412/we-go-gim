@@ -99,7 +99,8 @@ function program() {
         <input class="inp" id="ps-${di}" value="${esc(d.sub || '')}" placeholder="Subtitle, e.g. Chest emphasis" data-input="p-day" data-d="${di}" data-f="sub" aria-label="${dowName(dow, true)} subtitle" enterkeyhint="done">`;
       h += d.slots.length ? `<ul class="pslots">${d.slots.map((s, si) => `<li><button class="pslot2" data-act="p-slot" data-d="${di}" data-s="${si}">${s.group ? `<i class="grp">${esc(s.group)}</i>` : `<i class="grp n">${si + 1}</i>`}<span class="grow">${esc(S.exById[s.exId]?.name || 'Missing exercise')}</span><b class="num">${range(s)}</b></button></li>`).join('')}</ul>`
         : `<p class="fine">Rest day. Add an exercise to make it a training day.</p>`;
-      h += `<button class="mini addx" data-act="p-add" data-d="${di}">${ICON.plus} Add exercise</button></div>`;
+      h += `<div class="pdacts"><button class="mini addx" data-act="p-add" data-d="${di}">${ICON.plus} Add exercise</button>
+        <button class="mini" data-act="p-moveday" data-dow="${dow}">${ICON.today} Move to another day</button></div></div>`;
     }
     h += `</section>`;
   }
@@ -186,8 +187,9 @@ function exerciseEdit(id) {
     <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${UNITS.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="unit" data-v="${v}" aria-pressed="${ed.unit === v}">${l}</button>`).join('')}</div></div>
     ${ed.unitUnclear ? `<div class="warn"><b>Unit unclear.</b><span>Old logs mixed per-side and total. Choosing a unit above clears this flag.</span></div>` : ''}
     <div class="field"><span>Equipment</span><div class="chips" role="group" aria-label="Equipment">${EQUIP.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="equip" data-v="${v}" aria-pressed="${ed.equip === v}">${l}</button>`).join('')}</div></div>
-    <div class="row2"><label class="field"><span>Smallest step ${ed.unit === 'L' ? '(levels)' : '(kg)'}</span><input class="inp" id="ex-inc" type="number" inputmode="decimal" step="0.25" min="0.25" value="${ed.inc}" data-input="ed" data-f="inc"></label>
+    <div class="row2"><label class="field"><span>Weight jump ${ed.unit === 'L' ? '(levels)' : ed.unit === 'kg/DB' ? '(kg per dumbbell)' : '(kg)'}</span><input class="inp" id="ex-inc" type="number" inputmode="decimal" step="0.25" min="0.25" value="${ed.inc}" data-input="ed" data-f="inc" aria-describedby="inc-help"></label>
     <label class="field"><span>Rest between sets (s)</span><input class="inp" id="ex-rest" type="number" inputmode="numeric" step="15" min="15" max="600" value="${ed.rest}" data-input="ed" data-f="rest"></label></div>
+    <p class="fine" id="inc-help">How much weight gets added when every set reaches the top of its rep range. Use the smallest increase your gym allows: e.g. 2.5 kg for dumbbells, the plate size on a machine, 1 level on a cable.</p>
     <div class="field"><span>Muscles · tap in order, first is the main one</span><div class="chips" role="group" aria-label="Muscles">${MUSCLES.map(m => { const i = (ed.muscles || []).indexOf(m); return `<button class="mini" data-act="ed-muscle" data-v="${m}" aria-pressed="${i >= 0}">${i === 0 ? '★ ' : ''}${m}</button>`; }).join('')}</div></div>
     <label class="toggle"><input type="checkbox" id="ex-pergym" data-input="ed" data-f="perGym" ${ed.perGym ? 'checked' : ''}><span><b>Compare per gym</b><small>For machines and cables whose loads differ between gyms</small></span></label>
     <label class="field"><span>Caution note (shown with suggestions)</span><input class="inp" id="ex-caution" value="${esc(ed.caution || '')}" data-input="ed" data-f="caution" placeholder="e.g. Lower back has flared here"></label>
@@ -516,6 +518,30 @@ export const actions = {
     openSheet(`<h2 class="sh-title">Colour for ${esc(S.program.days[d].name)}</h2><div class="chips">${COLORS.map(c => `<button class="sw big" data-act="p-color-set" data-d="${d}" data-v="${c}" style="--k:${cvar(c)}" aria-label="${c}" aria-pressed="${S.program.days[d].color === c}"></button>`).join('')}</div>`, { label: 'Pick a colour' });
   },
   async 'p-color-set'(el) { closeSheet(); await editProgram(p => { p.days[+el.dataset.d].color = el.dataset.v; }); },
+  // Move a day's workout to another weekday: the two days trade places (a rest day just swaps in).
+  'p-moveday'(el) {
+    const from = +el.dataset.dow, src = S.program.days.find(d => d.dow === from);
+    const rows = DOW_ORDER.filter(d => d !== from).map(dow => {
+      const d = S.program.days.find(x => x.dow === dow);
+      const what = d?.slots.length ? `swap with ${esc(d.name)}` : 'rest day';
+      return `<button class="li" data-act="p-moveday-to" data-from="${from}" data-to="${dow}" style="--k:${cvar(d?.color || 'rest')}"><i class="sw"></i><span><b>${dowName(dow, true)}</b><small>${what}</small></span>${ICON.chev}</button>`;
+    }).join('');
+    openSheet(`<h2 class="sh-title">Move ${esc(src.name)} to…</h2><p class="sh-body">The two days trade places. Your logged sessions don't change.</p><div class="list box">${rows}</div>`, { label: `Move ${src.name}` });
+  },
+  async 'p-moveday-to'(el) {
+    const from = +el.dataset.from, to = +el.dataset.to;
+    const a = S.program.days.find(d => d.dow === from), b = S.program.days.find(d => d.dow === to);
+    const aName = a.name, bName = b?.slots.length ? b.name : null;
+    closeSheet();
+    await editProgram(p => {
+      const x = p.days.find(d => d.dow === from);
+      let y = p.days.find(d => d.dow === to);
+      if (!y) { y = { dow: to, name: 'Rest', sub: '', color: 'rest', slots: [] }; p.days.push(y); }
+      for (const k of ['name', 'sub', 'color', 'slots']) [x[k], y[k]] = [y[k], x[k]];
+    });
+    openDays.clear(); openDays.add(to);
+    toast(bName ? `${aName} is now on ${dowName(to, true)}, ${bName} on ${dowName(from, true)}` : `${aName} moved to ${dowName(to, true)}. ${dowName(from, true)} is now a rest day.`, 'up');
+  },
   async 'p-undo'() {
     if (!pOrig) return;
     await saveProgram(structuredClone(pOrig));
@@ -546,7 +572,7 @@ export const actions = {
     keepEd();
     if (!ed.name) return toast('Give the exercise a name', 'down');
     if (!ed.muscles?.length) return toast('Pick at least one muscle', 'down');
-    if (!(ed.inc > 0)) return toast('Smallest step must be above 0', 'down');
+    if (!(ed.inc > 0)) return toast('Weight jump must be above 0', 'down');
     if (S.exercises.some(x => x.name.toLowerCase() === ed.name.toLowerCase() && x.id !== ed.id)) return toast('An exercise with that name exists', 'down');
     const isNew = !ed.id;
     if (isNew) ed.id = ed.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + Math.random().toString(36).slice(2, 6);

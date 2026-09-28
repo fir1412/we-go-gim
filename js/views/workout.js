@@ -125,7 +125,7 @@ function card(e, ei, grp, focusSi = -1) {
   }).join('');
   const whyOpen = openWhy.has(e.uid);
   // The suggestion chip doubles as the "why" toggle, so the reason costs no space until asked for.
-  const tag = e.sg?.why ? `<button class="whybtn" data-act="why" data-uid="${e.uid}" aria-expanded="${whyOpen}" aria-label="Why this target">${chip(e.sg, ex)}<i aria-hidden="true">?</i></button>` : chip(e.sg, ex);
+  const tag = e.sg?.why ? `<button class="whybtn" data-act="why" data-uid="${e.uid}" aria-expanded="${whyOpen}" aria-label="Why this target">${chip(e.sg, ex)}<i class="whyq">${ICON.help}</i></button>` : chip(e.sg, ex);
   return `<article class="box exc" id="ex-${e.uid}">
     <header><div><h3>${g}<a href="#/ex/${esc(ex.id)}">${esc(ex.name)}</a></h3>
       <p>${slot ? `${e.sg?.reps?.length || slot.sets}×${slot.lo}–${slot.hi} · ` : ''}${esc(lastTxt)}</p></div>
@@ -134,7 +134,7 @@ function card(e, ei, grp, focusSi = -1) {
     ${helper(e, ex)}
     <div class="sets">${rows}</div>
     ${e.note ? `<p class="enote">${esc(e.note)}</p>` : ''}
-    <div class="exf"><div class="seg sm" role="group" aria-label="Reps left in the tank on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="fine grow">RIR last set</span>
+    <div class="exf"><div class="seg sm" role="group" aria-label="Reps left in the tank on the last set">${['0', '1', '2', '3+'].map(v => `<button data-act="rir" data-e="${ei}" data-v="${v}" aria-pressed="${e.rir === v}">${v}</button>`).join('')}</div><span class="fine grow" title="Reps in reserve on the last set">RIR</span>
       <button class="mini" data-act="add-set" data-e="${ei}">+ Set</button><button class="mini" data-act="pain" data-e="${ei}" aria-pressed="${!!e.pain}">Pain</button></div>
   </article>`;
 }
@@ -204,7 +204,7 @@ function summary(d) {
   let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div><div class="kpi"><b>${kfmt(vol)}</b><span>kg volume*</span></div>
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
-  if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>★ ${esc(p)}</p>`).join('')}</div>`;
+  if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
   const before = muscleXP(S.sessions, S.exById, d.date);
   const after = muscleXP([...S.sessions, { id: d.id, date: d.date, name: d.name, end: Date.now(), entries: d.entries }], S.exById, d.date);

@@ -3,7 +3,7 @@ import {
   muscleTrends, weeklySets, exposures, trend, topLoad, score, isKg, suggest, deloadCheck, weekStart, addDays,
   daysBetween, weeklyRate, personalBests, compareExposure, fmtLoad, unitLong, unitShort, workSets, MUSCLES, estimateDay,
 } from '../engine.js';
-import { esc, fmtDate, pill, chip, spark, lineChart, barChart, STATUS, ICON, toast, confirmSheet, openSheet, closeSheet, num, cvar } from '../ui.js';
+import { esc, fmtDate, pill, chip, spark, lineChart, barChart, STATUS, ICON, toast, confirmSheet, openSheet, closeSheet, num, cvar, GLYPH_ICON } from '../ui.js';
 
 let volWeek = 0; // 0 = this week, 1 = last week
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -126,7 +126,7 @@ function overview() {
   const f = focusItems(t);
   h += `<p class="lbl">Watch-outs and wins</p>`;
   h += f.length
-    ? `<ul class="box focus">${f.map(i => `<li>${i.ex ? `<a href="#/ex/${esc(i.ex)}">` : '<div>'}<span class="ic" style="--k:var(--${i.k})">${esc(i.ic)}</span><span><b>${esc(i.title)}</b>${esc(i.text)}</span>${i.ex ? '</a>' : '</div>'}</li>`).join('')}</ul>`
+    ? `<ul class="box focus">${f.map(i => `<li>${i.ex ? `<a href="#/ex/${esc(i.ex)}">` : '<div>'}<span class="ic" style="--k:var(--${i.k})">${GLYPH_ICON[i.ic] || esc(i.ic)}</span><span><b>${esc(i.title)}</b>${esc(i.text)}</span>${i.ex ? '</a>' : '</div>'}</li>`).join('')}</ul>`
     : `<div class="box pad"><p class="fine">Nothing needs attention. Keep logging.</p></div>`;
 
   h += `<p class="lbl">By muscle · lead lift</p>${tr.length ? tally : ''}`;
