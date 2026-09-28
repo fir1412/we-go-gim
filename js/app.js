@@ -420,6 +420,7 @@ function onboarding() {
   }
   if (seen === APP_VERSION) return;
   const done = () => { if (S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION }); };
+  if (!seen && S.sessions.some(s => !s.seed)) return done(); // someone with real workouts (a restored backup) already knows the app
   if (!seen) showTour(0, { onDone: done }); else showWhatsNew(seen, done);
 }
 

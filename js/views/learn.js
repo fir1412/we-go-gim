@@ -23,8 +23,10 @@ export function learnCard() {
 }
 
 let busy = false;
+// Taps that can be refused (a tick without a weight) only count once they really worked.
+const worked = { set: () => !!S.draft?.entries.some(e => e.sets.some(x => x.done)) || S.sessions.some(s => !s.seed) };
 async function complete(m) {
-  if (busy || S.settings.learn?.[m.id]) return;
+  if (busy || S.settings.learn?.[m.id] || (worked[m.id] && !worked[m.id]())) return;
   busy = true;
   try {
     await saveSettings({ learn: { ...(S.settings.learn || {}), [m.id]: todayIso() } });

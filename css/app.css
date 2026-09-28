@@ -1199,3 +1199,12 @@ button, a, summary, .li, label.filebtn { transition: background-color var(--pres
 @keyframes learnPulse { 50% { outline-offset: 7px; outline-color: color-mix(in srgb, var(--up) 45%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .learn-spot { animation: none; } .learnbar i { transition: none; } }
 .tour-ic.big { font-size: 3rem; }
+
+/* ---- Workout: plate helper patched in place, toasts clear of the rest timer ---- */
+/* The helper's wrapper adds no box of its own, so the card spacing is unchanged. */
+.hlpw { display: contents; }
+/* While the rest timer shows, toasts sit above it so they never cover +30s or Skip (--timer-h is set by the workout screen). */
+body:has(#timer:not([hidden])) #toast { bottom: calc(86px + var(--timer-h, 64px) + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 1000px) and (min-height: 520px) {
+  body:has(#timer:not([hidden])) #toast { bottom: calc(28px + var(--timer-h, 64px)); }
+}

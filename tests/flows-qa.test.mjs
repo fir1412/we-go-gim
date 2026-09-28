@@ -36,3 +36,13 @@ test('deleting a workout removes the cardio logged in it, not other cardio', asy
   await state.deleteSession('w1');
   assert.deepEqual(S.cardio.map(c => c.id), ['other']);
 });
+
+test('a draft left open for days saves its date but no made-up length', async () => {
+  S.sessions = []; S.cardio = [];
+  S.draft = { ...draft(), start: Date.now() - 3 * 24 * 3600e3 };
+  const s = await state.commitDraft();
+  assert.equal(s.start, null); assert.equal(s.end, null); assert.equal(s.minutes, null);
+  S.draft = { ...draft(), id: 'w2', start: Date.now() - 40 * 60e3 };
+  const t = await state.commitDraft();
+  assert.ok(t.end - t.start >= 40 * 60e3 - 1000);
+});
