@@ -756,13 +756,13 @@ export const actions = {
     if (!ed.muscles?.length) return toast('Pick at least one muscle', 'down');
     if (!(ed.inc > 0)) return toast('Weight jump must be above 0', 'down');
     if (ed.inc > (ed.unit === 'L' ? 10 : 50)) return toast(ed.unit === 'L' ? 'Weight jump can be at most 10 levels' : 'Weight jump can be at most 50 kg', 'down');
-    if (!(ed.rest >= 15 && ed.rest <= 600)) return toast('Rest must be between 15 and 600 seconds', 'down');
+    if (!(ed.rest >= 15 && ed.rest <= 600)) return toast('Choose a rest time from 15 to 600 seconds', 'down');
     if (S.exercises.some(x => x.name.toLowerCase() === ed.name.toLowerCase() && x.id !== ed.id)) return toast('An exercise with that name exists', 'down');
     const isNew = !ed.id;
     const was = !isNew && S.exById[ed.id];
     if (was && was.unit !== ed.unit) {
       const n = S.sessions.filter(s => s.entries.some(e => e.exId === ed.id)).length;
-      if (n && !(await confirmSheet({ title: 'Change how the load is logged?', body: `${n} logged workout${n === 1 ? '' : 's'} with this exercise keep their numbers but are read the new way, so charts and levels can jump. To keep old records apart, create a new exercise instead.`, ok: 'Change it' }))) return;
+      if (n && !(await confirmSheet({ title: 'Change how the load is logged?', body: `This exercise is in ${n} logged workout${n === 1 ? '' : 's'}. Their numbers stay the same but are read the new way, so charts and levels can jump. To keep old records apart, create a new exercise instead.`, ok: 'Change it' }))) return;
     }
     if (isNew) ed.id = ed.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + Math.random().toString(36).slice(2, 6);
     delete ed.imported; delete ed._auto;
