@@ -29,6 +29,12 @@ python -m http.server 8765
 node --test tests/*.test.mjs
 ```
 
+Screen tests drive a headless Chrome on a phone-sized screen (typing, folding cards, back, swipe to skip, the rest timer). They use the Chrome installed on the machine, or `CHROME_PATH`, and need nothing installed:
+
+```sh
+node --test tests/e2e/*.e2e.mjs
+```
+
 ## Structure
 
 | Path | What |

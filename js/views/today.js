@@ -27,7 +27,9 @@ export function render(route) {
     h += `<a class="resume" href="#/workout" style="${kstyle(S.draft.color)}"><span><b>${esc(S.draft.name)} ${stale ? `from ${fmtDate(S.draft.date, { dow: true })} not saved` : 'in progress'}</b><small>${done}/${all.length} sets · ${stale ? 'finish or discard it' : `started ${fmtTime(S.draft.start)}`}</small></span><span class="pill">${stale ? 'Open' : 'Resume'} ${ICON.chev}</span></a>`;
   }
   // One banner at a time, most useful first, so Start stays near the top.
-  h += (date === t ? missedCard(t) : '') || deloadCard(t) || (date === t ? backupCard(t) : '');
+  h += (date === t ? missedCard(t) : '') || deloadCard(t);
+  // The backup reminder has its own slot: sharing one with the banners above let a long run of missed days hide it for weeks.
+  if (date === t) h += backupCard(t);
 
   // week strip
   const ws = weekStart(t);
