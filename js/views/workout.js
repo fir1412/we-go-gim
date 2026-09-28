@@ -13,12 +13,14 @@ import { streakInfo, badges, gameOn } from '../gamify.js';
 
 const FEEL = [[1, 'Drained'], [2, 'Low'], [3, 'OK'], [4, 'Good'], [5, 'Great']];
 
-// Per-card UI state kept across re-renders: "why" text open, finished card re-opened.
+// Per-card UI state kept across re-renders: "why" text open, finished card re-opened or folded by hand.
 const openWhy = new Set();
 const openDone = new Set();
+const shutDone = new Set();
 
 /** Local calendar date (YYYY-MM-DD) of a timestamp. */
 const localIso = ms => { const t = new Date(ms); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+const allTicked = e => e.sets.length > 0 && e.sets.every(s => s.done);
 const lastAt = e =>Math.max(0, ...e.sets.map(s => s.at || 0));
 const pending = e => e.sets.findIndex(s => !s.done);
 
@@ -52,7 +54,7 @@ function focusSet() {
  *  (two sets ticked elsewhere since), so there's always a rest period to set it. */
 function folded(e) {
   if (openDone.has(e.uid) || !e.sets.length || e.sets.some(s => !s.done)) return false;
-  if (e.rir != null) return true;
+  if (e.rir != null || shutDone.has(e.uid)) return true;
   const t = lastAt(e);
   let later = 0;
   for (const o of S.draft.entries) if (o !== e) for (const x of o.sets) if (x.done && (x.at || 0) > t) later++;
@@ -149,7 +151,7 @@ function card(e, ei, grp, focusSi = -1) {
     const bw = ex.unit === 'bw';
     const who = `${esc(ex.name)}, ${s.warm ? 'warm-up set' : 'set ' + label}`;
     return `<div class="set ${s.done ? 'done' : ''} ${s.warm ? 'warm' : ''} ${si === focusSi ? 'next' : ''}"><span class="i" aria-hidden="true">${label}</span>
-      <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="-1" aria-label="${who}: less weight">−</button><input id="w-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="w" type="number" inputmode="decimal" step="any" value="${esc(bw && !+s.w ? '' : shown(ex, s.w))}" placeholder="${bw ? esc(T('bw')) : ex.unit === 'L' ? 'lvl' : getUnits()}" aria-label="${who}: ${bw ? `added weight in ${getUnits()}` : ex.unit === 'L' ? 'level' : `weight in ${getUnits()}`}"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="1" aria-label="${who}: more weight">+</button></div>
+      <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="-1" aria-label="${who}: less weight">−</button><input id="w-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="w" type="text" inputmode="decimal" autocomplete="off" step="any" value="${esc(bw && !+s.w ? '' : shown(ex, s.w))}" placeholder="${bw ? esc(T('bw')) : ex.unit === 'L' ? 'lvl' : getUnits()}" aria-label="${who}: ${bw ? `added weight in ${getUnits()}` : ex.unit === 'L' ? 'level' : `weight in ${getUnits()}`}"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="1" aria-label="${who}: more weight">+</button></div>
       <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="r" data-d="-1" aria-label="${who}: one rep fewer">−</button><input id="r-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="r" type="number" inputmode="numeric" value="${esc(s.r ?? '')}" placeholder="reps" aria-label="${who}: reps"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="r" data-d="1" aria-label="${who}: one rep more">+</button></div>
       <button class="check" data-act="done" data-e="${ei}" data-s="${si}" aria-label="${who} done" aria-pressed="${!!s.done}">${ICON.check}</button></div>`;
   }).join('');
@@ -160,7 +162,7 @@ function card(e, ei, grp, focusSi = -1) {
     <header><div><h2>${g}<a href="#/ex/${esc(ex.id)}">${esc(ex.name)}</a></h2>
       ${slot?.note ? `<p class="snote" data-raw>${esc(slot.note)}</p>` : ''}
       <p>${slot ? `${e.sg?.reps?.length || slot.sets}×${slot.lo}–${slot.hi} · ` : ''}${esc(lastTxt)}</p></div>
-      <span class="hdr-r">${tag}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
+      <span class="hdr-r">${tag}${allTicked(e) ? `<button class="iconbtn sm foldup" data-act="fold" data-uid="${e.uid}" aria-expanded="true" aria-label="${esc(ex.name)} done. Hide sets">${ICON.chev}</button>` : ''}<button class="iconbtn sm" data-act="menu" data-e="${ei}" aria-label="Options for ${esc(ex.name)}">${ICON.dots}</button></span></header>
     ${whyOpen ? `<p class="whyp">${esc(e.sg.why)} Aim for ${esc(rirWords(e.sg.rir))} on each set.${e.sg.t === 'cal' ? helpTip('calibrate') : ''}</p>` : ''}
     ${startPick(e, ex, ei)}
     <div class="hlpw" id="hp-${e.uid}">${helper(e, ex)}</div>
@@ -249,7 +251,7 @@ function cardioSheet() {
   openSheet(`<h2 class="sh-title">Add cardio</h2>
     <div class="chips" role="group" aria-label="Type">${CW_TYPES.map(x => `<button class="mini" data-act="cw-type" data-v="${x}" aria-pressed="${cw.type === x}">${x}</button>`).join('')}</div>
     <div class="row2"><label class="field"><span>Minutes</span><input class="inp" id="cw-min" type="number" inputmode="numeric" min="1" max="600" placeholder="20" value="${esc(min)}"></label>
-    <label class="field"><span>Distance (km, optional)</span><input class="inp" id="cw-km" type="number" inputmode="decimal" step="0.1" min="0" placeholder="—" value="${esc(km)}"></label></div>
+    <label class="field"><span>Distance (km, optional)</span><input class="inp" id="cw-km" type="text" inputmode="decimal" autocomplete="off" step="0.1" min="0" placeholder="—" value="${esc(km)}"></label></div>
     <div class="rrow"><span>Intensity</span><div class="seg" role="group" aria-label="Intensity">${[['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']].map(([v, l]) => `<button data-act="cw-int" data-v="${v}" aria-pressed="${cw.intensity === v}">${l}</button>`).join('')}</div></div>
     <button class="btn" data-act="cw-save">Add to workout</button>`, { label: 'Add cardio' });
 }
@@ -414,7 +416,8 @@ export const actions = {
     if (s.done) showNext(e);
   },
   why(el) { const u = el.dataset.uid; openWhy.has(u) ? openWhy.delete(u) : openWhy.add(u); refresh(); },
-  unfold(el) { openDone.add(el.dataset.uid); refresh(); },
+  unfold(el) { const u = el.dataset.uid; shutDone.delete(u); openDone.add(u); refresh(); },
+  fold(el) { const u = el.dataset.uid; openDone.delete(u); shutDone.add(u); refresh(); },
   rir(el) { const e = E(el); e.rir = e.rir === el.dataset.v ? null : el.dataset.v; commit(); },
   pain(el) {
     const e = E(el); e.pain = !e.pain;

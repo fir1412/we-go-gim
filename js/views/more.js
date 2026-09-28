@@ -343,7 +343,7 @@ function exerciseEdit(id) {
     <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${UNITS.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="unit" data-v="${v}" aria-pressed="${ed.unit === v}">${l.replace(/\bkg\b/, getUnits())}</button>`).join('')}</div></div>
     ${ed.unitUnclear ? `<div class="warn"><b>Unit unclear.</b><span>Old logs mixed per-side and total. Choosing a unit above clears this flag.</span></div>` : ''}
     <div class="field"><span>Equipment</span><div class="chips" role="group" aria-label="Equipment">${EQUIP.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="equip" data-v="${v}" aria-pressed="${ed.equip === v}">${l}</button>`).join('')}</div></div>
-    <div class="row2"><label class="field"><span>Weight jump ${ed.unit === 'L' ? '(levels)' : ed.unit === 'kg/DB' ? `(${getUnits()} per dumbbell)` : `(${getUnits()})`}</span><input class="inp" id="ex-inc" type="number" inputmode="decimal" step="0.25" min="0.25" value="${ed.unit === 'L' ? ed.inc : toDisp(ed.inc)}" data-input="ed" data-f="inc" aria-describedby="inc-help"></label>
+    <div class="row2"><label class="field"><span>Weight jump ${ed.unit === 'L' ? '(levels)' : ed.unit === 'kg/DB' ? `(${getUnits()} per dumbbell)` : `(${getUnits()})`}</span><input class="inp" id="ex-inc" type="text" inputmode="decimal" autocomplete="off" step="0.25" min="0.25" value="${ed.unit === 'L' ? ed.inc : toDisp(ed.inc)}" data-input="ed" data-f="inc" aria-describedby="inc-help"></label>
     <label class="field"><span>Rest between sets (s)</span><input class="inp" id="ex-rest" type="number" inputmode="numeric" step="15" min="15" max="600" value="${ed.rest}" data-input="ed" data-f="rest"></label></div>
     <p class="fine" id="inc-help">How much weight gets added when every set reaches the top of its rep range. Use the smallest increase your gym allows: e.g. 2.5 kg for dumbbells, the plate size on a machine, 1 level on a cable.</p>
     <div class="field"><span>Muscles · tap in order, first is the main one</span><div class="chips" role="group" aria-label="Muscles">${MUSCLES.map(m => { const i = (ed.muscles || []).indexOf(m); return `<button class="mini" data-act="ed-muscle" data-v="${m}" aria-pressed="${i >= 0}">${i === 0 ? '★ ' : ''}${m}</button>`; }).join('')}</div></div>
@@ -372,10 +372,10 @@ function equip() {
   const h = `<label class="field"><span>Dumbbells available (${u}, comma separated)</span><textarea class="inp" id="eq-db" rows="3">${esc(e.dumbbells.map(d).join(', '))}</textarea></label>
     <p class="fine">Load increases jump to the next dumbbell you actually have; the workout screen warns when a weight isn't on your rack.</p>
     <label class="field"><span>Plates per side (${u})</span><input class="inp" id="eq-pl" value="${esc(e.plates.map(d).join(', '))}"></label>
-    <div class="row2"><label class="field"><span>Barbell (${u})</span><input class="inp" id="eq-bar" type="number" inputmode="decimal" step="0.5" value="${d(e.barKg)}"></label>
-    <label class="field"><span>Smith bar (${u})</span><input class="inp" id="eq-smith" type="number" inputmode="decimal" step="0.5" value="${d(e.smithBarKg ?? e.barKg)}"></label></div>
+    <div class="row2"><label class="field"><span>Barbell (${u})</span><input class="inp" id="eq-bar" type="text" inputmode="decimal" autocomplete="off" step="0.5" value="${d(e.barKg)}"></label>
+    <label class="field"><span>Smith bar (${u})</span><input class="inp" id="eq-smith" type="text" inputmode="decimal" autocomplete="off" step="0.5" value="${d(e.smithBarKg ?? e.barKg)}"></label></div>
     <p class="fine">Smith bars are often counterbalanced to 5–15 kg. Check the label on yours.</p>
-    <label class="field"><span>EZ bar (${u})</span><input class="inp" id="eq-ez" type="number" inputmode="decimal" step="0.5" placeholder="Not sure" value="${e.ezBarKg ? d(e.ezBarKg) : ''}" aria-describedby="ez-help"></label>
+    <label class="field"><span>EZ bar (${u})</span><input class="inp" id="eq-ez" type="text" inputmode="decimal" autocomplete="off" step="0.5" placeholder="Not sure" value="${e.ezBarKg ? d(e.ezBarKg) : ''}" aria-describedby="ez-help"></label>
     <p class="fine" id="ez-help">The curvy bar for curls and skull crushers, often 7–10 kg. Leave it blank if you don't know: the app then skips the empty-bar warm-up and plate maths for it.</p>
     <button class="btn" data-act="eq-save" style="--c:var(--up)">Save equipment</button>`;
   return { title: 'Equipment', sub: 'For load and plate suggestions', back: 'more', html: h, color: 'upper' };
@@ -667,7 +667,7 @@ function settings() {
       <label class="toggle"><input type="checkbox" id="st-missed" data-input="st-missed" ${st.missedReminders === false ? '' : 'checked'}><span><b>Missed-workout reminders</b><small>Offer to do a missed day today. Turn off if you train on whatever days suit you</small></span></label>
       ${seg('Warm-up sets', 'st-warm', st.autoWarmup === true ? 'all' : st.autoWarmup === 'barbell' ? 'barbell' : 'off', [['off', 'Off'], ['barbell', 'Barbell'], ['all', 'All lifts']])}
       <p class="fine">Ramp-up sets added before your first working set. Barbell: only barbell and Smith lifts, with plates per side shown for each.</p></div>
-    <div class="box pad stack"><div class="row2"><label class="field"><span>Goal body weight (${u}, optional)</span><input class="inp" id="st-goal" type="number" inputmode="decimal" step="0.5" placeholder="Not set" value="${st.goalKg == null ? '' : esc(toDisp(st.goalKg))}"></label>
+    <div class="box pad stack"><div class="row2"><label class="field"><span>Goal body weight (${u}, optional)</span><input class="inp" id="st-goal" type="text" inputmode="decimal" autocomplete="off" step="0.5" placeholder="Not set" value="${st.goalKg == null ? '' : esc(toDisp(st.goalKg))}"></label>
       <label class="field"><span>Height (cm, optional)</span><input class="inp" id="st-height" type="number" inputmode="numeric" placeholder="Not set" value="${st.heightCm == null ? '' : esc(st.heightCm)}"></label></div>
       <button class="btn ghost" data-act="st-save">Save</button></div>
     <div class="row2"><button class="btn ghost" data-act="check-update">Check for updates</button><a class="btn ghost" href="#/setup">Rebuild my split</a></div>
