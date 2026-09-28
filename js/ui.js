@@ -22,7 +22,17 @@ export const num = (v, dp = 1) => (v == null || isNaN(v) ? '—' : String(+(+v).
 export const kfmt = v => Math.round(v).toLocaleString('en-GB');
 
 export const COLORS = ['push', 'pull', 'legs', 'upper', 'legsb', 'arms', 'rest'];
-export const cvar = c => `var(--${COLORS.includes(c) ? c : 'upper'})`;
+/** A day's colour as CSS: one of the theme colours, or any hex colour the user picked ("#3fa7d6"). */
+export const isHex = c => /^#[0-9a-f]{6}$/i.test(String(c || ''));
+export const cvar = c => (isHex(c) ? c : `var(--${COLORS.includes(c) ? c : 'upper'})`);
+/** Hex for any colour, reading a theme colour from the page ("push" -> "#ff8a3d"), for the colour picker. */
+export function hexOf(c) {
+  if (isHex(c)) return c.toLowerCase();
+  const v = typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue(`--${COLORS.includes(c) ? c : 'upper'}`).trim() : '';
+  if (isHex(v)) return v.toLowerCase();
+  const m = v.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+  return m ? `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}`.toLowerCase() : '#888888';
+}
 
 // Labels are looked up at render time so they follow the plain/gym wording setting.
 export const CHIP = {

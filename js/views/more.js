@@ -1,7 +1,7 @@
 import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits } from '../engine.js';
-import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, COLORS, dowName, fmtDate, T, helpTip } from '../ui.js';
+import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf } from '../ui.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
@@ -615,11 +615,37 @@ export const actions = {
       slotSheet(di, S.program.days[di].slots.length - 1);
     });
   },
+  // Any colour: quick picks, the phone's full colour picker, or a hex code typed in.
   'p-color'(el) {
-    const d = +el.dataset.d;
-    openSheet(`<h2 class="sh-title">Colour for ${esc(S.program.days[d].name)}</h2><div class="chips">${COLORS.map(c => `<button class="sw big" data-act="p-color-set" data-d="${d}" data-v="${c}" style="--k:${cvar(c)}" aria-label="${c}" aria-pressed="${S.program.days[d].color === c}"></button>`).join('')}</div>`, { label: 'Pick a colour' });
+    const d = +el.dataset.d, day = S.program.days[d], cur = hexOf(day.color);
+    const sheet = openSheet(`<h2 class="sh-title">Colour for ${esc(day.name)}</h2>
+      <div class="colprev" id="col-prev" style="--k:${cur}"><b>${esc(day.name)}</b><span id="col-hexlbl">${cur.toUpperCase()}</span></div>
+      <p class="lbl">Quick picks</p>
+      <div class="chips">${COLORS.filter(c => c !== 'rest').map(c => `<button class="sw big" data-act="p-color-set" data-d="${d}" data-v="${c}" style="--k:${cvar(c)}" aria-label="${c} (${hexOf(c)})" aria-pressed="${day.color === c}"></button>`).join('')}</div>
+      <p class="lbl">Any colour</p>
+      <div class="colrow"><input type="color" id="col-pick" value="${cur}" aria-label="Pick any colour">
+        <label class="field grow"><span>Hex code</span><input class="inp mono" id="col-hex" value="${cur.toUpperCase()}" maxlength="7" autocomplete="off" spellcheck="false" placeholder="#3FA7D6"></label></div>
+      <button class="btn" data-act="p-color-custom" data-d="${d}">Use this colour</button>`, { label: 'Pick a colour' });
+    const pick = sheet.querySelector('#col-pick'), hex = sheet.querySelector('#col-hex'), prev = sheet.querySelector('#col-prev'), lbl = sheet.querySelector('#col-hexlbl');
+    const show = v => { prev.style.setProperty('--k', v); lbl.textContent = v.toUpperCase(); };
+    pick.addEventListener('input', () => { hex.value = pick.value.toUpperCase(); show(pick.value); });
+    hex.addEventListener('input', () => {
+      let v = hex.value.trim(); if (v && v[0] !== '#') v = '#' + v;
+      const m = v.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i); if (m) v = `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}`;
+      hex.classList.toggle('bad', !isHex(v));
+      if (isHex(v)) { pick.value = v.toLowerCase(); show(v); }
+    });
   },
   async 'p-color-set'(el) { closeSheet(); await editProgram(p => { p.days[+el.dataset.d].color = el.dataset.v; }); },
+  async 'p-color-custom'(el) {
+    let v = (document.getElementById('col-hex')?.value || '').trim();
+    if (v && v[0] !== '#') v = '#' + v;
+    const m = v.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i); if (m) v = `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}`;
+    if (!isHex(v)) return toast('Enter a hex code like #3FA7D6', 'flat');
+    closeSheet();
+    await editProgram(p => { p.days[+el.dataset.d].color = v.toLowerCase(); });
+    toast(`Colour set to ${v.toUpperCase()}`, 'up');
+  },
   // Move a day's workout to another weekday: the two days trade places (a rest day just swaps in).
   'p-moveday'(el) {
     const from = +el.dataset.dow, src = S.program.days.find(d => d.dow === from);

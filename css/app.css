@@ -883,3 +883,11 @@ a.mini { text-decoration: none; display: inline-grid; place-items: center; color
 .faq details:last-child { border-bottom: 0; }
 .faq summary { padding: 14px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .faq p { margin: 0; padding: 0 14px 14px; color: var(--mute); }
+
+/* Day colour picker: any colour, with its hex code */
+.colprev { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-radius: 14px; background: var(--k); color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / .45); margin-bottom: 6px; }
+.colprev span { font-family: ui-monospace, monospace; font-weight: 700; }
+.colrow { display: flex; gap: 10px; align-items: end; }
+.colrow input[type=color] { width: 64px; height: 48px; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: none; flex: none; }
+.colrow .grow { flex: 1; }
+.inp.bad { border-color: var(--down); }
