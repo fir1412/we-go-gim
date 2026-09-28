@@ -75,7 +75,7 @@ function question(step) {
   }
   const ok = answered(q, st.a);
   const last = step === Q.length - 1;
-  h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="wz-back">Back</button><button class="btn" data-act="wz-next" data-step="${step}" ${ok ? '' : 'disabled'}>${last ? 'See my plan' : !q.one && !q.days && !v.length ? 'Skip' : 'Next'}</button></div></div>`;
+  h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="wz-back" data-ctx="nav">Back</button><button class="btn" data-act="wz-next" data-step="${step}" ${ok ? '' : 'disabled'}>${last ? 'See my plan' : !q.one && !q.days && !v.length ? 'Skip' : 'Next'}</button></div></div>`;
   return { title: 'Your split', sub: 'A few quick questions', html: h, color: 'push' };
 }
 

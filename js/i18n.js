@@ -70,11 +70,12 @@ function parts(core, re, joiner) {
 }
 
 /** One piece of on-screen text in the current language (unchanged in English or when there's no entry). */
-export function translate(s) {
+export function translate(s, ctx = null) {
   if (!dict || !s || !/[A-Za-z]/.test(s)) return s;
   const m = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
   const core = m[2].replace(/\s+/g, ' ');
-  let t = one(core);
+  // A word with two meanings ("Back" the button, "Back" the muscle) has its own entry per context: "nav:Back".
+  let t = (ctx && lookup(`${ctx}:${core}`)) ?? one(core);
   // Several sentences, or several pieces joined by " · ", in one piece of text: translate each on its own.
   if (t == null) t = parts(core, /(?<=[.!?])\s+/, lang === 'zh' || lang === 'ja' ? '' : ' ');
   if (t == null) t = parts(core, / · /, ' · ');

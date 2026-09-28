@@ -56,10 +56,10 @@ const ATTRS = ['placeholder', 'aria-label', 'title'];
 let plainOn = false, tr = null, obs = null;
 // Text this pass already produced is left alone, so the English rules never run on a translation.
 const done = new Set();
-const conv = s => {
+const conv = (s, ctx) => {
   if (done.has(s)) return s;
   let t = plainOn ? plainText(s) : s;
-  if (tr) t = tr(t);
+  if (tr) t = tr(t, ctx);
   if (t !== s) { if (done.size > 5000) done.clear(); done.add(t); }
   return t;
 };
@@ -80,7 +80,7 @@ function fix(n) {
   if (p.closest('[data-noplain]')) { if (tr && !done.has(n.data)) { const t = tr(n.data); if (t !== n.data) { done.add(t); n.data = t; } } return; }
   // Labels on the body map keep their gym shorthand in English, but are still translated.
   if (p.closest(SKIP)) { if (tr && p.closest('.bodysvg text')) { const t = tr(n.data); if (t !== n.data) n.data = t; } return; }
-  const t = conv(n.data);
+  const t = conv(n.data, p.closest('[data-ctx]')?.dataset.ctx);
   if (t !== n.data) n.data = t;
 }
 // Placeholders, screen-reader labels and tooltips are words on screen too.
