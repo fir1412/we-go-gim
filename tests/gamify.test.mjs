@@ -52,3 +52,12 @@ test('quests: three on a training day, none on a rest day', () => {
   assert.equal(q[0].done, true);
   assert.deepEqual(quests('2026-09-29'), []); // Tuesday, rest
 });
+
+test('streak: weeks inside a pause are never judged', () => {
+  setup(['2026-09-07', '2026-09-14', '2026-09-16', '2026-09-18', '2026-10-05']);
+  S.settings.streakPauses = [{ from: '2026-09-21', to: '2026-10-04' }];
+  const st = streakInfo('2026-10-05');
+  assert.equal(st.streak, 5); // two empty weeks while paused, streak kept
+  S.settings.streakPauses = [];
+  assert.equal(streakInfo('2026-10-05').streak, 1);
+});

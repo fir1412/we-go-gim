@@ -513,6 +513,9 @@ function settings() {
       <p class="fine">For night shifts: a workout after midnight counts for the day before.</p>
     </div>
     <div class="box pad stack">
+      <label class="toggle"><input type="checkbox" id="st-pause" data-input="st-pause" ${(st.streakPauses || []).some(p => !p.to) ? 'checked' : ''}><span><b>Pause my streak</b><small>Travel, illness, Ramadan or a busy stretch: weeks while paused never count against it</small></span></label>
+    </div>
+    <div class="box pad stack">
       <p class="lbl">Training reminders</p>
       <p class="fine">Adds your training days to your phone's calendar, which reminds you 10 minutes before. Works even when the app is closed. Nothing is sent anywhere.</p>
       <div class="rrow"><label for="st-remind">Reminder time</label><input class="inp sm" id="st-remind" type="time" value="${esc(st.remindAt || '18:00')}" data-input="st-remind"></div>
@@ -998,6 +1001,12 @@ export const actions = {
     await saveSettings({ [el.dataset.f]: el.checked });
   },
   'st-missed': el => saveSettings({ missedReminders: el.checked }),
+  'st-pause'(el) {
+    const t = todayIso(), list = (S.settings.streakPauses || []).filter(p => p && p.from).slice(-20);
+    if (el.checked && !list.some(p => !p.to)) list.push({ from: t, to: null });
+    if (!el.checked) for (const p of list) if (!p.to) p.to = t;
+    return saveSettings({ streakPauses: list });
+  },
   'st-text': el => saveSettings({ textSize: ['large', 'xl'].includes(el.dataset.v) ? el.dataset.v : 'normal' }),
   'st-daystart': el => saveSettings({ dayStart: +el.dataset.v || 0 }),
   'st-remind': el => { if (/^\d{2}:\d{2}$/.test(el.value)) saveSettings({ remindAt: el.value }); },

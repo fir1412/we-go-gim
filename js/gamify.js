@@ -21,6 +21,10 @@ export function streakInfo(t = todayIso()) {
   const out = { streak: 0, best: 0, shields: 1, shieldUsed: null, perfectWeeks: 0, earned: {} };
   if (!first) return out;
   const perWeek = S.program.days.filter(d => d.slots.length).length;
+  // Paused spans (travel, illness, Ramadan): weeks that touch one are never judged.
+  const pauses = (S.settings.streakPauses || []).filter(p => p && p.from);
+  const paused = (a, b) => pauses.some(p => p.from <= b && (p.to || '9999-12-31') >= a);
+  out.pausedNow = pauses.some(p => !p.to);
   let weekDone = 0, firstWeek = true;
   for (let d = first; d <= t; d = addDays(d, 1)) {
     if (days.has(d)) { out.streak++; weekDone++; }
@@ -31,8 +35,9 @@ export function streakInfo(t = todayIso()) {
     // Sunday closes the week.
     if (new Date(d + 'T00:00:00Z').getUTCDay() === 0 && d < t) {
       // One missed workout a week is forgiven (life happens); only more than that needs a shield.
-      const short = firstWeek ? 0 : Math.max(0, perWeek - weekDone - 1);
-      const perfect = !firstWeek && perWeek > 0 && weekDone >= perWeek;
+      const skip = firstWeek || paused(addDays(d, -6), d);
+      const short = skip ? 0 : Math.max(0, perWeek - weekDone - 1);
+      const perfect = !skip && perWeek > 0 && weekDone >= perWeek;
       if (perfect) {
         out.perfectWeeks++;
         out.shields = Math.min(2, out.shields + 1);
@@ -115,8 +120,9 @@ export const badgesOn = d => badges(d).filter(b => b.date === d);
 export function todayGame(t = todayIso()) {
   const st = streakInfo(t), q = quests(t);
   const shields = st.shields ? `<span class="shield"><i aria-hidden="true">🛡️</i> Shields: ${st.shields}</span>` : '';
+  const pause = st.pausedNow ? `<span class="shield"><i aria-hidden="true">⏸️</i> Streak paused</span>` : '';
   let h = st.best
-    ? `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</b>${shields}<span>Best: ${st.best}</span></a>`
+    ? `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</b>${pause || shields}<span>Best: ${st.best}</span></a>`
     : `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Start your streak today: your first workout counts as 1</b>${shields}</a>`;
   const next = nextTraining(t);
   if (!q.length) {

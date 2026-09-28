@@ -346,6 +346,7 @@ export function sanitizeBackup(data) {
     if (s.targets && typeof s.targets === 'object') s.targets = Object.fromEntries(DAILY_FIELDS.filter(k => k in s.targets).map(k => [k, numOr(s.targets[k])]));
     if (Array.isArray(s.gyms)) s.gyms = s.gyms.map(g => ({ id: str(g?.id, 40), name: str(g?.name, 60) }));
     for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience', 'textSize', 'remindAt']) if (k in s && typeof s[k] !== 'string') delete s[k];
+    if ('streakPauses' in s) s.streakPauses = Array.isArray(s.streakPauses) ? s.streakPauses.filter(p => p && /^\d{4}-\d{2}-\d{2}$/.test(p.from) && (p.to == null || /^\d{4}-\d{2}-\d{2}$/.test(p.to))).map(p => ({ from: p.from, to: p.to ?? null })).slice(-20) : [];
     if ('dayStart' in s) s.dayStart = Math.max(0, Math.min(6, numOr(s.dayStart, 0)));
     if ('remindAt' in s && !/^\d{2}:\d{2}$/.test(s.remindAt)) delete s.remindAt;
     if ('lang' in s && !['en', 'ms', 'zh', 'zh-Hant', 'ja'].includes(s.lang)) delete s.lang;

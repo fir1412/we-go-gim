@@ -2,7 +2,7 @@ import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkou
 import { guessMuscles } from '../io.js';
 import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round, MAX_KG, MAX_REPS } from '../engine.js';
 import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
-import { go, startTimer } from '../app.js';
+import { go, startTimer, canInstall } from '../app.js';
 import { groupLabels } from './today.js';
 import { translate, getLang } from '../i18n.js';
 import { plainText } from '../plain.js';
@@ -328,6 +328,7 @@ function summary(d) {
   h += earlyWins(d);
   // Early on, one offer of reminders: the biggest reason people drift away is forgetting the next workout.
   if (!d.past && !S.settings.calAdded && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Want a nudge on training days?</b></p><p class="fine">Your phone's calendar can remind you 10 minutes before. Nothing is sent anywhere.</p><button class="btn ghost" data-act="cal-export">Add training days to my calendar</button></div>`;
+  if (!d.past && canInstall() && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Keep it one tap away</b></p><p class="fine">Install the app: an icon on your home screen, full screen, works offline.</p><button class="btn ghost" data-act="install">Install the app</button></div>`;
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
   const before = muscleXP(S.sessions, S.exById, d.date);

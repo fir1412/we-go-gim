@@ -126,6 +126,7 @@ const GLOBAL = {
     location.reload();
   },
   'cal-export': () => more.exportCalendar(),
+  install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
