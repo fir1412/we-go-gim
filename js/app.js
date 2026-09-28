@@ -260,8 +260,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.8.1';
+export const APP_VERSION = '1.8.2';
 const WHATS_NEW = {
+  '1.8.2': ['Exercise search finds what you mean as you type: words in any order, “pullup” or “pull-up”, best matches first', 'New users always start at the welcome screen, and a new exercise made from your programme goes straight back to it', 'Turn speed slider for the 3D muscle view', 'Many fixes from testing: safer imports and edits, long names wrap, no double saves'],
   '1.8.1': ['Prefer a plain log? Streaks, quests and badges can now be turned off in Settings'],
   '1.8.0': ['Medical mode: every muscle in 3D. Tap a muscle to see the exercises that train it', 'Day streaks, daily quests and badges. Rest days never break your streak', 'Reminders on training days through your phone calendar', '90 more exercises, a more detailed body map, and Traditional Chinese (繁體中文)', 'Import notes and spreadsheets written in Malay, Chinese or Japanese'],
   '1.7.0': ['New languages: Bahasa Melayu, 中文 and 日本語. Pick one in Settings or on the welcome screen', 'Easier English: short forms are written out in full (like “3 sets of 8 reps” and “minutes”), and muscles have everyday names', 'Safer: spreadsheets exported from the app can’t run hidden formulas, and typing mistakes like 6000 kg are caught'],
