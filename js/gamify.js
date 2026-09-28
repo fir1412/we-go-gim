@@ -124,7 +124,7 @@ export function todayGame(t = todayIso()) {
     h += `<div class="box pad restcard"><b>Rest day: your streak is safe</b><p class="fine">Muscles grow while you recover. A walk or a stretch is a bonus, not a must.</p>${wk.planned ? `<p class="fine">This week: ${wk.done} of ${wk.planned} workouts</p>` : ''}<a class="btn ghost" href="#/cardio">Log a walk or stretch</a></div>`;
   } else {
     const n = q.filter(x => x.done).length;
-    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? `<p class="fine">${next ? `All done. Next: ${next.name}, ${next.when}.` : 'All done. See you next training day.'}</p>` : ''}</div>`;
+    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? `<p class="fine">${next ? `<span>All done.</span> <span>Next: ${next.name} · ${next.when}</span>` : 'All done. See you next training day.'}</p>` : ''}</div>`;
   }
   if (st.shieldUsed && st.shieldUsed >= addDays(t, -2)) h += `<p class="fine shieldnote">🛡️ A streak shield covered a missed day. Earn more with perfect weeks.</p>`;
   return h;
