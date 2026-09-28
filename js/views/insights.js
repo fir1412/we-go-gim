@@ -500,6 +500,8 @@ export const actions = {
   async 'm-photo'(el) {
     const f = el.files?.[0];
     if (!f) return;
+    // Only images, and not huge ones (decoding a giant file can exhaust a phone's memory).
+    if (!/^image\//.test(f.type || '') || f.size > 40 * 1024 * 1024) { el.value = ''; return toast('That file could not be read as a photo', 'down'); }
     try {
       const data = await shrink(f);
       const id = uid('p');
