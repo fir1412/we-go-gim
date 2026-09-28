@@ -4,7 +4,7 @@ import { S, saveProgram, saveSettings, refresh } from '../state.js';
 import { PROGRAM, TEMPLATES } from '../seed.js';
 import { buildSplit, explainSplit, weeklyVolume, targetsFor, planGaps, dayMinutes, baseSets } from '../split.js';
 import { MUSCLES } from '../engine.js';
-import { esc, pill, cvar, dowName, toast, ICON, T, helpTip, confirmSheet } from '../ui.js';
+import { esc, pill, cvar, kstyle, dowName, toast, ICON, T, helpTip, confirmSheet } from '../ui.js';
 import { go, showTour } from '../app.js';
 
 const Q = [
@@ -33,6 +33,9 @@ const fresh = () => {
   const prev = draft() || S.settings.setupAnswers;
   return { a: prev ? { ...blank(), ...structuredClone(prev) } : blank(), plan: null, depth: 0 };
 };
+/** Experience already answered on the welcome screen: the wizard skips that question. */
+const skipQ = i => Q[i]?.k === 'experience' && !!S.settings.experience && !!st?.a.experience;
+const stepPath = i => { let n = i; while (n < Q.length && skipQ(n)) n++; return n >= Q.length ? 'setup/plan' : `setup/${n + 1}`; };
 const answered = (q, a) => (q.days ? a.days.length >= 1 && a.days.length <= 6 : q.one ? a[q.k] != null : true);
 /** Existing programme or history: using a new plan replaces the programme (logs stay). */
 const returning = () => S.sessions.length > 0 || !!S.settings.onboarded;
@@ -95,7 +98,7 @@ function start() {
     <button class="linkbtn center" data-act="wz-cancel">Keep my current programme</button>`
     : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="72" height="72"><h2>Let's set you up</h2><p>we go gim plans every session from your last one. How do you want to start?</p></div>
     ${prefs()}
-    <button class="btn wz-main" data-act="wz-begin">Build my plan <small>· 7 quick questions, about a minute</small></button>
+    <button class="btn wz-main" data-act="wz-begin">Build my plan <small>· ${S.settings.experience ? 6 : 7} quick questions, about a minute</small></button>
     <details class="box wz-more"><summary>Other ways to start</summary><div class="list wz-choices">
       <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5 or dumbbells at home.</small></span>${ICON.chev}</a>
       <button class="li" data-act="wz-logs" style="--k:var(--legsb)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes, or a Hevy, Strong or spreadsheet CSV, or restore a backup from this app.</small></span>${ICON.chev}</button>
@@ -127,7 +130,7 @@ function templates() {
     const days = t.program.days.filter(d => d.slots.length);
     h += `<section class="box pad tpl"><div class="rrow"><b>${esc(t.name)}</b>${pill(t.level, t.level === 'Experienced' ? 'flat' : 'up')}</div>
       <p class="fine">${esc(t.about)} ${esc(t.gear)}.</p>
-      <p class="tdays">${days.map(d => `<span style="--k:${cvar(d.color)}"><b>${dowName(d.dow)}</b> ${esc(d.name)}</span>`).join('')}</p>
+      <p class="tdays">${days.map(d => `<span style="${kstyle(d.color)}"><b>${dowName(d.dow)}</b> ${esc(d.name)}</span>`).join('')}</p>
       <button class="btn ghost" data-act="wz-tpl" data-id="${t.id}">Use this plan</button></section>`;
   }
   return { title: 'Ready-made plans', sub: 'Pick one to start', html: h, color: 'legs', back: back ? 'program' : 'setup' };
@@ -140,7 +143,7 @@ function preview() {
   let h = `<h2 class="wz-q">Your plan</h2><p class="fine">${esc(explainSplit(st.a))} Loads get worked out in your first sessions.</p>`;
   for (const d of p.days) {
     if (!d.slots.length) continue;
-    h += `<section class="box wz-day" style="--k:${cvar(d.color)}"><header><b>${dowName(d.dow)}</b><span>${esc(d.name)}</span><small>about ${dayMinutes(d, S.exById)} min</small></header><ul>${d.slots.map(s => {
+    h += `<section class="box wz-day" style="${kstyle(d.color)}"><header><b>${dowName(d.dow)}</b><span>${esc(d.name)}</span><small>about ${dayMinutes(d, S.exById)} min</small></header><ul>${d.slots.map(s => {
       const ex = S.exById[s.exId];
       return `<li><span>${esc(ex?.name || s.exId)}</span><em>${s.sets} × ${s.lo}–${s.hi}</em></li>`;
     }).join('')}</ul></section>`;
@@ -227,7 +230,7 @@ export const actions = {
       refresh();
       if (q.hints?.[val]) return;
       const at = cur();
-      setTimeout(() => { if (cur() === at && st) { fwd(`setup/${Q.indexOf(q) + 2}`); top(); } }, 180);
+      setTimeout(() => { if (cur() === at && st) { fwd(stepPath(Q.indexOf(q) + 1)); top(); } }, 180);
       return;
     }
     const a = st.a[q.k], i = a.indexOf(val);
@@ -241,7 +244,7 @@ export const actions = {
     // Walk back through the same history the phone's Back button uses, unless we arrived here directly.
     if (st.depth > 0) { st.depth--; history.back(); } else go(prev ? `setup/${prev}` : 'setup');
   },
-  'wz-next'(el) { const n = +el.dataset.step + 2; fwd(n > Q.length ? 'setup/plan' : `setup/${n}`); top(); },
+  'wz-next'(el) { fwd(stepPath(+el.dataset.step + 1)); top(); },
   async 'wz-use'() {
     await saveProgram(structuredClone(st.plan));
     const back = returning();

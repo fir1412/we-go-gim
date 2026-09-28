@@ -1,6 +1,6 @@
 import { S, todayIso, refresh, dayForDate } from '../state.js';
 import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
-import { esc, fmtDate, pill, STATUS, num, cvar, dowName, ICON, T, helpTip } from '../ui.js';
+import { esc, fmtDate, pill, STATUS, num, cvar, kstyle, dowName, ICON, T, helpTip } from '../ui.js';
 import { progressNav } from './insights.js';
 
 /** Lifters who arrive with real history (experienced in setup, or a big import) never see beginner titles. */
@@ -178,7 +178,7 @@ function nextXP(data, t) {
       return `<button class="xpchip ${b > a ? 'lvup' : ''}" data-act="muscle" data-m="${esc(m)}">${esc(m)} <b>+${g}</b>${b > a ? ` <span>→ Lv${b}</span>` : ''}</button>`;
     }).join('');
     const ups = rows.filter(([m, g]) => levelFor((data.muscles[m]?.xp || 0) + g).level > levelFor(data.muscles[m]?.xp || 0).level).length;
-    return `<section class="box nextxp" style="--k:${cvar(day.color)}"><header><small>Next: ${esc(day.name)} · ${esc(when)}</small><b>+${total} XP up for grabs</b>${ups ? `<span class="pill" style="--k:var(--arms)">★ ${ups} level-up${ups > 1 ? 's' : ''} in reach</span>` : ''}</header><div class="xpchips">${chips}</div><p class="fine">If every planned set is done. PRs add more.</p></section>`;
+    return `<section class="box nextxp" style="${kstyle(day.color)}"><header><small>Next: ${esc(day.name)} · ${esc(when)}</small><b>+${total} XP up for grabs</b>${ups ? `<span class="pill" style="--k:var(--arms)">★ ${ups} level-up${ups > 1 ? 's' : ''} in reach</span>` : ''}</header><div class="xpchips">${chips}</div><p class="fine">If every planned set is done. PRs add more.</p></section>`;
   }
   return '';
 }

@@ -1,6 +1,6 @@
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
 import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score } from '../engine.js';
-import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
+import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 
 let editing = null; // session id being edited
@@ -48,7 +48,7 @@ export function render(route) {
   for (let i = 0; i < days; i++) {
     const d = addDays(first, i), ss = on[d];
     const lab = `${fmtDate(d)}${ss ? ': ' + ss.map(s => s.name).join(', ') : ''}`;
-    g += ss ? `<a href="#/session/${esc(ss[0].id)}" class="on ${d === t ? 'now' : ''}" style="--k:${cvar(ss[0].color)}" aria-label="${esc(lab)}">${i + 1}</a>`
+    g += ss ? `<a href="#/session/${esc(ss[0].id)}" class="on ${d === t ? 'now' : ''}" style="${kstyle(ss[0].color)}" aria-label="${esc(lab)}">${i + 1}</a>`
       : `<span class="${d === t ? 'now' : ''} ${d > t ? 'fut' : ''}" aria-label="${esc(lab)}">${i + 1}</span>`;
   }
   const counts = {};
@@ -85,7 +85,7 @@ export function render(route) {
     const gx = xp[s.id]?.total || 0;
     h += `<li><a href="#/session/${esc(s.id)}"><div class="dt"><b>${+s.date.slice(8)}</b><span>${dowName(dowOf(s.date))}</span></div>
       <div class="mid"><div class="w">${esc(s.name)} ${isImp(s) ? pill(s.approx ? 'imported · date approx' : 'imported', 'mute') : ''}${pain ? ' ' + pill('pain', 'down') : ''}</div><div class="s"><b>${n} set${n === 1 ? '' : 's'} · ${doneEx} ex${mins ? ` · ${mins} min` : ''}</b> · ${esc(line)}</div></div>
-      <span class="hxp" style="--k:${cvar(s.color)}">${gx ? `+${gx}<small>XP</small>` : ''}</span></a></li>`;
+      <span class="hxp" style="${kstyle(s.color)}">${gx ? `+${gx}<small>XP</small>` : ''}</span></a></li>`;
   }
   if (month) h += `</ul>`;
   return { title: 'History', sub: 'Month by month, newest first', html: h, color: 'upper' };
@@ -210,7 +210,7 @@ export const actions = {
     const days = S.program.days.filter(d => d.slots.length);
     openSheet(`<h2 class="sh-title">Log a past workout</h2>
       <label class="field"><span>Date</span><input class="inp" id="past-date" type="date" value="${y}" max="${y}"></label>
-      <div class="field"><span>Workout</span><div class="list box" id="past-days">${days.map(d => `<button class="li" data-act="log-past-go" data-dow="${d.dow}" style="--k:${cvar(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${d.slots.length} exercises from your programme</small></span>${ICON.chev}</button>`).join('')}
+      <div class="field"><span>Workout</span><div class="list box" id="past-days">${days.map(d => `<button class="li" data-act="log-past-go" data-dow="${d.dow}" style="${kstyle(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${d.slots.length} exercises from your programme</small></span>${ICON.chev}</button>`).join('')}
       <button class="li" data-act="log-past-go" data-dow="-1"><i class="sw"></i><span><b>Empty workout</b><small>Add exercises yourself</small></span>${ICON.chev}</button></div></div>
       <p class="fine">Sets are pre-filled from your history up to that date. It counts for History, Insights and XP like any other workout.</p>`, { label: 'Log a past workout' });
   },

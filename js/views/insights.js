@@ -3,7 +3,7 @@ import {
   muscleTrends, exposures, trend, topLoad, score, isKg, suggest, deloadCheck, weekStart, addDays,
   daysBetween, weeklyRate, personalBests, compareExposure, fmtLoad, unitLong, unitShort, workSets, MUSCLES, estimateDay, toDisp, getUnits, LB_KG,
 } from '../engine.js';
-import { esc, fmtDate, pill, chip, spark, lineChart, barChart, STATUS, ICON, toast, confirmSheet, openSheet, closeSheet, num, cvar, GLYPH_ICON, T, helpTip, expertWording } from '../ui.js';
+import { esc, fmtDate, pill, chip, spark, lineChart, barChart, STATUS, ICON, toast, confirmSheet, openSheet, closeSheet, num, cvar, kstyle, GLYPH_ICON, T, helpTip, expertWording } from '../ui.js';
 import { weeklyVolume, baseSets } from '../split.js';
 
 let volWeek = 0; // 0 = this week, 1 = last week
@@ -80,7 +80,7 @@ function planCard(t) {
   }
   const mins = Math.round(estimateDay(next.day, S.exById, S.sessions) / 60);
   const sum = [n.load && `${n.load} to load up`, n.reps && `${n.reps} to add a rep`, n.cal && `${n.cal} to ${expertWording() ? 'calibrate' : 'find a weight for'}`].filter(Boolean).join(' · ');
-  let h = `<section class="box nextplan" style="--k:${cvar(next.day.color)}"><header><div class="grow"><small>Next session · ${esc(when)}</small><b>${esc(next.day.name)}</b></div><span class="fine">~${mins} min</span>${next.date === t ? `<a class="mini go" href="#/today">Go</a>` : ''}</header>`;
+  let h = `<section class="box nextplan" style="${kstyle(next.day.color)}"><header><div class="grow"><small>Next session · ${esc(when)}</small><b>${esc(next.day.name)}</b></div><span class="fine">~${mins} min</span>${next.date === t ? `<a class="mini go" href="#/today">Go</a>` : ''}</header>`;
   if (sum) h += `<p class="fine">${esc(sum)}</p>`;
   h += `<ul class="plist">${rows.join('')}</ul>`;
   if (n.cal) h += `<p class="fine">${expertWording() ? 'Calibrate: pick a load for mid-range reps with 2 in reserve. It becomes the baseline.' : 'Find your weight: pick one you can lift for the middle of the rep range with about 2 reps to spare. Next time builds on it.'} ${helpTip('calibrate')}</p>`;
@@ -422,24 +422,29 @@ function standards(ex, pb) {
 
 // ---- measurements and progress photos -------------------------------------------------------
 const MEAS = [['waist', 'Waist'], ['chest', 'Chest'], ['hips', 'Hips'], ['arm', 'Arm'], ['thigh', 'Thigh']];
+// Stored in cm; shown and typed in inches for anyone using lb.
+const inch = () => getUnits() === 'lb';
+const mUnit = () => (inch() ? 'in' : 'cm');
+const mShow = v => (v == null ? null : inch() ? +(v / 2.54).toFixed(1) : v);
+const mStore = v => (inch() ? +(v * 2.54).toFixed(1) : v);
 const photoCache = {};
 function measure() {
   const t = todayIso(), list = S.measures, first = list[0], last = list[list.length - 1];
-  let h = `<div class="box pad stack"><p class="lbl">Measure (cm)</p>
+  let h = `<div class="box pad stack"><p class="lbl">Measure (${mUnit()})</p>
     <label class="field"><span>Date</span><input class="inp" id="m-date" type="date" value="${t}" max="${t}"></label>
-    <div class="mgrid">${MEAS.map(([k, l]) => `<label class="field"><span>${l}</span><input class="inp" id="m-${k}" type="number" inputmode="decimal" step="0.5" min="10" max="300" placeholder="${last?.[k] ?? '—'}"></label>`).join('')}</div>
+    <div class="mgrid">${MEAS.map(([k, l]) => `<label class="field"><span>${l}</span><input class="inp" id="m-${k}" type="number" inputmode="decimal" step="0.5" min="${inch() ? 4 : 10}" max="${inch() ? 120 : 300}" placeholder="${mShow(last?.[k]) ?? '—'}"></label>`).join('')}</div>
     <p class="fine">Fill in only what you measure. Same time of day, tape snug but not tight.</p>
     <button class="btn" data-act="m-save">Save measurements</button></div>`;
   if (list.length) {
     h += `<p class="lbl">Change since ${fmtDate(first.date, { year: true })}</p><div class="box tblwrap"><table class="xtbl"><thead><tr><th>Date</th>${MEAS.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody>`;
-    for (const m of [...list].reverse()) h += `<tr><td>${fmtDate(m.date)}</td>${MEAS.map(([k]) => `<td class="num">${m[k] ?? '—'}${m !== first && m[k] != null && first[k] != null && m[k] !== first[k] ? `<small class="dl" style="--k:var(--mute)">${m[k] > first[k] ? '+' : ''}${num(m[k] - first[k])}</small>` : ''}</td>`).join('')}<td><button class="iconbtn sm" data-act="m-del" data-id="${esc(m.id)}" aria-label="Delete ${fmtDate(m.date)} measurements">×</button></td></tr>`;
+    for (const m of [...list].reverse()) h += `<tr><td>${fmtDate(m.date)}</td>${MEAS.map(([k]) => `<td class="num">${mShow(m[k]) ?? '—'}${m !== first && m[k] != null && first[k] != null && m[k] !== first[k] ? `<small class="dl" style="--k:var(--mute)">${m[k] > first[k] ? '+' : ''}${num(mShow(m[k]) - mShow(first[k]))}</small>` : ''}</td>`).join('')}<td><button class="iconbtn sm" data-act="m-del" data-id="${esc(m.id)}" aria-label="Delete ${fmtDate(m.date)} measurements">×</button></td></tr>`;
     h += `</tbody></table></div>`;
   }
   h += `<div class="rrow"><p class="lbl">Progress photos</p><label class="mini filebtn">${ICON.plus} Add photo<input type="file" accept="image/*" data-input="m-photo"></label></div>`;
   h += S.photos.length
     ? `<div class="photos">${[...S.photos].reverse().map(p => `<button class="ph" data-act="m-open" data-id="${esc(p.id)}" aria-label="Photo from ${fmtDate(p.date, { year: true })}"><img data-ph="${esc(p.id)}" alt=""><span>${fmtDate(p.date)}</span></button>`).join('')}</div>`
     : `<div class="box pad"><p class="fine">Photos from the same spot and light every few weeks show change the scale misses.</p></div>`;
-  h += `<p class="fine">Photos stay on this phone only. They are not in backup files, so save any you want to keep elsewhere.</p>`;
+  h += `<p class="fine">Photos stay on this phone only and are not in backup files. Tap a photo, then Save to phone, to keep a copy in your gallery.</p>`;
   return {
     title: 'Measurements', sub: 'Tape and photos', back: 'body', html: h, color: 'upper',
     after: root => { for (const img of root.querySelectorAll('img[data-ph]')) showPhoto(img, img.dataset.ph); },
@@ -474,7 +479,7 @@ export const actions = {
     const date = document.getElementById('m-date').value || todayIso();
     if (date > todayIso()) return toast("Can't log a future date", 'down');
     const rec = { id: 'm-' + date, date };
-    for (const [k] of MEAS) { const v = parseFloat(document.getElementById('m-' + k).value); if (v >= 10 && v <= 300) rec[k] = v; }
+    for (const [k] of MEAS) { const v = mStore(parseFloat(document.getElementById('m-' + k).value)); if (v >= 10 && v <= 300) rec[k] = v; }
     if (Object.keys(rec).length === 2) return toast('Enter at least one measurement', 'flat');
     await saveMeasure({ ...(S.measures.find(m => m.id === rec.id) || {}), ...rec });
     toast(`Measurements saved for ${fmtDate(date)}`, 'up');
@@ -501,6 +506,7 @@ export const actions = {
     if (!p) return;
     const src = photoCache[p.id] || (photoCache[p.id] = await loadPhoto(p.id));
     openSheet(`<h2 class="sh-title">${fmtDate(p.date, { dow: true, year: true })}</h2>${src ? `<img class="phfull" src="${src}" alt="Progress photo from ${fmtDate(p.date, { year: true })}">` : '<p class="fine">Photo not found.</p>'}
+      ${src ? `<a class="btn ghost" href="${src}" download="progress-${p.date}.jpg">${ICON.save} Save to phone</a>` : ''}
       <div class="row2"><button class="btn ghost" data-act="sheet-close-ins">Close</button><button class="btn danger" data-act="m-photo-del" data-id="${esc(p.id)}">Delete photo</button></div>`, { label: 'Progress photo' });
   },
   'sheet-close-ins': () => closeSheet(),

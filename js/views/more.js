@@ -1,7 +1,7 @@
 import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits } from '../engine.js';
-import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf } from '../ui.js';
+import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf } from '../ui.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
@@ -98,11 +98,11 @@ function program() {
     if (di < 0) continue;
     const d = p.days[di], open = openDays.has(dow);
     const nSets = d.slots.reduce((a, s) => a + (+s.sets || 0), 0);
-    h += `<section class="box pday2" style="--k:${cvar(d.color)}">
+    h += `<section class="box pday2" style="${kstyle(d.color)}">
       <button class="pdh" data-act="p-open" data-dow="${dow}" aria-expanded="${open}"><b class="dlab">${dowName(dow)}</b><span class="grow"><b>${esc(d.name)}</b><small>${d.slots.length ? `${d.slots.length} exercises · ${nSets} sets${d.sub ? ' · ' + esc(d.sub) : ''}` : esc(d.sub || 'Rest day')}</small></span>${ICON.chev}</button>`;
     if (open) {
       h += `<div class="pdb"><div class="pdn"><input class="inp" id="pn-${di}" value="${esc(d.name)}" data-input="p-day" data-d="${di}" data-f="name" aria-label="${dowName(dow, true)} name" enterkeyhint="done">
-        <button class="sw big" data-act="p-color" data-d="${di}" style="--k:${cvar(d.color)}" aria-label="Colour for ${dowName(dow, true)}: ${esc(d.color)}"></button></div>
+        <button class="sw big" data-act="p-color" data-d="${di}" style="${kstyle(d.color)}" aria-label="Colour for ${dowName(dow, true)}: ${esc(d.color)}"></button></div>
         <input class="inp" id="ps-${di}" value="${esc(d.sub || '')}" placeholder="Subtitle, e.g. Chest emphasis" data-input="p-day" data-d="${di}" data-f="sub" aria-label="${dowName(dow, true)} subtitle" enterkeyhint="done">`;
       h += d.slots.length ? `<ul class="pslots">${d.slots.map((s, si) => `<li><button class="pslot2" data-act="p-slot" data-d="${di}" data-s="${si}">${s.group ? `<i class="grp">${esc(s.group)}</i>` : `<i class="grp n">${si + 1}</i>`}<span class="grow">${esc(S.exById[s.exId]?.name || 'Missing exercise')}${s.note ? `<small>${esc(s.note)}</small>` : ''}</span><b class="num">${range(s)}</b></button></li>`).join('')}</ul>`
         : `<p class="fine">Rest day. Add an exercise to make it a training day.</p>`;
@@ -407,7 +407,7 @@ function importer() {
     h += `<div class="box impsessl">`;
     order.slice(0, imp.sessShow).forEach(({ s, si }) => {
       const pain = s.pain || s.entries.some(e => e.pain);
-      h += `<div class="impsess2" style="--k:${cvar(s.color)}"><div class="rrow"><label class="toggle sm"><input type="checkbox" id="imp-on-${si}" data-input="imp-on" data-s="${si}" ${s.skip ? '' : 'checked'}><span><b>${fmtDate(s.date, { dow: true, year: true })} · ${esc(s.name)}</b><small>${s.entries.length} exercise${s.entries.length === 1 ? '' : 's'} · ${plural(s.entries.reduce((a, e) => a + e.sets.length, 0), 'set')}${s.dateWas ? ` · written as ${esc(fmtDate(s.dateWas, { year: true }))}` : ''}</small></span></label>
+      h += `<div class="impsess2" style="${kstyle(s.color)}"><div class="rrow"><label class="toggle sm"><input type="checkbox" id="imp-on-${si}" data-input="imp-on" data-s="${si}" ${s.skip ? '' : 'checked'}><span><b>${fmtDate(s.date, { dow: true, year: true })} · ${esc(s.name)}</b><small>${s.entries.length} exercise${s.entries.length === 1 ? '' : 's'} · ${plural(s.entries.reduce((a, e) => a + e.sets.length, 0), 'set')}${s.dateWas ? ` · written as ${esc(fmtDate(s.dateWas, { year: true }))}` : ''}</small></span></label>
         <span class="chips">${s.dupOwn ? pill('already in app', 'flat') : ''}${s.dupSeed && !s.dupOwn ? pill('sample', 'mute') : ''}${pain ? pill('pain', 'down') : ''}</span></div>
         <details><summary>Show sets</summary><ul class="impents">${s.entries.map(e => { const g = G[imp.gOf[gk(e)]]; const to = g?.target === 'skip' ? 'not imported' : g?.target ? `→ ${exNameOf(g.target)}` : 'new exercise'; return `<li><b>${esc(e.exName)}</b> <span class="num">${esc(setTxt(e))}</span><small class="to">${esc(to)}</small>${e.note ? `<small class="${e.pain ? 'painn' : ''}">${esc(e.note)}</small>` : ''}</li>`; }).join('')}</ul>${s.notes.length ? `<p class="enote">${esc(s.notes.join(' · '))}</p>` : ''}</details></div>`;
     });
@@ -497,6 +497,7 @@ function settings() {
       ${tg('timerVibrate', 'Rest timer vibration', 'Buzz when rest is over')}
       ${tg('restNotify', 'Notify when rest is over', 'A notification if the app is in the background or the screen is off. Some phones pause web apps after a while, so it can arrive late')}
       ${tg('wakeLock', 'Keep screen on during workouts', 'So you can glance at the next set')}
+      <label class="toggle"><input type="checkbox" id="st-missed" data-input="st-missed" ${st.missedReminders === false ? '' : 'checked'}><span><b>Missed-workout reminders</b><small>Offer to do a missed day today. Turn off if you train on whatever days suit you</small></span></label>
       ${seg('Warm-up sets', 'st-warm', st.autoWarmup === true ? 'all' : st.autoWarmup === 'barbell' ? 'barbell' : 'off', [['off', 'Off'], ['barbell', 'Barbell'], ['all', 'All lifts']])}
       <p class="fine">Ramp-up sets added before your first working set. Barbell: only barbell and Smith lifts, with plates per side shown for each.</p></div>
     <div class="box pad stack"><div class="row2"><label class="field"><span>Goal body weight (${u}, optional)</span><input class="inp" id="st-goal" type="number" inputmode="decimal" step="0.5" placeholder="Not set" value="${st.goalKg == null ? '' : esc(toDisp(st.goalKg))}"></label>
@@ -531,6 +532,9 @@ const FAQ = [
   ['How do I move to a new phone?', 'Back up on the old phone, open the app on the new one, and choose Restore from backup. Everything comes across: sessions, programme and settings.'],
   ['Where is my data stored?', 'Only on this phone. There are no accounts and nothing is uploaded, which is why backups matter.'],
   ['How do I install the app?', 'Android: More → Install the app, or the browser menu → Add to Home screen. iPhone: Share → Add to Home Screen in Safari.'],
+  ['How do I change a day\'s colour?', 'More → Programme → tap a day → tap the colour dot. Pick a quick colour, any colour from the colour wheel, or type a hex code like #3FA7D6.'],
+  ['Can I import from Hevy, Strong or other apps?', 'Yes. Export a CSV from the app, then More → Import old logs → Choose files. Notes, WhatsApp chats, Notion or Evernote exports, PDFs and spreadsheets saved as CSV work too.'],
+  ['I train on different days each week. Can I stop the missed-workout banner?', 'Yes: More → Settings → Missed-workout reminders.'],
   ['Levels and XP?', 'Progress → Levels. Every working set earns XP for the muscles it trains, and beating a best earns a bonus.'],
 ];
 function help() {
@@ -621,7 +625,7 @@ export const actions = {
     const sheet = openSheet(`<h2 class="sh-title">Colour for ${esc(day.name)}</h2>
       <div class="colprev" id="col-prev" style="--k:${cur}"><b>${esc(day.name)}</b><span id="col-hexlbl">${cur.toUpperCase()}</span></div>
       <p class="lbl">Quick picks</p>
-      <div class="chips">${COLORS.filter(c => c !== 'rest').map(c => `<button class="sw big" data-act="p-color-set" data-d="${d}" data-v="${c}" style="--k:${cvar(c)}" aria-label="${c} (${hexOf(c)})" aria-pressed="${day.color === c}"></button>`).join('')}</div>
+      <div class="chips">${COLORS.filter(c => c !== 'rest').map(c => `<button class="sw big" data-act="p-color-set" data-d="${d}" data-v="${c}" style="${kstyle(c)}" aria-label="${c} (${hexOf(c)})" aria-pressed="${day.color === c}"></button>`).join('')}</div>
       <p class="lbl">Any colour</p>
       <div class="colrow"><input type="color" id="col-pick" value="${cur}" aria-label="Pick any colour">
         <label class="field grow"><span>Hex code</span><input class="inp mono" id="col-hex" value="${cur.toUpperCase()}" maxlength="7" autocomplete="off" spellcheck="false" placeholder="#3FA7D6"></label></div>
@@ -652,7 +656,7 @@ export const actions = {
     const rows = DOW_ORDER.filter(d => d !== from).map(dow => {
       const d = S.program.days.find(x => x.dow === dow);
       const what = d?.slots.length ? `swap with ${esc(d.name)}` : 'rest day';
-      return `<button class="li" data-act="p-moveday-to" data-from="${from}" data-to="${dow}" style="--k:${cvar(d?.color || 'rest')}"><i class="sw"></i><span><b>${dowName(dow, true)}</b><small>${what}</small></span>${ICON.chev}</button>`;
+      return `<button class="li" data-act="p-moveday-to" data-from="${from}" data-to="${dow}" style="${kstyle(d?.color || 'rest')}"><i class="sw"></i><span><b>${dowName(dow, true)}</b><small>${what}</small></span>${ICON.chev}</button>`;
     }).join('');
     openSheet(`<h2 class="sh-title">Move ${esc(src.name)} to…</h2><p class="sh-body">The two days trade places. Your logged sessions don't change.</p><div class="list box">${rows}</div>`, { label: `Move ${src.name}` });
   },
@@ -965,6 +969,7 @@ export const actions = {
     }
     await saveSettings({ [el.dataset.f]: el.checked });
   },
+  'st-missed': el => saveSettings({ missedReminders: el.checked }),
   'st-warm': el => saveSettings({ autoWarmup: el.dataset.v === 'all' ? true : el.dataset.v === 'barbell' ? 'barbell' : false }),
   // Units and wording apply straight away: saving settings repaints every screen.
   'st-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
@@ -1036,7 +1041,7 @@ function pasteSplit() {
     <p class="fine">Check each match. Your logged history stays; it just follows the matched exercises. Days not listed become rest days.</p>`;
   if (pst.notAdded?.length) h += `<div class="warn" style="--k:var(--flat)"><b>Not added (${pst.notAdded.length})</b><span>These lines aren't sets × reps, so they can't be programme exercises. Distance, time and conditioning work can go under Insights → Cardio.</span><ul class="notadded">${pst.notAdded.map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
   pst.days.forEach((d, di) => {
-    h += `<section class="box pad wz-day" style="--k:${cvar(d.color)}"><header><b>${dowName(d.dow)}</b><span>${esc(d.name)}</span></header>${d.sub ? `<p class="fine">${esc(d.sub)}</p>` : ''}<div class="stack">`;
+    h += `<section class="box pad wz-day" style="${kstyle(d.color)}"><header><b>${dowName(d.dow)}</b><span>${esc(d.name)}</span></header>${d.sub ? `<p class="fine">${esc(d.sub)}</p>` : ''}<div class="stack">`;
     d.items.forEach((it, ii) => {
       const key = `${di}:${ii}`;
       const m = !pst.map[key] && pstMeta(it.name);

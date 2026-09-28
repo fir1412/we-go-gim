@@ -1,6 +1,6 @@
 import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from './state.js';
 import { setUnits, setBwLabel } from './engine.js';
-import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar } from './ui.js';
+import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor } from './ui.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
@@ -56,6 +56,7 @@ function render() {
   const focusId = key === lastKey && sc.contains(document.activeElement) ? document.activeElement.id : null;
 
   $('#app').style.setProperty('--c', cvar(out.color || 'push'));
+  if (isHex(out.color)) $('#app').style.setProperty('--on', onFor(out.color)); else $('#app').style.removeProperty('--on');
   $('#bar').innerHTML = `${out.back ? `<a class="iconbtn" href="#/${esc(out.back)}" aria-label="Back">${ICON.back}</a>` : ''}
     <div class="bar-t"><small>${out.sub || ''}</small><h1 tabindex="-1">${esc(out.title || '')}</h1></div><div class="bar-r">${out.right || ''}</div>`;
   sc.innerHTML = out.html || '';
@@ -125,6 +126,18 @@ export function startTimer(sec, label) {
   saveDraft();
   paintTimer();
   restNotice();
+  offerNotice();
+}
+
+// The first rest of a workout: offer the rest-over notification once, where it's useful, not buried in Settings.
+function offerNotice() {
+  if (S.settings.restNotify || S.settings.restNotifyAsked || !('Notification' in window) || Notification.permission === 'denied' || S.draft?.past) return;
+  saveSettings({ restNotifyAsked: true });
+  setTimeout(() => toast('Phone going in your pocket? Get a buzz when rest is over.', 'upper', { action: { label: 'Turn on', fn: async () => {
+    const p = await Notification.requestPermission().catch(() => 'denied');
+    if (p === 'granted') { await saveSettings({ restNotify: true }); restNotice(); toast('Rest alerts on. Change it in More → Settings.', 'up'); }
+    else toast('Notifications are blocked for this app in your phone settings.', 'flat');
+  } } }), 1200);
 }
 
 // A system notification when rest ends while the app is in the background or the screen is off.

@@ -25,6 +25,14 @@ export const COLORS = ['push', 'pull', 'legs', 'upper', 'legsb', 'arms', 'rest']
 /** A day's colour as CSS: one of the theme colours, or any hex colour the user picked ("#3fa7d6"). */
 export const isHex = c => /^#[0-9a-f]{6}$/i.test(String(c || ''));
 export const cvar = c => (isHex(c) ? c : `var(--${COLORS.includes(c) ? c : 'upper'})`);
+/** Text colour that reads on a custom hex colour (dark on light colours, white on dark ones). */
+export function onFor(c) {
+  if (!isHex(c)) return null;
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255).map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.2 ? '#0B0D12' : '#FFFFFF';
+}
+/** Inline style for an element tinted with a day colour: the colour, plus readable text for a custom one. */
+export const kstyle = c => `--k:${cvar(c)}${isHex(c) ? `;--on:${onFor(c)}` : ''}`;
 /** Hex for any colour, reading a theme colour from the page ("push" -> "#ff8a3d"), for the colour picker. */
 export function hexOf(c) {
   if (isHex(c)) return c.toLowerCase();
@@ -194,7 +202,8 @@ export function confirmSheet({ title, body = '', ok = 'Confirm', danger = false 
 
 let toastT, toastClearT, toastAt = 0;
 /** Short message in the shared live region. Longer text stays up longer; it clears itself and on navigation. */
-export function toast(msg, k = 'ink', { undo = null } = {}) {
+export function toast(msg, k = 'ink', { undo = null, action = null } = {}) {
+  if (action) undo = Object.assign(() => action.fn(), { label: action.label });
   let el = $('#toast');
   if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
   el.textContent = msg;
@@ -202,7 +211,7 @@ export function toast(msg, k = 'ink', { undo = null } = {}) {
   // Low-risk deletes act at once and offer Undo here, instead of asking "are you sure?" first.
   if (undo) {
     const b = document.createElement('button');
-    b.className = 'tundo'; b.type = 'button'; b.textContent = 'Undo';
+    b.className = 'tundo'; b.type = 'button'; b.textContent = undo.label || 'Undo';
     b.addEventListener('click', () => { hideToast(); undo(); });
     el.append(' ', b);
   }

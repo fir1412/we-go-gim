@@ -1,7 +1,7 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
 import { guessMuscles } from '../io.js';
 import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, fromDisp, getUnits, stepDisp, score, round } from '../engine.js';
-import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, num, kfmt, T, helpTip, expertWording } from '../ui.js';
+import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
 
@@ -113,7 +113,7 @@ function empty() {
   const days = S.program.days.filter(d => d.slots.length);
   let h = `<div class="empty"><b>No workout running.</b><p>Start one and every set arrives pre-filled from your last session.</p></div>
     <a class="btn" href="#/today">Go to today's plan</a><p class="lbl">Or start any day</p><div class="list box">`;
-  h += days.map(d => `<button class="li" data-act="start-day" data-dow="${d.dow}" style="--k:${cvar(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${esc(d.sub || '')} · ${d.slots.length} exercises</small></span>${ICON.chev}</button>`).join('');
+  h += days.map(d => `<button class="li" data-act="start-day" data-dow="${d.dow}" style="${kstyle(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${esc(d.sub || '')} · ${d.slots.length} exercises</small></span>${ICON.chev}</button>`).join('');
   h += `<button class="li" data-act="start-empty"><i class="sw" style="--k:var(--mute)"></i><span><b>Empty workout</b><small>Add exercises as you go</small></span>${ICON.chev}</button></div>`;
   return { title: 'Workout', sub: 'Nothing running', html: h };
 }
