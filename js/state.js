@@ -2,6 +2,7 @@
 import * as db from './db.js';
 import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY, MUSCLE_UPDATES } from './seed.js';
 import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec, cleanText, MAX_KG, MAX_REPS, validIso, dedupeDays, addDays } from './engine.js';
+import { cleanLearn } from './learn.js';
 
 export const S = {
   backend: null,
@@ -379,6 +380,8 @@ export function sanitizeBackup(data) {
     for (const k of ['units', 'wording', 'theme', 'stdSex', 'bodyType', 'experience', 'textSize', 'remindAt']) if (k in s && typeof s[k] !== 'string') delete s[k];
     if ('streakPauses' in s) s.streakPauses = cleanPauses(s.streakPauses);
     if ('equip' in s) { const q = cleanEquip(s.equip); if (q) s.equip = q; else delete s.equip; }
+    if ('learn' in s) s.learn = cleanLearn(s.learn);
+    if ('learnHidden' in s) s.learnHidden = s.learnHidden === true;
     if ('atlasSens' in s) s.atlasSens = Math.max(0.3, Math.min(2, numOr(s.atlasSens, 1)));
     if ('dayStart' in s) s.dayStart = Math.max(0, Math.min(6, numOr(s.dayStart, 0)));
     if ('remindAt' in s && !/^\d{2}:\d{2}$/.test(s.remindAt)) delete s.remindAt;

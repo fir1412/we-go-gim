@@ -31,7 +31,7 @@ const pressed = el => el?.getAttribute('aria-pressed') === 'true';
 
 // ---- confetti-style star burst (small, DOM, removes itself) ------------------------------------------
 const BURST_K = ['--push', '--arms', '--up', '--pull', '--legsb', '--upper'];
-function burst(el, { n = 16, spread = 70 } = {}) {
+export function burst(el, { n = 16, spread = 70 } = {}) {
   if (calm() || !el?.isConnected) return;
   const r = el.getBoundingClientRect();
   if (!r.width || r.bottom < 0 || r.top > innerHeight) return;

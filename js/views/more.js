@@ -9,6 +9,7 @@ import { plainText } from '../plain.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { filterList } from '../search.js';
+import { learnProgress } from '../learn.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
 import { parseSplitText, weeklyVolume } from '../split.js';
@@ -71,6 +72,7 @@ function home() {
     ${row('settings', ICON.gear, 'Settings', 'Theme, kg or lb, wording, rest timer, goal', 'rest')}
     ${canInstall() ? `<button class="li mrow" data-act="install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Install the app</b><small>Home-screen icon, full screen, works offline</small></span>${ICON.chev}</button>` : ''}
     ${isIOS() && !standalone() ? `<button class="li mrow" data-act="ios-install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Add to Home Screen</b><small>Install on iPhone: full screen, works offline</small></span>${ICON.chev}</button>` : ''}
+    ${row('learn', ICON.levels, 'Learn the app', `What each feature does · ${learnProgress(S.settings).n} of ${learnProgress(S.settings).total} missions`, 'push')}
     ${row('help', ICON.help, 'Help', 'How do I…? Answers to common questions', 'legs')}
     <button class="li mrow" data-act="feedback" style="--k:var(--push)"><i class="mic">${ICON.chat || ICON.more}</i><span><b>Send feedback</b><small>Report a bug or suggest an idea</small></span>${ICON.chev}</button>
     </div>
