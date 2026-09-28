@@ -1,4 +1,4 @@
-import { S, todayIso, dayForDate, suggestionCtx, saveBody, deleteBody, saveCardio, deleteCardio, saveSettings, uid, refresh } from '../state.js';
+import { S, todayIso, dayForDate, suggestionCtx, saveBody, deleteBody, saveCardio, deleteCardio, saveSettings, uid, refresh, saveMeasure, deleteMeasure, savePhoto, deletePhoto, loadPhoto } from '../state.js';
 import {
   muscleTrends, exposures, trend, topLoad, score, isKg, suggest, deloadCheck, weekStart, addDays,
   daysBetween, weeklyRate, personalBests, compareExposure, fmtLoad, unitLong, unitShort, workSets, MUSCLES, estimateDay, toDisp, getUnits, LB_KG,
@@ -47,6 +47,7 @@ export function render(route) {
     case 'body': return body();
     case 'cardio': return cardio();
     case 'lifts': return lifts();
+    case 'measure': return measure();
     default: return overview();
   }
 }
@@ -158,7 +159,7 @@ function overview() {
     else if (['watch', 'plateau', 'down'].includes(x.status)) c.bad++;
     else c.flat++;
   }
-  let h = planCard(t);
+  let h = progressNav('insights') + planCard(t);
   const tally = `<div class="tally"><div style="--k:var(--up)"><b>${c.up}</b><span>progressing</span></div><div style="--k:var(--flat)"><b>${c.flat}</b><span>flat or new</span></div><div style="--k:var(--down)"><b>${c.bad}</b><span>need attention</span></div></div>`;
 
   const f = focusItems(t);
@@ -211,6 +212,9 @@ function overview() {
   return { title: 'Insights', sub: `From ${plural(S.sessions.length, 'logged session')}`, html: h, color: 'legs' };
 }
 
+/** Progress has two views: Insights and Levels. */
+export const progressNav = on => `<nav class="subnav" aria-label="Progress views"><a href="#/insights" aria-current="${on === 'insights' ? 'page' : 'false'}">Insights</a><a href="#/levels" aria-current="${on === 'levels' ? 'page' : 'false'}">Levels</a></nav>`;
+
 // ---- all lifts -------------------------------------------------------------------
 function lifts() {
   const rows = S.exercises.map(ex => {
@@ -251,6 +255,7 @@ function exDetail(id) {
   if (ex.unitUnclear) h += `<div class="warn"><b>Unit unclear.</b><span>Old entries mix per-side and total load. Set the unit under Edit exercise.</span></div>`;
 
   h += nextTarget(ex);
+  h += standards(ex, pb);
   h += `<div class="kpis">
     <div class="kpi"><b>${kg && pb.best ? num(toDisp(pb.best.v)) : '—'}</b><span>best ${esc(T('estMax'))} ${helpTip('estMax')}${kg && pb.best ? ` · ${fmtDate(pb.best.date)}` : ''}</span></div>
     <div class="kpi"><b>${pb.heavy ? esc(fmtLoad(ex, pb.heavy.w)) : '—'}</b><span>heaviest${pb.heavy ? ` × ${pb.heavy.r}` : ''}</span></div>
@@ -341,7 +346,7 @@ function body() {
   h += `<div class="rrow"><p class="lbl">Weigh-ins</p><button class="linkbtn" data-act="goal">${goal ? `Goal ${num(bwDisp(goal))} ${u} · change` : 'Set a goal'}</button></div><ul class="box hist small">`;
   for (const x of [...b].reverse()) h += `<li><div class="rowi"><span class="num big">${num(bwDisp(x.kg))}</span><span class="grow">${fmtDate(x.date, { dow: true, year: true })}${x.note ? `<small>${esc(x.note)}</small>` : ''}</span><button class="iconbtn sm" data-act="body-del" data-id="${esc(x.id)}" aria-label="Delete ${fmtDate(x.date)} weigh-in">×</button></div></li>`;
   if (!b.length) h += `<li><div class="rowi"><span class="fine">No weigh-ins yet.</span></div></li>`;
-  h += `</ul>`;
+  h += `</ul><a class="btn ghost" href="#/measure">Measurements and progress photos ${ICON.chev}</a>`;
   return { title: 'Body weight', sub: goal ? 'Trend toward your goal' : 'Your weigh-ins and trend', back: 'insights', html: h, color: 'upper' };
 }
 
@@ -388,9 +393,121 @@ function cardio() {
   return { title: 'Cardio', sub: 'Swims, walks, rides, Muay Thai', back: 'insights', html: h, color: 'pull' };
 }
 
+// ---- strength standards -----------------------------------------------------------
+// Rough one-rep-max to body-weight ratios for five levels. A guide, not a verdict.
+const STD = {
+  men: { bbsquat: [0.75, 1.25, 1.5, 2.25, 2.75], bbbench: [0.5, 0.75, 1.25, 1.75, 2], deadlift: [1, 1.5, 2, 2.5, 3], ohp: [0.35, 0.55, 0.8, 1.1, 1.4], bbrow: [0.5, 0.75, 1, 1.5, 1.75], frontsquat: [0.6, 1, 1.25, 1.75, 2.25] },
+  women: { bbsquat: [0.5, 0.75, 1.25, 1.5, 1.75], bbbench: [0.25, 0.5, 0.75, 1, 1.5], deadlift: [0.5, 1, 1.25, 1.75, 2.5], ohp: [0.2, 0.35, 0.5, 0.75, 1], bbrow: [0.25, 0.4, 0.65, 0.9, 1.2], frontsquat: [0.4, 0.6, 1, 1.25, 1.5] },
+};
+const STD_NAMES = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
+function standards(ex, pb) {
+  if (!STD.men[ex.id]) return '';
+  const sex = S.settings.stdSex, bw = S.body[S.body.length - 1]?.kg;
+  if (!sex) return `<div class="box pad std"><p class="lbl">How strong is that?</p><p class="fine">Compare your best with typical lifters of your body weight. Which standards?</p><div class="seg" role="group" aria-label="Standards for">${[['men', 'Men'], ['women', 'Women'], ['none', 'Hide this']].map(([v, l]) => `<button data-act="std-sex" data-v="${v}">${l}</button>`).join('')}</div></div>`;
+  if (sex === 'none') return '';
+  if (!bw) return `<div class="box pad std"><p class="lbl">How strong is that?</p><p class="fine">Log your body weight (the scale button on Today) to compare your best with typical lifters.</p></div>`;
+  if (!pb.best) return '';
+  const r = pb.best.v / bw, cuts = STD[sex][ex.id];
+  const lvl = cuts.filter(c => r >= c).length; // 0 = below beginner
+  const pos = Math.min(100, (r / (cuts[4] * 1.1)) * 100);
+  const nextKg = lvl < 5 ? cuts[lvl] * bw : null;
+  return `<div class="box pad std"><div class="rrow"><p class="lbl">How strong is that?</p><button class="linkbtn" data-act="std-sex" data-v="">Change</button></div>
+    <p><b>${lvl ? STD_NAMES[lvl - 1] : 'Starting out'}</b> · ${num(r, 2)}× body weight (${esc(T('estMax'))} ${num(toDisp(pb.best.v))} ${U()})</p>
+    <div class="stdbar" aria-hidden="true">${cuts.map(c => `<i style="left:${(c / (cuts[4] * 1.1)) * 100}%"></i>`).join('')}<b style="left:${pos}%"></b></div>
+    <div class="stdlbl" aria-hidden="true">${STD_NAMES.map(n => `<span>${n}</span>`).join('')}</div>
+    <p class="fine">${nextKg ? `${STD_NAMES[lvl]} starts around ${num(toDisp(nextKg))} ${U()} at your body weight. ` : ''}Rough guide for ${sex}, from common strength tables. Age, height and training history all matter.</p></div>`;
+}
+
+// ---- measurements and progress photos -------------------------------------------------------
+const MEAS = [['waist', 'Waist'], ['chest', 'Chest'], ['hips', 'Hips'], ['arm', 'Arm'], ['thigh', 'Thigh']];
+const photoCache = {};
+function measure() {
+  const t = todayIso(), list = S.measures, first = list[0], last = list[list.length - 1];
+  let h = `<div class="box pad stack"><p class="lbl">Measure (cm)</p>
+    <label class="field"><span>Date</span><input class="inp" id="m-date" type="date" value="${t}" max="${t}"></label>
+    <div class="mgrid">${MEAS.map(([k, l]) => `<label class="field"><span>${l}</span><input class="inp" id="m-${k}" type="number" inputmode="decimal" step="0.5" min="10" max="300" placeholder="${last?.[k] ?? '—'}"></label>`).join('')}</div>
+    <p class="fine">Fill in only what you measure. Same time of day, tape snug but not tight.</p>
+    <button class="btn" data-act="m-save">Save measurements</button></div>`;
+  if (list.length) {
+    h += `<p class="lbl">Change since ${fmtDate(first.date, { year: true })}</p><div class="box tblwrap"><table class="xtbl"><thead><tr><th>Date</th>${MEAS.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody>`;
+    for (const m of [...list].reverse()) h += `<tr><td>${fmtDate(m.date)}</td>${MEAS.map(([k]) => `<td class="num">${m[k] ?? '—'}${m !== first && m[k] != null && first[k] != null && m[k] !== first[k] ? `<small class="dl" style="--k:var(--mute)">${m[k] > first[k] ? '+' : ''}${num(m[k] - first[k])}</small>` : ''}</td>`).join('')}<td><button class="iconbtn sm" data-act="m-del" data-id="${esc(m.id)}" aria-label="Delete ${fmtDate(m.date)} measurements">×</button></td></tr>`;
+    h += `</tbody></table></div>`;
+  }
+  h += `<div class="rrow"><p class="lbl">Progress photos</p><label class="mini filebtn">${ICON.plus} Add photo<input type="file" accept="image/*" data-input="m-photo"></label></div>`;
+  h += S.photos.length
+    ? `<div class="photos">${[...S.photos].reverse().map(p => `<button class="ph" data-act="m-open" data-id="${esc(p.id)}" aria-label="Photo from ${fmtDate(p.date, { year: true })}"><img data-ph="${esc(p.id)}" alt=""><span>${fmtDate(p.date)}</span></button>`).join('')}</div>`
+    : `<div class="box pad"><p class="fine">Photos from the same spot and light every few weeks show change the scale misses.</p></div>`;
+  h += `<p class="fine">Photos stay on this phone only. They are not in backup files, so save any you want to keep elsewhere.</p>`;
+  return {
+    title: 'Measurements', sub: 'Tape and photos', back: 'body', html: h, color: 'upper',
+    after: root => { for (const img of root.querySelectorAll('img[data-ph]')) showPhoto(img, img.dataset.ph); },
+  };
+}
+async function showPhoto(img, id) {
+  const src = photoCache[id] || (photoCache[id] = await loadPhoto(id));
+  if (src && img.isConnected) img.src = src;
+}
+/** Shrink a camera photo to at most 1000 px on the long side, as JPEG, so storage stays small. */
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1000 / Math.max(im.width, im.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That file could not be read as a photo')); };
+    im.src = url;
+  });
+}
+
 // ---- actions -------------------------------------------------------------------------
 export const actions = {
   metric(el) { exMetric = el.dataset.v; refresh(); },
+  'std-sex': el => saveSettings({ stdSex: el.dataset.v || null }),
+  async 'm-save'() {
+    const date = document.getElementById('m-date').value || todayIso();
+    if (date > todayIso()) return toast("Can't log a future date", 'down');
+    const rec = { id: 'm-' + date, date };
+    for (const [k] of MEAS) { const v = parseFloat(document.getElementById('m-' + k).value); if (v >= 10 && v <= 300) rec[k] = v; }
+    if (Object.keys(rec).length === 2) return toast('Enter at least one measurement', 'flat');
+    await saveMeasure({ ...(S.measures.find(m => m.id === rec.id) || {}), ...rec });
+    toast(`Measurements saved for ${fmtDate(date)}`, 'up');
+  },
+  async 'm-del'(el) {
+    const rec = S.measures.find(m => m.id === el.dataset.id);
+    await deleteMeasure(el.dataset.id);
+    if (rec) toast(`Measurements on ${fmtDate(rec.date)} deleted`, 'ink', { undo: () => saveMeasure(rec) });
+  },
+  async 'm-photo'(el) {
+    const f = el.files?.[0];
+    if (!f) return;
+    try {
+      const data = await shrink(f);
+      const id = uid('p');
+      photoCache[id] = data;
+      await savePhoto({ id, date: todayIso() }, data);
+      toast('Photo saved on this phone', 'up');
+    } catch (e) { toast(e.message, 'down'); }
+    el.value = '';
+  },
+  async 'm-open'(el) {
+    const p = S.photos.find(x => x.id === el.dataset.id);
+    if (!p) return;
+    const src = photoCache[p.id] || (photoCache[p.id] = await loadPhoto(p.id));
+    openSheet(`<h2 class="sh-title">${fmtDate(p.date, { dow: true, year: true })}</h2>${src ? `<img class="phfull" src="${src}" alt="Progress photo from ${fmtDate(p.date, { year: true })}">` : '<p class="fine">Photo not found.</p>'}
+      <div class="row2"><button class="btn ghost" data-act="sheet-close-ins">Close</button><button class="btn danger" data-act="m-photo-del" data-id="${esc(p.id)}">Delete photo</button></div>`, { label: 'Progress photo' });
+  },
+  'sheet-close-ins': () => closeSheet(),
+  async 'm-photo-del'(el) {
+    closeSheet();
+    if (!(await confirmSheet({ title: 'Delete this photo?', body: 'Photos are not in backups, so it cannot be brought back.', ok: 'Delete', danger: true }))) return;
+    await deletePhoto(el.dataset.id);
+    delete photoCache[el.dataset.id];
+  },
   volweek(el) { volWeek = +el.dataset.v; refresh(); },
   async 'body-add'() {
     const date = document.getElementById('b-date').value || todayIso();

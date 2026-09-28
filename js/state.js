@@ -10,6 +10,8 @@ export const S = {
   settings: null,
   sessions: [], body: [], cardio: [],
   daily: {}, // date -> {protein, kcal, water, steps, sleep}
+  measures: [], // [{id, date, waist, chest, hips, arm, thigh}] in cm
+  photos: [],   // [{id, date}]; the image itself is kv 'photo:<id>' and stays out of backups
   draft: null,
   readiness: { date: null, sleep: null, pain: false }, // sleep stays null until the user taps an option
 };
@@ -64,6 +66,8 @@ export async function load() {
   S.draft = await db.getKv('draft');
   S.daily = {};
   for (const x of await db.all('kv')) if (x.key.startsWith('daily:')) S.daily[x.key.slice(6)] = x.value;
+  S.measures = ((await db.getKv('measures')) || []).sort((a, b) => a.date.localeCompare(b.date));
+  S.photos = ((await db.getKv('photos')) || []).sort((a, b) => a.date.localeCompare(b.date));
   const r = await db.getKv('readiness');
   S.readiness = r && r.date === todayIso() ? r : { date: todayIso(), sleep: null, pain: false };
 }
@@ -266,7 +270,7 @@ export async function exportAll() {
   return {
     app: 'setlist', version: 1, exported: new Date().toISOString(),
     settings: S.settings, program: S.program, exercises: S.exercises,
-    sessions: S.sessions, body: S.body, cardio: S.cardio, daily: S.daily,
+    sessions: S.sessions, body: S.body, cardio: S.cardio, daily: S.daily, measures: S.measures,
   };
 }
 
@@ -293,6 +297,7 @@ export async function importAll(data, { merge = false } = {}) {
   await db.putMany('cardio', data.cardio || []);
   if (!merge || !S.program) await db.setKv('program', data.program || PROGRAM);
   if (!merge) await db.setKv('settings', data.settings || DEFAULT_SETTINGS);
+  if (Array.isArray(data.measures)) await db.setKv('measures', data.measures.filter(m => m && typeof m.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.date)));
   if (data.daily && typeof data.daily === 'object') for (const [d, v] of Object.entries(data.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(d) && v && typeof v === 'object') await db.setKv('daily:' + d, v);
   await load();
   refresh();
@@ -310,6 +315,31 @@ export async function removeSeedData() {
   S.sessions = S.sessions.filter(s => !s.seed);
   for (const b of S.body.filter(b => b.seed)) await db.del('body', b.id);
   S.body = S.body.filter(b => !b.seed);
+  refresh();
+}
+
+// ---- measurements and progress photos ---------------------------------------------------------
+export async function saveMeasure(rec) {
+  S.measures = [...S.measures.filter(m => m.id !== rec.id), rec].sort((a, b) => a.date.localeCompare(b.date));
+  await db.setKv('measures', S.measures);
+  refresh();
+}
+export async function deleteMeasure(id) {
+  S.measures = S.measures.filter(m => m.id !== id);
+  await db.setKv('measures', S.measures);
+  refresh();
+}
+export async function savePhoto(meta, dataUrl) {
+  await db.setKv('photo:' + meta.id, dataUrl);
+  S.photos = [...S.photos, meta].sort((a, b) => a.date.localeCompare(b.date));
+  await db.setKv('photos', S.photos);
+  refresh();
+}
+export const loadPhoto = id => db.getKv('photo:' + id);
+export async function deletePhoto(id) {
+  await db.del('kv', 'photo:' + id);
+  S.photos = S.photos.filter(p => p.id !== id);
+  await db.setKv('photos', S.photos);
   refresh();
 }
 

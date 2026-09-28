@@ -1,5 +1,5 @@
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
-import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits } from '../engine.js';
+import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score } from '../engine.js';
 import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 
@@ -62,6 +62,7 @@ export function render(route) {
     <div class="cap"><span>${inMonth.length} session${inMonth.length === 1 ? '' : 's'} this month · ${S.sessions.length} in all</span></div><div class="g">${g}</div>
     ${vm !== nowM ? `<button class="linkbtn center" data-act="hist-month-now">Back to this month</button>` : ''}</div>`;
 
+  h += recap(vm, inMonth);
   h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} imported` : 'Show imported'}</button>` : ''}</div>`;
   if (!list.length) h += inMonth.length ? `<div class="empty"><b>Only imported sessions in ${monthName(vm)}.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>`
     : S.sessions.length ? `<div class="empty"><b>No sessions in ${monthName(vm)}.</b><p>Use the arrows or the month list above to see other months.</p></div>`
@@ -90,6 +91,39 @@ export function render(route) {
   return { title: 'History', sub: 'Month by month, newest first', html: h, color: 'upper' };
 }
 
+/** One card summing up a month: sessions, sets, weight lifted, bests and the lift that improved most. */
+function recap(vm, list) {
+  const real = list.filter(s => !s.seed);
+  if (!real.length) return '';
+  let sets = 0, vol = 0;
+  const musc = {}, exIds = new Set();
+  for (const s of real) for (const e of s.entries) {
+    const ex = S.exById[e.exId], ws = workSets(e);
+    if (!ex || !ws.length) continue;
+    sets += ws.length; vol += volume(ex, ws); exIds.add(ex.id);
+    const m = ex.muscles?.[0]; if (m) musc[m] = (musc[m] || 0) + ws.length;
+  }
+  const start = `${vm}-01`, end = `${vm}-31`;
+  let bests = 0, top = null;
+  for (const id of exIds) {
+    const ex = S.exById[id], exps = exposures(S.sessions, ex);
+    const inM = exps.filter(x => x.date >= start && x.date <= end), before = exps.filter(x => x.date < start);
+    const sc = xs => Math.max(0, ...xs.map(x => score(x, ex.unit) || 0));
+    const a = sc(before), b = sc(inM);
+    if (!a || !b) continue;
+    if (b > a + 1e-6) bests++;
+    const g = b / a - 1;
+    if (g > 0.001 && (!top || g > top.g)) top = { ex, g };
+  }
+  const busiest = Object.entries(musc).sort((x, y) => y[1] - x[1])[0];
+  const days = new Set(real.map(s => s.date)).size;
+  return `<section class="box recap"><p class="lbl">${esc(MONTHS[+vm.slice(5) - 1])} recap</p>
+    <div class="kpis"><div class="kpi"><b>${days}</b><span>day${days === 1 ? '' : 's'} trained</span></div><div class="kpi"><b>${sets}</b><span>working sets</span></div><div class="kpi"><b>${vol ? kfmt(toDisp(vol)) : '—'}</b><span>${getUnits()} lifted</span></div></div>
+    <ul class="rlist">${bests ? `<li>${ICON.star}<span><b>${bests}</b> lift${bests === 1 ? '' : 's'} beat ${bests === 1 ? 'its' : 'their'} best before this month</span></li>` : ''}
+    ${top ? `<li>${ICON.trendUp}<span>Most improved: <a href="#/ex/${esc(top.ex.id)}">${esc(top.ex.name)}</a>, up ${Math.round(top.g * 100)}%</span></li>` : ''}
+    ${busiest ? `<li>${ICON.bars}<span>Most sets: ${esc(busiest[0])} (${busiest[1]})</span></li>` : ''}</ul></section>`;
+}
+
 function detail(id) {
   const s = S.sessions.find(x => x.id === id);
   if (!s) return { title: 'Not found', back: 'history', html: `<div class="empty"><b>This session doesn't exist.</b><p>It may have been deleted.</p></div>` };
@@ -109,6 +143,7 @@ function detail(id) {
   if (meta.length || s.note) h += `<div class="box pad"><p class="meta-l">${esc(meta.join(' · '))}</p>${s.note ? `<p class="enote">${esc(s.note)}</p>` : ''}</div>`;
   const sx = xpBySession(muscleXP(S.sessions, S.exById))[s.id];
   if (sx && !ed) h += `<a class="box xpstrip" href="#/levels"><b>+${sx.total} XP</b>${Object.entries(sx.muscles).sort((a, b) => b[1] - a[1]).map(([m, g]) => `<span>${esc(m)} +${g}</span>`).join('')}</a>`;
+  if (s.cardio?.length) h += `<div class="box pad"><p class="lbl">Cardio</p>${s.cardio.map(c => `<p>${esc(c.type)} · ${c.min} min${c.km ? ` · ${c.km} km` : ''} · ${esc(c.intensity)}</p>`).join('')}</div>`;
   if (s.seed) h += `<p class="fine">Imported from the handoff summary. It holds only the lifts that summary named${s.approx ? ', and the date is approximate' : ''}.</p>`;
   else if (s.imported) h += `<p class="fine">Imported from your old logs${s.approx ? '. The date is approximate' : ''}. It counts toward suggestions, progress and levels like any other session.</p>`;
 

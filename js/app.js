@@ -13,8 +13,7 @@ import * as daily from './views/daily.js';
 const TABS = [
   ['today', 'Today', ICON.today],
   ['workout', 'Workout', ICON.workout],
-  ['insights', 'Insights', ICON.insights],
-  ['levels', 'Levels', ICON.levels],
+  ['insights', 'Progress', ICON.insights],
   ['history', 'History', ICON.history],
   ['more', 'More', ICON.more],
 ];
@@ -24,7 +23,7 @@ const ROUTES = {
   today: [today, 'today'], daily: [daily, 'today'], start: [today, 'today'],
   workout: [workout, 'workout'],
   insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
-  levels: [levels, 'levels'],
+  levels: [levels, 'insights'], measure: [insights, 'insights'],
   setup: [setup, 'more'],
   history: [history, 'history'], session: [history, 'history'],
   more: [more, 'more'], program: [more, 'more'], paste: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
@@ -257,8 +256,8 @@ const TOUR = [
   ['today', 'Welcome to we go gim', () => 'A gym log that plans every session from your last one. Import old logs or restore a backup from More, or just train: new lifts ask you to find your weight the first time. Five quick tips, or skip.'],
   ['today', 'Today, pre-filled', () => `Your plan for the day with every set filled in from last time; brand-new lifts ask you to find a starting weight first. Tap a row to see why. Set sleep and pain first: a rough night makes it ${/^[aeiou]/i.test(T('hold')) ? 'an' : 'a'} ${T('hold').toLowerCase()}, with the same weights as last time.`],
   ['workout', 'Log with taps', () => 'Tick each set as you finish it. The rest timer starts itself, weights carry to the next set, and ⋮ has warm-ups, swaps and notes.'],
-  ['insights', 'What to work on', () => `Lifts that have stalled (${T('plateau').toLowerCase()}), pain, new lifts to weigh up and weekly sets per muscle, plus body weight and cardio.`],
-  ['levels', 'Level up', () => 'Hard sets earn XP for the muscles they train; personal bests earn bonus XP. Tap the body map to see each muscle.'],
+  ['insights', 'Progress: what to work on', () => `Lifts that have stalled (${T('plateau').toLowerCase()}), pain, new lifts to weigh up and weekly sets per muscle, plus body weight and cardio.`],
+  ['levels', 'Progress: level up', () => 'Switch to Levels at the top of Progress. Hard sets earn XP for the muscles they train; personal bests earn bonus XP. Tap the body map to see each muscle.'],
   ['more', 'Your programme and data', () => 'Edit your split, import old logs from PDFs or notes, and back up to Drive. Everything stays on your phone. Suggestions are general training guidance, not medical advice.'],
 ];
 

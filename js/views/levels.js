@@ -1,6 +1,7 @@
 import { S, todayIso, refresh, dayForDate } from '../state.js';
 import { muscleXP, levelFor, athleteLevel, titleFor, muscleTrends, MUSCLES, XP_SET, XP_HELPER, XP_PR, daysBetween, isKg, fmtLoad, plannedXP, addDays, unitShort, toDisp } from '../engine.js';
 import { esc, fmtDate, pill, STATUS, num, cvar, dowName, ICON, T, helpTip } from '../ui.js';
+import { progressNav } from './insights.js';
 
 /** Lifters who arrive with real history (experienced in setup, or a big import) never see beginner titles. */
 function seasoned() {
@@ -113,7 +114,9 @@ export function render() {
   const ath = athleteLevel(data.total);
   const weekTotal = ranked.reduce((a, x) => a + x.r.week, 0);
 
-  let h = `<div class="lvlhero"><div class="lvbadge"><span>LVL</span><b>${ath.level}</b></div>
+  let h = progressNav('levels');
+  if (!data.total) h += `<div class="box pad emptyact"><b>No XP yet</b><p class="fine">Every working set earns XP for the muscles it trains, and beating a best earns a bonus. Finish your first workout, or import old logs so your levels start from your real history.</p><div class="row2"><a class="btn" href="#/today">Go to today's workout</a><a class="btn ghost" href="#/import">Import old logs</a></div></div>`;
+  h += `<div class="lvlhero"><div class="lvbadge"><span>LVL</span><b>${ath.level}</b></div>
     <div class="grow"><b class="lvtitle">${esc(athleteTitle(ath.level))}</b><small>${xpf(ath.into)} / ${xpf(ath.need)} XP to level ${ath.level + 1} · +${xpf(weekTotal)} XP this week</small>${bar(ath.pct, 'on')}</div></div>`;
 
   // Only level-ups earned in the app: an import of old logs shouldn't fire a burst of banners.
