@@ -1271,6 +1271,7 @@ export default {
 "Skip exercise": "跳过动作",
 "Or swipe the card left": "或将卡片向左滑动",
 "Undo skip: {0}": "撤销跳过：{0}",
+"Exercise details no longer repeat the unit after the progress range (“88.7 kg each”, not “kg each kg per dumbbell”)": "动作详情不再在进度范围后重复单位（显示“每只 88.7 kg”，而不是“每只 kg 每只哑铃 kg”）",
 "Numbers you type are saved as you type, so nothing is lost if the phone locks mid-set": "输入的数字会随打随存，手机在组间锁屏也不会丢失",
 "The rest timer’s “Next” updates when you skip an exercise": "跳过动作后，休息计时器上的“下一个”会随之更新",
 "A finished exercise shows its name in full: the target tag makes room for the ^ button": "已完成的动作会显示完整名称：目标标签为 ^ 按钮让出位置",

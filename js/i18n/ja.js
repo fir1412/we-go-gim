@@ -1271,6 +1271,7 @@ export default {
 "Skip exercise": "種目をスキップ",
 "Or swipe the card left": "またはカードを左にスワイプ",
 "Undo skip: {0}": "スキップを取り消す：{0}",
+"Exercise details no longer repeat the unit after the progress range (“88.7 kg each”, not “kg each kg per dumbbell”)": "種目の詳細で、伸びの範囲のあとに単位が重複しなくなりました（「各88.7 kg」と表示され、「各kg ダンベル1個あたりkg」にはなりません）",
 "Numbers you type are saved as you type, so nothing is lost if the phone locks mid-set": "入力した数字は入力しながら保存されるので、セットの途中で画面がロックされても消えません",
 "The rest timer’s “Next” updates when you skip an exercise": "種目をスキップすると、休憩タイマーの「次」も更新されます",
 "A finished exercise shows its name in full: the target tag makes room for the ^ button": "完了した種目は名前が全部表示されます：目標タグが ^ ボタンに場所を譲ります",

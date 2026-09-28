@@ -1271,6 +1271,7 @@ export default {
 "Skip exercise": "Langkau senaman",
 "Or swipe the card left": "Atau leret kad ke kiri",
 "Undo skip: {0}": "Batal langkau: {0}",
+"Exercise details no longer repeat the unit after the progress range (“88.7 kg each”, not “kg each kg per dumbbell”)": "Butiran senaman tidak lagi mengulang unit selepas julat kemajuan (“88.7 kg setiap satu”, bukan “kg setiap satu kg setiap dumbel”)",
 "Numbers you type are saved as you type, so nothing is lost if the phone locks mid-set": "Nombor yang anda taip disimpan semasa menaip, jadi tiada yang hilang jika telefon terkunci di tengah set",
 "The rest timer’s “Next” updates when you skip an exercise": "“Seterusnya” pada pemasa rehat dikemas kini apabila anda melangkau senaman",
 "A finished exercise shows its name in full: the target tag makes room for the ^ button": "Senaman yang selesai menunjukkan nama penuhnya: tag sasaran memberi ruang kepada butang ^",
