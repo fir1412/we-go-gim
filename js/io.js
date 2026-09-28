@@ -69,7 +69,7 @@ export function sessionsFromCSV(text) {
     for (let i = 0; i < k; i++) ent.sets.push({ ...set });
     if (cell('rir')) ent.rir = cell('rir');
     const note = cell('note');
-    if (cell('pain') === '1' || (note && PAIN_RE.test(note))) ent.pain = true;
+    if (cell('pain') === '1' || (note && hasPain(note))) ent.pain = true;
     if (note && !ent.note.includes(note)) ent.note = ent.note ? ent.note + ' ' + note : note;
   }
   return [...map.values()];
@@ -85,136 +85,394 @@ function mk(y, m, d) {
   return dt.getUTCMonth() === m - 1 ? `${y}-${pad(m)}-${pad(d)}` : null;
 }
 
-/** Find a date in a line. Day-first for numeric dates (Malaysian/UK style). */
-export function findDate(line, fallbackYear) {
+// Whole month words only: "maybe 2 rir" is not 2 May, "4 decent reps" is not 4 December.
+const MONTH = String.raw`(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?`;
+// A number followed by these is a set, not a day: "May 2 rir", "7.5 x8", "12.5 kg".
+const NOT_DAY = String.raw`(?!\s*(?:x\s*\d|[x×]\b|reps?\b|sets?\b|rir\b|rpe\b|kgs?\b|lbs?\b|more\b|%|\.\d))`;
+const RE_DMY = new RegExp(String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+${MONTH}(?![a-z])(?:,?\s*(\d{4}|\d{2})\b)?`, 'i');
+const RE_MDY = new RegExp(String.raw`\b${MONTH}(?![a-z])\s+(\d{1,2})(?:st|nd|rd|th)?\b${NOT_DAY}(?:,?\s*(\d{4})\b)?`, 'i');
+const RE_DM = new RegExp(String.raw`^\s*(\d{1,2})[/.](\d{1,2})\b(?![/.]\d)${NOT_DAY}`);
+export const MONTH_RE = new RegExp(String.raw`\b${MONTH}(?![a-z])`, 'gi');
+
+/** Find a date in a line. Day-first for numeric dates (Malaysian/UK style). Returns {iso, index} via findDateAt. */
+export function findDateAt(line, fallbackYear) {
   let m;
-  if ((m = line.match(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/))) return mk(+m[1], +m[2], +m[3]);
-  if ((m = line.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/))) return mk(+m[3], +m[2], +m[1]);
-  if ((m = line.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?,?\s*(\d{4}|\d{2})?\b/i)))
-    return mk(m[3] ? +m[3] : fallbackYear, MON[m[2].toLowerCase()], +m[1]);
-  if ((m = line.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})?\b/i)))
-    return mk(m[3] ? +m[3] : fallbackYear, MON[m[1].toLowerCase()], +m[2]);
-  if ((m = line.match(/^\s*(\d{1,2})[/.](\d{1,2})\b(?![/.]\d)/))) return mk(fallbackYear, +m[2], +m[1]);
+  if ((m = line.match(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/))) return { iso: mk(+m[1], +m[2], +m[3]), index: m.index };
+  if ((m = line.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/))) return { iso: mk(+m[3], +m[2], +m[1]), index: m.index };
+  if ((m = line.match(RE_DMY))) return { iso: mk(m[3] ? +m[3] : fallbackYear, MON[m[2].toLowerCase().slice(0, 3)], +m[1]), index: m.index };
+  if ((m = line.match(RE_MDY))) return { iso: mk(m[3] ? +m[3] : fallbackYear, MON[m[1].toLowerCase().slice(0, 3)], +m[2]), index: m.index };
+  if ((m = line.match(RE_DM))) return { iso: mk(fallbackYear, +m[2], +m[1]), index: m.index };
   return null;
 }
+export function findDate(line, fallbackYear) { return findDateAt(line, fallbackYear)?.iso || null; }
 export function normDate(v) { return v ? findDate(String(v), new Date().getFullYear()) : null; }
 
 // ---- free-text log parser ------------------------------------------------------------------
 const NUM = String.raw`(\d+(?:[.,]\d+)?)`;
-/** Parse one line into sets, or null if it holds none. Returns {sets:[{w,r}], unit?, rest} */
+/**
+ * Parse one line into sets, or null if it holds none.
+ * Returns {sets:[{w,r}], unit?, before, after, rest}: `before` is text ahead of the first set (an inline
+ * exercise name, e.g. "Incline DB press 25 kg 8,8,8"); `after` is text behind the sets (a remark).
+ */
 export function parseSetLine(line) {
-  let s = line.replace(/[×✕]/g, 'x').replace(/,(?=\d{3}\b)/g, '');
+  const s = line.replace(/[×✕]/g, 'x').replace(/,(?=\d{3}\b)/g, '');
   const sets = [];
   let unit = null, m;
   const num = v => +String(v).replace(',', '.');
-  if (/\b(bw|bodyweight)\b/i.test(s)) unit = 'bw';
+  const out = (a, b) => ({ sets, unit, before: s.slice(0, a).trim(), after: s.slice(b).trim(), rest: (s.slice(0, a) + ' ' + s.slice(b)).trim() });
+  if (/\b(bw|body ?weigh\w*)\b/i.test(s)) unit = 'bw';
   if (/\b(level|lvl|l)\s?\d/i.test(s)) unit = 'L';
   if (/\b(each|per (side|hand|db)|ea)\b|\bdbs?\b/i.test(s)) unit = unit || 'kg/DB';
+  // "Bodyweight 70 x10": 70 is the lifter's body weight, not added load.
+  const bwOnly = unit === 'bw' && !/\+\s*\d/.test(s);
 
   // "3x8 @ 25" / "4 x 6 @25kg" / "3 sets of 8 at 60kg"
-  if ((m = s.match(new RegExp(String.raw`\b(\d{1,2})\s*(?:x|sets?\s*(?:of|x)?)\s*(\d{1,3})\s*(?:reps?)?\s*(?:@|at|with)\s*${NUM}`, 'i')))) {
+  if ((m = s.match(new RegExp(String.raw`\b(\d{1,2})\s*(?:x|sets?\s*(?:of|x)?)\s*(\d{1,3})\s*(?:reps?)?\s*(?:@|at|with)\s*${NUM}\s*(?:kgs?)?`, 'i')))) {
     for (let i = 0; i < +m[1]; i++) sets.push({ w: num(m[3]), r: +m[2] });
-    return { sets, unit, rest: s.replace(m[0], '') };
+    return out(m.index, m.index + m[0].length);
   }
-  // "L9 x 12 x 3", "25kg x 8 x 4", "25 x 8"
-  const re = new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?)?${NUM}\s*(?:kgs?|kilos?)?\s*(?:each|ea)?\s*x\s*(\d{1,3})(?:\s*x\s*(\d{1,2}))?`, 'gi');
-  let any = false;
+  // Bodyweight sets: "BW x16", "Bodyweight x6", "Bodyweight 70 x10" (70 = body weight), "Bodyweight +5kg x6" (added load)
+  const bwRe = /\b(?:bw|body ?weigh\w*)\s*(\+\s*)?(\d+(?:[.,]\d+)?)?\s*(?:kgs?)?\s*x\s*(\d{1,3})\b/gi;
+  let first = -1, last = 0;
+  while ((m = bwRe.exec(s))) {
+    if (first < 0) first = m.index;
+    last = m.index + m[0].length;
+    sets.push({ w: m[1] && m[2] ? num(m[2]) : 0, r: +m[3] });
+  }
+  if (sets.length) { unit = 'bw'; return out(first, last); }
+  // "L9 x 12 x 3", "25kg x 8 x 4", "25 x 8", several per line: "50kg x3 55kg x3"
+  const re = new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?)?${NUM}\s*(?:kgs?|kilos?)?\s*(?:each|ea)?\s*x\s*(\d{1,3})(?:\s*x\s*(\d{1,2}))?\b`, 'gi');
   while ((m = re.exec(s))) {
-    any = true;
-    const w = num(m[1]), r = +m[2], k = m[3] ? +m[3] : 1;
+    if (first < 0) first = m.index;
+    last = m.index + m[0].length;
+    const w = bwOnly ? 0 : num(m[1]), r = +m[2], k = m[3] ? +m[3] : 1;
     for (let i = 0; i < Math.min(k, 12); i++) sets.push({ w, r });
   }
-  if (any) return { sets, unit, rest: s.replace(re, '') };
+  if (sets.length) return out(first, last);
   // "25kg 8,8,6,6" / "25 kg: 8/8/8" / "L6: 15, 15"
   if ((m = s.match(new RegExp(String.raw`(?:\b(?:level|lvl|l)\s?)?${NUM}\s*(?:kgs?)?\s*(?:each|ea)?\s*[:\-–]?\s*((?:\d{1,3}\s*[,/;]\s*)+\d{1,3})`, 'i')))) {
     const w = num(m[1]);
     for (const r of m[2].split(/[,/;]/)) sets.push({ w, r: +r.trim() });
-    return { sets, unit, rest: s.replace(m[0], '') };
+    return out(m.index, m.index + m[0].length);
   }
   // "15kg 8 8 7" / "45 kg 12" (needs the kg so plain numbers aren't mistaken for sets)
   if ((m = s.match(new RegExp(String.raw`${NUM}\s*kgs?\s*(?:each|ea)?\s*[:\-–]?\s*((?:\d{1,3}\s+)*\d{1,3})(?![\d.,]|\s*kg)`, 'i')))) {
     const w = num(m[1]);
     for (const r of m[2].trim().split(/\s+/)) sets.push({ w, r: +r });
-    return { sets, unit, rest: s.replace(m[0], '') };
+    return out(m.index, m.index + m[0].length);
   }
-  // "BW 6,6,6" / "bodyweight x 8"
-  if (unit === 'bw' && (m = s.match(/((?:\d{1,3}\s*[,/;]\s*)*\d{1,3})\s*(?:reps?)?/))) {
+  // "BW 6,6,6"
+  if (unit === 'bw' && (m = s.match(/((?:\d{1,3}\s*[,/;]\s*)+\d{1,3})\s*(?:reps?)?/))) {
     for (const r of m[1].split(/[,/;]/)) sets.push({ w: 0, r: +r.trim() });
-    return { sets, unit, rest: s.replace(m[0], '') };
+    return out(m.index, m.index + m[0].length);
   }
   return null;
 }
 
-const MODIFIERS = ['reverse', 'incline', 'decline', 'close', 'wide', 'front', 'rear', 'single', 'hack', 'smith', 'romanian', 'overhead'];
+/** "Monday Push 1_260928_054205.pdf" -> "Push 1" (the notes app's export stamp and the weekday are dropped). */
+export function sessionNameFromFile(name) {
+  const n = String(name).replace(/\.[a-z0-9]+$/i, '').replace(/\s*\(\d+\)$/, '').replace(/_\d{6}_\d{6}$/, '').replace(/_+/g, ' ').trim();
+  // "Monday Push 1" -> "Push 1": History already shows the day, and it's wrong when the session moved.
+  const rest = n.replace(/^(mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun)(day)?\b[\s,-]*/i, '');
+  return rest.length >= 3 ? rest.charAt(0).toUpperCase() + rest.slice(1) : n;
+}
+
+/** RIR hints in a remark: "2 rir" -> "2"; "mech fail", "cannot", "failure" -> "0". */
+function rirFrom(t) {
+  let m;
+  if ((m = t.match(/(\d)\s*\+?\s*rir|rir\s*(\d)/i))) return String(m[1] ?? m[2]);
+  if (/\b(mech\w* fail\w*|muscles? failure|failure|cannot|can'?t (do|push|lift)|cant do|no juice|out of juice|failed)\b/i.test(t)) return '0';
+  return null;
+}
+
+/** Split set-up details off a name line: "Bench press w dumbbells no machine" -> ["Bench press", "w dumbbells no machine"]. */
+function splitName(line) {
+  // "Chest press machine, did this set last" / "Shoulder press." -> cut at punctuation
+  const p = line.match(/^([^,.;:!?]{3,}?)\s*[,.;:!?]\s*(.*)$/);
+  if (p && /[a-z]{3}/i.test(p[1])) return [p[1].trim(), p[2].trim()];
+  const m = line.match(/^(.{3,}?)\s+((?:w\/?|with|no|using|on|at|done|again|replacing|same|instead)\b.*|\(.*)$/i);
+  if (!(m && /[a-z]{3}/i.test(m[1]))) return [line.trim(), ''];
+  // "Bench press w dumbbells no machine": the equipment belongs to the name ("Bench press dumbbells").
+  const eq = m[2].match(/^(?:w\/?|with|using)\s+((?:dumb+el+s?|dumbbells?|dbs?|barbell|cable|smith(?: machine)?|machine|rope|ez ?bar)\b)\s*(.*)$/i);
+  if (eq) return [`${m[1].trim()} ${eq[1]}`, eq[2].trim()];
+  return [m[1].trim(), m[2].replace(/^\(|\)$/g, '').trim()];
+}
+
+const MODIFIERS = ['reverse', 'incline', 'decline', 'close', 'wide', 'front', 'rear', 'single', 'hack', 'smith', 'romanian', 'overhead', 'bulgarian', 'split', 'goblet', 'hammer', 'preacher', 'wrist', 'hanging', 'lying', 'supported'];
 // Plurals and spacing are ignored: "Pull ups" = "Pull-up", "Hammer curls" = "Hammer curl".
-const norm = s => s.toLowerCase().replace(/\b(db|dumbbell)s?\b/g, 'db').replace(/[^a-z0-9 ]/g, ' ').replace(/\b([a-z]{2,}?)(es|s)\b/g, (w, st, suf) => (w.endsWith('ss') ? w : suf === 'es' && !/(ch|sh|x)$/.test(st) ? st + 'e' : st)).replace(/\s+/g, ' ').trim();
+// Common spellings in gym notes, folded to one form before matching.
+const ALIASES = [
+  [/\bdumb+el+s?\b|\bdumbbells?\b|\bdbs?\b/g, 'db'], [/\btriceps?\b/g, 'triceps'], [/\bcalves\b/g, 'calf'], [/\blegs\b/g, 'leg'],
+  [/\bpull ?-?ups?\b/g, 'pull up'], [/\bchin ?-?ups?\b/g, 'chin up'], [/\bpush ?-?ups?\b/g, 'push up'], [/\bsmitch\b/g, 'smith'],
+  [/\bsquad\b/g, 'squat'], [/\binclined\b/g, 'incline'], [/\breversed\b/g, 'reverse'], [/\bpreachers\b/g, 'preacher'],
+  [/\bdec\b/g, 'deck'], [/\bromanian deadlifts?\b/g, 'rdl'], [/\begypt\b/g, 'egyptian'], [/\bwrisr\b/g, 'wrist'],
+  [/\bbar\b/g, 'barbell'], [/\bdl\b/g, 'deadlift'], [/\bpec fly\b/g, 'pec deck'], [/\boverheat\b/g, 'overhead'], [/\begyptian raises?\b/g, 'egyptian lateral raise'],
+  [/\bcheat(?:ed|ing|er)?\b/g, 'cheat'],
+];
+const norm = s => ALIASES.reduce((a, [re, to]) => a.replace(re, to), s.toLowerCase()).replace(/[^a-z0-9 ]/g, ' ').replace(/\b([a-z]{2,}?)(es|s)\b/g, (w, st, suf) => (w.endsWith('ss') ? w : suf === 'es' && !/(ch|sh|x)$/.test(st) ? st + 'e' : st)).replace(/\s+/g, ' ').trim();
 const squash = s => norm(s).replace(/ /g, '');
-/** Best library match for an exercise name (token overlap). Returns {ex, score} or null. */
-export function matchExercise(name, exercises) {
-  const a = new Set(norm(name).split(' ').filter(w => w.length > 1));
+// Words that name the equipment, and words that don't change which lift it is.
+const EQUIP_WORD = { db: 'db', machine: 'machine', cable: 'machine', rope: 'machine', smith: 'smith', barbell: 'barbell', bw: 'bw', bodyweight: 'bw' };
+const SOFT = new Set(['flat', 'seated', 'standing', 'one', 'arm', 'hand', 'triceps', 'tricep', 'the', 'with', 'on']);
+// "Bench press" and "Chest press" are one pattern; "bench" is folded into "chest" when matching.
+// Unit words aren't part of a lift's name: "Pec deck (levels)" is the pec deck.
+const keepTok = w => w.length > 1 && !/\d/.test(w) && !/^(kg|lb|level|lvl)$/.test(w);
+const rawToks = s => norm(s).split(' ').filter(keepTok);
+const toks = s => norm(s).replace(/\bbench\b/g, 'chest').split(' ').filter(keepTok);
+const equipOf = (words, ex) => {
+  const e = new Set(words.map(w => EQUIP_WORD[w]).filter(Boolean));
+  if (ex) e.add(ex.equip === 'cable' ? 'machine' : ex.equip === 'bodyweight' ? 'bw' : ex.equip);
+  return e;
+};
+/**
+ * Best library match for an exercise name. Returns {ex, score} or null.
+ * Every distinctive word of the library name must be in the logged name ("Bench press" is not "Bench dip";
+ * "Abs curl" is not "Hammer curl"), the equipment must not contradict ("Barbell squat" is not "Smith squat";
+ * cable and machine count as one), and a modifier such as "reverse" or "incline" must be on both sides.
+ * Ties go to exercises in `prefer` (the programme), then to one whose unit fits `unit`.
+ */
+const WORKOUT_WORDS = new Set(['push', 'pull', 'legs', 'leg', 'chest', 'back', 'shoulders', 'shoulder', 'arms', 'arm', 'biceps', 'triceps', 'upper', 'lower', 'full', 'body', 'glutes', 'core', 'abs', 'cardio']);
+const libCache = new Map(); // library names, tokenised once
+/** Distinctive words two exercise names share ("Egyptian raises" / "DB lateral raise" -> 1). For loose suggestions. */
+export function nameOverlap(a, b) {
+  const x = new Set(toks(a).filter(w => !SOFT.has(w) && !EQUIP_WORD[w]));
+  return toks(b).filter(w => x.has(w)).length;
+}
+export function matchExercise(name, exercises, { prefer = null, unit = null } = {}) {
+  const aw = toks(name);
+  const a = new Set(aw), ar = new Set(rawToks(name));
   if (!a.size) return null;
-  const sq = squash(name);
+  const sq = rawToks(name).join('');
+  const qEq = equipOf(aw);
+  if (qEq.has('smith')) qEq.delete('machine'); // "Squat smith machine"
   let best = null;
   for (const ex of exercises) {
-    if (squash(ex.name) === sq) return { ex, score: 1 };
-    const b = new Set(norm(ex.name).split(' ').filter(w => w.length > 1));
+    let c = libCache.get(ex.name);
+    if (!c) { const bw = toks(ex.name); libCache.set(ex.name, c = { sq: rawToks(ex.name).join(''), bw, b: new Set(bw), raw: new Set(rawToks(ex.name)) }); }
+    if (c.sq === sq) return { ex, score: 1 };
+    const { bw, b } = c;
+    const soft = w => SOFT.has(w) || EQUIP_WORD[w] || (w === 'chest' && b.has('fly'));
+    if (![...b].every(w => soft(w) || a.has(w))) continue;
+    if (MODIFIERS.some(w => a.has(w) !== b.has(w))) continue;
+    if (qEq.size) { const cEq = equipOf(bw, ex); if (![...qEq].every(e => cEq.has(e))) continue; }
     let hit = 0;
-    for (const w of a) if (b.has(w)) hit++;
-    let sc = hit / Math.max(a.size, b.size);
-    // "Pec deck" is not "Reverse pec deck": a modifier on only one side halves the score.
-    if (MODIFIERS.some(w => a.has(w) !== b.has(w))) sc *= 0.5;
-    // On a tie, prefer the name that starts the same way ("Pull ups" -> Pull-up, not Face pull).
-    if (!best || sc > best.score || (sc === best.score && sc > 0 && norm(ex.name).split(' ')[0] === norm(name).split(' ')[0])) best = { ex, score: sc };
+    // Counted on the words as written, so "Bench press" is nearer "Flat DB bench press" than "Machine chest press".
+    for (const w of ar) if (c.raw.has(w)) hit++;
+    const key = [...b].filter(w => !soft(w)).length;
+    if (!key) continue;
+    let sc = 0.5 + 0.4 * hit / Math.max(a.size, b.size);
+    if (prefer?.has(ex.id)) sc += 0.12; // the programme's own lifts win a close call
+    if (unit && ex.unit === unit) sc += 0.03;
+    if (!best || sc > best.score) best = { ex, score: sc };
   }
-  return best && best.score >= 0.5 ? best : null;
+  return best;
 }
 
 /**
  * Turn free text (pasted notes or PDF text) into sessions.
- * Lines with a date start a new session; a line without sets that looks like a name starts an exercise;
- * lines with sets add to the current exercise; other text becomes a note.
+ * - A line with a date starts a session; other words on it become a session note
+ *   (or the session name when no file name gives one).
+ * - A line with sets adds them to the current exercise. Text before the sets can name the exercise;
+ *   text after them is a remark: kept as a note, never an exercise.
+ * - A line without sets names an exercise only when sets follow it and it doesn't read like a remark.
+ *   Everything else ("Lazy", a remark wrapped onto its own line) is a note.
  */
 export function parseLogText(text, exercises, { year = new Date().getFullYear(), sessionName = 'Imported' } = {}) {
   const sessions = [];
   let sess = null, ent = null, skipped = 0;
-  const lines = text.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  for (const line of lines) {
-    const date = findDate(line, year);
-    const setInfo = parseSetLine(date ? line.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '') : line);
-    if (date && !(setInfo && setInfo.sets.length)) {
-      sess = { date, name: sessionName, entries: [], notes: [] };
-      const label = line.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b/gi, '').replace(/\b\d+(st|nd|rd|th)?\b/gi, '').replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\b/gi, '').replace(/\s+/g, ' ').trim();
-      if (label && label.length <= 30) sess.name = label.replace(/\b\w/g, c => c.toUpperCase());
-      sessions.push(sess); ent = null;
+  const rows = [];
+  let blank = true;
+  for (const raw of text.split(/\r?\n/)) {
+    const l = raw.replace(/\s+/g, ' ').trim();
+    if (!l) { blank = true; continue; }
+    // "Calves raises on 30 mar 2023" mentions a date; it doesn't start a session.
+    const fd = findDateAt(l, year);
+    const date = fd && !/\b(on|at|from|since|until|till|by|before|after|of|in|than|like)\s*$/i.test(l.slice(0, fd.index)) ? fd.iso : null;
+    const si = parseSetLine(date ? l.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '') : l);
+    rows.push({ l, date, si, kind: date && !si?.sets.length ? 'date' : si?.sets.length ? 'sets' : 'text', blank });
+    blank = false;
+  }
+  const matchMemo = new Map();
+  const isKnown = n => { if (!matchMemo.has(n)) matchMemo.set(n, !!matchExercise(n, exercises)); return matchMemo.get(n); };
+  // Exercise names start with a capital ("Bench press"); remarks usually don't ("next week", "pumping").
+  const isRemarkish = (l, known) => PAIN_RE.test(l) || COMMENT_RE.test(l) || /\b(won'?t|cos|because|unable|should|will|maybe|tomorrow|yesterday)\b/i.test(l)
+    || l.split(' ').length > 8 || !/^[A-Z]/.test(l) || (/^[A-Z]{2,4}$/.test(l) && !known);
+  const nameLike = l => { const k = isKnown(splitName(l)[0]); return k || !isRemarkish(l, k); };
+  const addNote = (e, t) => { e.note = (e.note ? e.note + ' · ' : '') + t; };
+  // Pain and set remarks go with the exercise; sleep, energy and general comments on their own line go with the session.
+  // A remark that wrapped onto the next line ("... maybe 3" / "rir") is joined back to the one before it.
+  let last = null; // {e} or {s}, plus the remark text so far
+  const remark = (t, onSet = false, cont = false) => {
+    if (cont && last) {
+      last.text += ' ' + t;
+      if (last.e) last.e.note += ' ' + t; else sess.notes[sess.notes.length - 1] += ' ' + t;
+    } else {
+      if (ent && (onSet || hasPain(t) || !SESSION_RE.test(t))) { addNote(ent, t); last = { e: ent, text: t }; }
+      else if (sess) { sess.notes.push(t); last = { s: sess, text: t }; }
+      else return;
+    }
+    const tgt = last.e || last.s;
+    if (hasPain(last.text)) tgt.pain = true;
+    const r = last.e ? rirFrom(last.text) : null;
+    if (r != null) last.e.rir = r;
+  };
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.kind === 'date') {
+      sess = { date: row.date, name: sessionName, entries: [], notes: [] };
+      let label = row.l.replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\b/, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b/gi, '').replace(/\b\d+(st|nd|rd|th)?\b/gi, '').replace(MONTH_RE, '').replace(/\s+/g, ' ').trim();
+      // "push 1" under a file called "Monday Push 1" says nothing new.
+      const known = new Set(sessionName.toLowerCase().split(/\W+/).concat('day', 'session', 'workout'));
+      if (label.split(' ').every(w => known.has(w.toLowerCase()))) label = '';
+      // "24 sept 2026 legs" written in the Push 2 note: the date line names the workout that was done.
+      const lw = label.toLowerCase().split(' ').filter(w => !/^(day|and|n|deload)$/.test(w));
+      if (label && sessionName !== 'Imported' && lw.length && lw.length <= 3 && lw.every(w => WORKOUT_WORDS.has(w)) && lw.some(w => !known.has(w))) {
+        const words = lw.map(w => ({ leg: 'legs', arm: 'arms', shoulder: 'shoulders' })[w] || w);
+        sess.name = words.map(w => w[0].toUpperCase() + w.slice(1)).join(words.length === 2 ? ' & ' : ' ').replace(/ & (\w)/, (m, c) => ' & ' + c.toLowerCase());
+        if (/deload/i.test(label)) sess.notes.push('deload');
+        label = '';
+      }
+      if (label) {
+        if (sessionName === 'Imported' && label.length <= 30) sess.name = label.replace(/\b\w/g, c => c.toUpperCase());
+        else sess.notes.push(label);
+      }
+      sessions.push(sess); ent = null; last = null;
       continue;
     }
     if (!sess) { skipped++; continue; }
-    if (setInfo && setInfo.sets.length) {
-      const namePart = setInfo.rest.replace(/\b(kg|kgs|reps?|sets?|each|ea|x|@|bw|level|lvl)\b/gi, '').replace(/[^A-Za-z ]/g, ' ').trim();
-      if (namePart.length >= 4 && /[a-z]{3}/i.test(namePart)) ent = newEnt(sess, namePart);
+    if (row.kind === 'sets') {
+      const si = row.si;
+      // An inline name must read like one ("Incline DB press 25 kg 8,8,8"), not a unit note ("80lbs or 36kg x8").
+      const lead = si.before.replace(/\d+(?:[.,]\d+)?\s*(lbs?|pounds?|kgs?)\b/gi, '').replace(/\b(kg|kgs|lbs?|or|and|reps?|sets?|each|ea|x|@|bw|level|lvl)\b/gi, '').replace(/[^A-Za-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (lead.length >= 4 && /[a-z]{3}/i.test(lead) && (/^[A-Z]/.test(lead) || matchExercise(lead, exercises))) {
+        const [n, extra] = splitName(lead);
+        ent = newEnt(sess, n);
+        if (extra) addNote(ent, extra);
+      }
       if (!ent) ent = newEnt(sess, 'Unknown exercise');
-      ent.sets.push(...setInfo.sets.map(s => ({ ...s, done: true })));
-      if (setInfo.unit && !ent.unit) ent.unit = setInfo.unit;
+      const before = ent.sets.length;
+      // "Pull up bodyweight" / "65kg x8": the 65 is the lifter's body weight; "+3kg x6" is added load.
+      const bwName = /\b(bw|body ?weight)\b/i.test(ent.exName) && si.unit !== 'L' && !/\+\s*\d/.test(row.l);
+      ent.sets.push(...si.sets.map(s => ({ ...s, ...(bwName ? { w: 0 } : {}), done: true })));
+      if (bwName) ent.unit = 'bw';
+      if (si.unit && !ent.unit) ent.unit = si.unit;
+      const after = si.after.replace(/^[,.;:\-–\s]+/, '');
+      if (/[a-z]{2}/i.test(after)) remark(ent.sets.length - before > 1 ? after : `set ${ent.sets.length}: ${after}`, true);
+      else last = null;
       continue;
     }
-    const isPain = PAIN_RE.test(line), isComment = isPain || COMMENT_RE.test(line) || line.split(' ').length > 6;
-    if (!isComment && /^[A-Za-z][A-Za-z0-9 ()'&/+-]{2,50}$/.test(line)) { ent = newEnt(sess, line); continue; }
-    // Pain goes with the exercise it follows; sleep, effort and general comments go with the session.
-    if (ent && (isPain || !SESSION_RE.test(line))) {
-      ent.note = (ent.note ? ent.note + ' ' : '') + line;
-      if (isPain) ent.pain = true;
-    } else {
-      sess.notes.push(line);
-      if (isPain) sess.pain = true;
+    // A text line. Look past any further text lines: do sets follow before the next date?
+    // A name-like line after a blank line starts a new block ("Pull up / No bar" then "Lat pulldown / L12 x6").
+    let j = i + 1;
+    while (j < rows.length && rows[j].kind === 'text' && !(rows[j].blank && nameLike(rows[j].l))) j++;
+    const setsFollow = j < rows.length && rows[j].kind === 'sets';
+    const [n, extra] = splitName(row.l);
+    const known = isKnown(n);
+    const remarkish = isRemarkish(row.l, known);
+    // A remark wrapped onto its own line has no blank line before it and follows a set that already had a remark.
+    const prev = rows[i - 1];
+    const wrapped = !row.blank && prev?.kind === 'sets' && (remarkish || /[a-z]{2}/i.test(prev.si.after));
+    if (setsFollow && !wrapped && (known || !remarkish)) {
+      ent = newEnt(sess, n); last = null;
+      if (extra) addNote(ent, extra);
+      // Lines between the name and its sets describe the set-up ("... L dip on" / "bench instead").
+      for (let k = i + 1; k < j; k++) addNote(ent, rows[k].l);
+      i = j - 1;
+      continue;
     }
+    // A lift named on its own with no sets ("Pull up" / "No bar"): skipped that day. A session note, not a set remark.
+    if (row.blank && !wrapped && (known || !remarkish) && row.l.split(' ').length <= 6) {
+      ent = null;
+      sess.notes.push(row.l); last = { s: sess, text: row.l };
+      continue;
+    }
+    // Continues the remark above: no blank line between, starts in lower case, and the one above didn't end a sentence.
+    remark(row.l, false, !row.blank && !!last && /^[a-z0-9(]/.test(row.l) && !/[.!?]$/.test(last.text));
   }
   const out = sessions.filter(s => s.entries.some(e => e.sets.length));
   for (const s of out) {
     s.entries = s.entries.filter(e => e.sets.length);
     for (const e of s.entries) { const m = matchExercise(e.exName, exercises); e.match = m?.ex.id || null; }
   }
+  fixDateTypos(out);
   return { sessions: out, skipped };
 }
+
+const DAY = 864e5;
+const t = iso => Date.parse(iso + 'T00:00:00Z');
+const isoOf = ms => new Date(ms).toISOString().slice(0, 10);
+/**
+ * A log kept in order sometimes has a mistyped date: "5 may 2022" between April and May 2023, or
+ * "30 jan 2024" between 23 Dec 2024 and 6 Jan 2025. Such a date is moved when changing only its year
+ * (by one) or only its month puts it between its neighbours, preferring the weekday the log is usually
+ * kept on. The original is kept in `dateWas`. Sessions are in log order.
+ */
+export function fixDateTypos(list) {
+  const n = list.length;
+  if (n < 4) return list;
+  // Longest run of dates in order (not necessarily adjacent): everything else is out of place.
+  const len = Array(n).fill(1), prev = Array(n).fill(-1);
+  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (list[j].date <= list[i].date && len[j] + 1 > len[i]) { len[i] = len[j] + 1; prev[i] = j; }
+  let end = len.lastIndexOf(Math.max(...len)); // on a tie, the run that reaches the end of the log
+  const inOrder = new Set();
+  for (; end >= 0; end = prev[end]) inOrder.add(end);
+  if (inOrder.size < n * 0.7) return list; // not a log kept in date order
+  const wd = Array(7).fill(0);
+  for (const s of list) wd[new Date(t(s.date)).getUTCDay()]++;
+  const top = wd.indexOf(Math.max(...wd));
+  const usualDay = wd[top] >= n * 0.6 ? top : -1;
+  const gaps = list.slice(1).map((s, i) => (t(s.date) - t(list[i].date)) / DAY).filter(g => g > 0).sort((a, b) => a - b);
+  const typical = gaps[Math.floor(gaps.length / 2)] || 7;
+  for (let i = 0; i < n; i++) {
+    const s = list[i], d = t(s.date);
+    const lo = i > 0 ? t(list[i - 1].date) : -Infinity;
+    let hi = Infinity;
+    for (let k = i + 1; k < n; k++) if (inOrder.has(k)) { hi = t(list[k].date); break; }
+    // Suspicious: out of order, or far before the next entry and off the usual weekday.
+    const odd = !inOrder.has(i) || d < lo || (hi - d > Math.max(typical * 6, 60) * DAY && usualDay >= 0 && new Date(d).getUTCDay() !== usualDay && i === 0);
+    if (!odd) continue;
+    const [y, m, dd] = s.date.split('-').map(Number);
+    const cands = [];
+    for (const yy of [y - 1, y + 1]) cands.push({ iso: mk(yy, m, dd), year: true });
+    for (let mm = 1; mm <= 12; mm++) if (mm !== m) cands.push({ iso: mk(y, mm, dd), year: false });
+    // At either end of the log only a nearby date is believable.
+    const near = 60 * DAY, lo2 = lo === -Infinity ? hi - near : lo, hi2 = hi === Infinity ? lo + near : hi;
+    const fit = cands.filter(c => c.iso && t(c.iso) > lo2 && t(c.iso) < hi2 && c.iso !== s.date)
+      .map(c => ({ ...c, wd: usualDay >= 0 && new Date(t(c.iso)).getUTCDay() === usualDay }))
+      .sort((a, b) => b.wd - a.wd || b.year - a.year || Math.abs(t(a.iso) - lo) - Math.abs(t(b.iso) - lo));
+    if (!fit.length || (usualDay >= 0 && !fit[0].wd && fit.length > 1)) continue;
+    s.dateWas = s.date;
+    s.date = fit[0].iso;
+  }
+  return list;
+}
+
+/**
+ * The same log exported twice (an older and a newer copy of one PDF) repeats sessions.
+ * Keeps one session per date and name: the one with the most logged sets, newer file on a tie.
+ */
+export function dedupeSessions(list) {
+  const best = new Map();
+  for (const s of list) {
+    const key = s.date + '|' + String(s.name).toLowerCase();
+    const n = s.entries.reduce((a, e) => a + e.sets.length, 0);
+    const cur = best.get(key);
+    if (!cur || n > cur.n || (n === cur.n && (s.fileTime || 0) > (cur.s.fileTime || 0))) best.set(key, { s, n });
+  }
+  const kept = [...best.values()].map(x => x.s).sort((a, b) => a.date.localeCompare(b.date));
+  return { sessions: kept, dropped: list.length - kept.length };
+}
+/** Pain mentioned, and not denied ("no pain", "no shoulder pain", "pain free"). */
+export const hasPain = t => {
+  const re = new RegExp(PAIN_RE.source, 'gi');
+  let m;
+  while ((m = re.exec(t))) {
+    const before = t.slice(0, m.index).toLowerCase().split(/\s+/).filter(Boolean).slice(-3);
+    const neg = before.some(w => /^(no|not|without|zero|never|didn'?t|doesn'?t|don'?t|dont|didnt|less|nothing)$/.test(w.replace(/[^a-z']/g, '')));
+    if (!neg && !/^\s*[- ]?(free|less|gone)\b/i.test(t.slice(m.index + m[0].length))) return true;
+  }
+  return false;
+};
 const PAIN_RE = /\b(pain|painful|hurt|hurts|hurting|ache|aching|achy|ping|pinged|pinging|twinge|tweak|tweaked|niggle|strain|strained|sore|tight|flared?|injur\w*|numb|clicking|popped)\b/i;
 const COMMENT_RE = /\b(felt|feel|feels|feeling|tired|lazy|sleep|slept|heavy|easy|hard|strong|weak|good|bad|great|awful|hr|bpm|rpe|rir|pump|form|failure|failed|energy|sick|fever|dizzy|skipped|missed|didn'?t|couldn'?t|was|were|a bit|very|really)\b/i;
 const SESSION_RE = /\b(slept|sleep|felt|feel|tired|energy|rpe|session|today|workout|gym|sick|fever)\b/i;
@@ -260,25 +518,53 @@ function loadScript(src) {
     document.head.appendChild(s);
   });
 }
-export async function pdfToText(file) {
+/**
+ * Rebuild text lines from one PDF page's text items ({str, transform:[a,b,c,d,x,y]}).
+ * - Notes apps often draw the same text twice at the same spot; the copy is dropped, otherwise
+ *   "30kg x6" would read as "30kg x6 30kg x6" (two sets).
+ * - A gap between lines clearly wider than the usual line spacing becomes a blank line, as in the
+ *   original note, so the parser can tell a new exercise from a remark that wrapped.
+ */
+export function linesFromItems(items) {
+  const rows = [], seen = new Set();
+  for (const it of items) {
+    if (!it.str || !it.str.trim()) continue;
+    const x = it.transform[4], y = it.transform[5];
+    const k = it.str + '@' + Math.round(x) + ',' + Math.round(y);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    let row = rows.find(r => Math.abs(r.y - y) <= 2);
+    if (!row) rows.push(row = { y, h: Math.abs(it.transform[3]) || it.height || 0, parts: [] });
+    row.parts.push({ x, s: it.str });
+  }
+  rows.sort((a, b) => b.y - a.y);
+  const gaps = rows.slice(1).map((r, i) => rows[i].y - r.y).filter(g => g > 0).sort((a, b) => a - b);
+  const step = gaps.length ? gaps[Math.floor(gaps.length / 4)] : 0; // a typical single-line step
+  const out = [];
+  rows.forEach((r, i) => {
+    if (i && step && rows[i - 1].y - r.y > step * 1.6) out.push('');
+    out.push(r.parts.sort((a, b) => a.x - b.x).map(p => p.s).join(' ').replace(/\s+/g, ' ').trim());
+  });
+  return out;
+}
+
+/** Text of a PDF, page by page. onPage(done, total) reports progress; the event loop gets a turn between pages. */
+export async function pdfToText(file, onPage) {
   await loadScript(PDFJS);
   const lib = window.pdfjsLib;
   lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-  const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), disableFontFace: true, isEvalSupported: false }).promise;
   const out = [];
-  for (let p = 1; p <= doc.numPages; p++) {
-    const tc = await (await doc.getPage(p)).getTextContent();
-    // rebuild lines from y positions
-    const rows = new Map();
-    for (const it of tc.items) {
-      const y = Math.round(it.transform[5]);
-      const key = [...rows.keys()].find(k => Math.abs(k - y) <= 2) ?? y;
-      if (!rows.has(key)) rows.set(key, []);
-      rows.get(key).push({ x: it.transform[4], s: it.str });
+  try {
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      out.push(...linesFromItems((await page.getTextContent()).items), '');
+      page.cleanup();
+      onPage?.(p, doc.numPages);
+      await new Promise(r => setTimeout(r, 0));
     }
-    for (const y of [...rows.keys()].sort((a, b) => b - a)) out.push(rows.get(y).sort((a, b) => a.x - b.x).map(i => i.s).join(' ').trim());
-  }
-  return out.filter(Boolean).join('\n');
+  } finally { await doc.destroy(); }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // ---- files ----------------------------------------------------------------------------------
@@ -295,3 +581,6 @@ export async function shareFile(name, text, type = 'application/json') {
   return false;
 }
 export const readFile = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsText(file); });
+
+/** One key per lift however it's spelled, so "Pull up", "Pullups" and "pull-up" import as one exercise. */
+export const nameKey = name => [...new Set(norm(name).split(' ').filter(w => w && !/\d/.test(w)))].sort().join(' ');

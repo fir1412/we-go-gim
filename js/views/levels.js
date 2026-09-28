@@ -83,6 +83,8 @@ function diagram(data) {
   return `<svg class="bodysvg" viewBox="0 0 420 400" role="group" aria-label="Muscle map, tap a muscle">${g}</svg>`;
 }
 
+const xpf = n => Math.round(n).toLocaleString('en-GB');
+
 function bar(pct, k = 'push') {
   return `<span class="xpbar" style="--k:var(--${k})"><i style="width:${Math.max(2, Math.min(100, pct * 100)).toFixed(1)}%"></i></span>`;
 }
@@ -97,9 +99,10 @@ export function render() {
   const weekTotal = ranked.reduce((a, x) => a + x.r.week, 0);
 
   let h = `<div class="lvlhero"><div class="lvbadge"><span>LVL</span><b>${ath.level}</b></div>
-    <div class="grow"><b class="lvtitle">${esc(titleFor(ath.level))} lifter</b><small>${num(ath.into, 0)} / ${num(ath.need, 0)} XP to level ${ath.level + 1} · +${weekTotal} XP this week</small>${bar(ath.pct, 'on')}</div></div>`;
+    <div class="grow"><b class="lvtitle">${esc(titleFor(ath.level))} lifter</b><small>${xpf(ath.into)} / ${xpf(ath.need)} XP to level ${ath.level + 1} · +${xpf(weekTotal)} XP this week</small>${bar(ath.pct, 'on')}</div></div>`;
 
-  const fresh = data.levelUps.filter(u => u.date <= t && daysBetween(u.date, t) <= 3);
+  // Only level-ups earned in the app: an import of old logs shouldn't fire a burst of banners.
+  const fresh = data.levelUps.filter(u => !u.imported && u.date <= t && daysBetween(u.date, t) <= 3);
   if (fresh.length) h += `<div class="lvup-banner" role="status"><b>★ Level up!</b><span>${fresh.slice(-4).reverse().map(u => `${esc(u.muscle)} → Lv${u.level}${u.date === t ? '' : ` (${fmtDate(u.date)})`}`).join(' · ')}</span></div>`;
   h += nextXP(data, t);
 
@@ -112,8 +115,8 @@ export function render() {
   const tr = muscleTrends(S.sessions, S.exercises).find(x => x.muscle === sel);
   const nextDay = nextDayFor(sel, t);
   const days = cur.r.lastDate ? daysBetween(cur.r.lastDate, t) : null;
-  h += `<section class="box mcard"><header><div class="lvbadge sm"><span>LVL</span><b>${cur.L.level}</b></div><div class="grow"><h3>${esc(sel)}</h3><small>${esc(titleFor(cur.L.level))} · ${cur.r.xp} XP total</small></div>${cur.r.week ? pill(`+${cur.r.week} this week`, 'up') : ''}</header>
-    ${bar(cur.L.pct)}<p class="fine">${cur.L.need - cur.L.into} XP to level ${cur.L.level + 1}. That's about ${Math.ceil((cur.L.need - cur.L.into) / XP_SET)} hard sets, fewer with a PR.</p>
+  h += `<section class="box mcard"><header><div class="lvbadge sm"><span>LVL</span><b>${cur.L.level}</b></div><div class="grow"><h3>${esc(sel)}</h3><small>${esc(titleFor(cur.L.level))} · ${xpf(cur.r.xp)} XP total</small></div>${cur.r.week ? pill(`+${cur.r.week} this week`, 'up') : ''}</header>
+    ${bar(cur.L.pct)}<p class="fine">${xpf(cur.L.need - cur.L.into)} XP to level ${cur.L.level + 1}. That's about ${Math.ceil((cur.L.need - cur.L.into) / XP_SET)} hard sets, fewer with a PR.</p>
     <dl class="facts">
       <div><dt>Last trained</dt><dd>${days == null ? 'Never' : days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'} ago`}</dd></div>
       <div><dt>Next session</dt><dd>${nextDay ? `${esc(nextDay.name)} · ${nextDay.when}` : 'Not in your programme'}</dd></div>
@@ -129,12 +132,14 @@ export function render() {
   for (const x of ranked) {
     const ago = x.r.lastDate ? daysBetween(x.r.lastDate, t) : null;
     const rust = ago == null ? `<small class="rust">never trained</small>` : ago > 9 ? `<small class="rust">${ago} d ago</small>` : '';
-    h += `<li><button data-act="muscle" data-m="${esc(x.m)}" aria-pressed="${x.m === sel}"><span class="lvbadge xs"><b>${x.L.level}</b></span><span class="grow"><span class="rowt"><b>${esc(x.m)} ${rust}</b><small>${x.r.xp ? `${x.L.into}/${x.L.need}` : '0 XP'}${x.r.week ? ` · <em class="wk">+${x.r.week}</em>` : ''}</small></span>${bar(x.L.pct, x.r.xp ? 'push' : 'mute')}</span></button></li>`;
+    h += `<li><button data-act="muscle" data-m="${esc(x.m)}" aria-pressed="${x.m === sel}"><span class="lvbadge xs"><b>${x.L.level}</b></span><span class="grow"><span class="rowt"><b>${esc(x.m)} ${rust}</b><small>${x.r.xp ? `${xpf(x.L.into)}/${xpf(x.L.need)}` : '0 XP'}${x.r.week ? ` · <em class="wk">+${x.r.week}</em>` : ''}</small></span>${bar(x.L.pct, x.r.xp ? 'push' : 'mute')}</span></button></li>`;
   }
   h += `</ul>`;
 
   const ups = data.levelUps.slice(-6).reverse();
   if (ups.length) h += `<p class="lbl">Recent level-ups</p><ul class="box xplist pad">${ups.map(u => `<li><span>${fmtDate(u.date)}</span><span class="grow">${esc(u.muscle)} reached level ${u.level}</span><b>★</b></li>`).join('')}</ul>`;
+  const nImp = S.sessions.filter(s => s.imported).length;
+  if (nImp) h += `<p class="fine">Includes ${nImp} imported session${nImp === 1 ? '' : 's'}: your past training counts, so levels start where your history left you.</p>`;
   h += `<p class="fine">Bars show progress inside the current level. Muscles not trained for 10+ days are marked, so nothing gets left behind. Each hard set earns ${XP_SET} XP for its main muscle and ${XP_HELPER} for helpers. Beating your best on a lift adds ${XP_PR} (machines and cables only against the same gym). Warm-ups and skipped sets earn nothing, so XP tracks real work, not app opens.</p>`;
   return { title: 'Levels', sub: `${data.total.toLocaleString('en-GB')} XP earned`, html: h, color: 'push' };
 }

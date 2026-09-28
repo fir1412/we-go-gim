@@ -5,6 +5,7 @@ import * as workout from './views/workout.js';
 import * as insights from './views/insights.js';
 import * as history from './views/history.js';
 import * as levels from './views/levels.js';
+import * as setup from './views/setup.js';
 import * as more from './views/more.js';
 
 const TABS = [
@@ -22,6 +23,7 @@ const ROUTES = {
   workout: [workout, 'workout'],
   insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
   levels: [levels, 'levels'],
+  setup: [setup, 'more'],
   history: [history, 'history'], session: [history, 'history'],
   more: [more, 'more'], program: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
   gyms: [more, 'more'], equip: [more, 'more'], data: [more, 'more'], settings: [more, 'more'], import: [more, 'more'],
@@ -163,7 +165,7 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.2.0';
 const WHATS_NEW = {
   '1.0.0': ['Levels tab: muscle map with XP and level-ups', 'Time left and finish time during workouts', 'Import your old PDF logs from More → Import'],
   '1.1.0': [
@@ -173,10 +175,21 @@ const WHATS_NEW = {
     'Restore and erase keep an undo copy',
     'Install button in More; phone Back closes pop-ups',
   ],
+  '1.2.0': [
+    'First-run setup: start fresh, bring your old logs, or build a personalised split',
+    'Split builder: 7 quick questions for a weekly plan that fits your days, session length, equipment and joints. Rebuild it any time from More → Settings; your logs stay',
+    'More dumbbell and bodyweight exercises in the library',
+    'Check for updates in More → Settings',
+    'Import: remarks like "felt heavy" become notes, not exercises; duplicate PDF copies are removed; spelling variants merge into one exercise',
+    'Send feedback from More',
+    'Log past workouts from History, or tap a past day on Today',
+    'Create a new exercise right inside a workout',
+    'iPhone: Add to Home Screen guide and a proper home-screen icon',
+  ],
 };
 const TOUR = [
   ['today', 'Welcome to we go gim', 'A gym log that plans every session from your last one. It starts empty: import your old logs or restore a backup from More, or just train and new lifts calibrate themselves. Five quick tips, or skip.'],
-  ['today', 'Today, pre-filled', 'Your plan for the day with every set filled in from last time. Tap a row to see why. Set sleep and pain first: a rough night holds the load.'],
+  ['today', 'Today, pre-filled', 'Your plan for the day with every set filled in from last time; brand-new lifts ask you to find a starting weight first. Tap a row to see why. Set sleep and pain first: a rough night holds the load.'],
   ['workout', 'Log with taps', 'Tick each set as you finish it. The rest timer starts itself, weights carry to the next set, and ⋮ has warm-ups, swaps and notes.'],
   ['insights', 'What to work on', 'Plateaus, pain, lifts to calibrate and weekly volume, plus body weight and cardio.'],
   ['levels', 'Level up', 'Hard sets earn XP for the muscles they train; personal bests earn bonus XP. Tap the body map to see each muscle.'],
@@ -237,9 +250,24 @@ const cmpVer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').
 function onboarding() {
   if (new URLSearchParams(location.search).has('notour')) return; // for automated tests
   const seen = S.settings.seenVersion;
+  // Brand-new users choose how to start (fresh, their own logs, or a personalised split); the tour follows.
+  // Until they pick, every launch comes back here, so closing the app mid-way never leaves them on a split they didn't choose.
+  if (!S.settings.onboarded && !S.sessions.length) {
+    if (seen !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION });
+    if (!['setup', 'import', 'data'].includes(parseRoute().name)) go('setup');
+    return;
+  }
   if (seen === APP_VERSION) return;
   const done = () => { if (S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION }); };
   if (!seen) showTour(0, { onDone: done }); else showWhatsNew(seen, done);
+}
+
+/** Manual update check (Settings). Returns 'latest', 'updating' or 'unsupported'. A found update installs and reloads by itself. */
+export async function checkForUpdates() {
+  const reg = await navigator.serviceWorker?.getRegistration?.();
+  if (!reg) return 'unsupported';
+  await reg.update();
+  return reg.installing || reg.waiting ? 'updating' : 'latest';
 }
 
 // ---- install ("Add to home screen") ------------------------------------------------------
@@ -271,7 +299,10 @@ async function boot() {
   window.addEventListener('hashchange', () => { if (sheetOpen()) closeSheet(); render(); });
   render();
   document.body.classList.add('ready');
+  // Confirm a reload caused by an update, so a manual "Check for updates" visibly lands.
+  try { if (sessionStorage.getItem('wgg-updated')) { sessionStorage.removeItem('wgg-updated'); setTimeout(() => toast('Updated to the latest version', 'up'), 300); } } catch {}
   onboarding();
+  import('./feedback.js').then(m => m.flushFeedback()).catch(() => {});
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(reg => {
       // An installed app can stay open for days: look for updates whenever it comes back to the front.
@@ -283,7 +314,9 @@ async function boot() {
     let reloading = false;
     const tryReload = () => {
       if (reloading || document.activeElement?.matches('input, textarea, select') || sheetOpen()) return false;
-      reloading = true; location.reload(); return true;
+      reloading = true;
+      try { sessionStorage.setItem('wgg-updated', '1'); } catch {}
+      location.reload(); return true;
     };
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!hadController || tryReload()) return;

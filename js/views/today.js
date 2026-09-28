@@ -82,13 +82,15 @@ export function render(route) {
     const isOpen = open.has(i);
     h += `<li><button class="head" data-act="why" data-i="${i}" aria-expanded="${isOpen}">
       <span class="name">${groups[i] ? `<em class="grp">${groups[i]}</em>` : ''}${esc(ex.name)}</span>
-      <span class="to"><span class="num">${sg.w == null ? '?' : esc(fmtLoad(ex, sg.w))}<small>${sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit)}</small> × ${sg.reps.join('·')}</span>${chip(sg, ex)}</span>
+      <span class="to"><span class="num">${sg.w == null ? (ex.unit === 'bw' ? 'BW' : '?') : esc(fmtLoad(ex, sg.w))}<small>${sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit)}</small> × ${sg.reps.join('·')}</span>${chip(sg, ex)}</span>
       <span class="last">${esc(lastTxt)} · ${slot.sets}×${slot.lo}–${slot.hi}</span></button>
       ${isOpen ? `<p class="why">${esc(sg.why)} <span class="rir">Target ${esc(sg.rir)} RIR.</span> <a href="#/ex/${esc(ex.id)}">History ${ICON.chev}</a></p>` : ''}</li>`;
   });
   h += `</ul>`;
-  if (doneToday && !resume) h += `<button class="btn ghost" data-act="pick-day">Train again today</button>`;
-  else h += `<div class="cta"><button class="btn" data-act="start" data-date="${date}">${resume ? 'Resume workout' : isToday ? 'Start workout <small>· sets pre-filled</small>' : `Do ${esc(day.name)} today <small>· sets pre-filled</small>`}</button></div>`;
+  const pastNoLog = date < t && !doneHere.length;
+  if (pastNoLog) h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="log-day" data-date="${date}">Log this day</button><button class="btn" data-act="start" data-date="${date}">Do ${esc(day.name)} today</button></div></div>`;
+  else if (doneToday && !resume) h += `<button class="btn ghost" data-act="pick-day">Train again today</button>`;
+  else if (!pastNoLog) h += `<div class="cta"><button class="btn" data-act="start" data-date="${date}">${resume ? 'Resume workout' : isToday ? 'Start workout <small>· sets pre-filled</small>' : `Do ${esc(day.name)} today <small>· sets pre-filled</small>`}</button></div>`;
 
   return { title: isToday ? 'Today' : fmtDate(date, { dow: true }), sub: sub(t, gym), right: bwBtn(lastBw), html: h, color: day.color };
 }
@@ -120,6 +122,10 @@ function deloadCard(t) {
 }
 
 export const actions = {
+  async 'log-day'(el) {
+    const { logPast } = await import('./history.js');
+    await logPast(el.dataset.date, dayForDate(el.dataset.date));
+  },
   sleep: el => setReadiness({ sleep: el.dataset.v }),
   pain: el => setReadiness({ pain: el.dataset.v === 'Yes' }),
   why: el => { const i = +el.dataset.i; open.has(i) ? open.delete(i) : open.add(i); refresh(); },

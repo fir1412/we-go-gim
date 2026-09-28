@@ -2,8 +2,9 @@ import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, expor
 import * as db from '../db.js';
 import { weeklySets, MUSCLES, unitLong, exposures } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, COLORS, dowName, fmtDate } from '../ui.js';
-import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, guessMuscles } from '../io.js';
-import { go, showTour, APP_VERSION, canInstall, promptInstall } from '../app.js';
+import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, guessMuscles, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
+import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
+import { openFeedback } from '../feedback.js';
 
 export function render(route) {
   switch (route.name) {
@@ -24,6 +25,9 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const agoTxt = iso => { const n = daysAgo(iso); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`; };
 
 // ---- home -----------------------------------------------------------------------------
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
 function home() {
   const row = (href, icon, title, sub, k) => `<a class="li mrow" href="#/${href}" style="--k:var(--${k})"><i class="mic">${icon}</i><span><b>${title}</b><small>${sub}</small></span>${ICON.chev}</a>`;
   const st = S.settings;
@@ -55,6 +59,8 @@ function home() {
     ${row('data', ICON.save, 'Backup and export', backupSub, 'upper')}
     ${row('settings', ICON.gear, 'Settings', 'Theme, rest timer, goal, tour', 'rest')}
     ${canInstall() ? `<button class="li mrow" data-act="install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Install the app</b><small>Home-screen icon, full screen, works offline</small></span>${ICON.chev}</button>` : ''}
+    ${isIOS() && !standalone() ? `<button class="li mrow" data-act="ios-install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Add to Home Screen</b><small>Install on iPhone: full screen, works offline</small></span>${ICON.chev}</button>` : ''}
+    <button class="li mrow" data-act="feedback" style="--k:var(--push)"><i class="mic">${ICON.chat || ICON.more}</i><span><b>Send feedback</b><small>Report a bug or suggest an idea</small></span>${ICON.chev}</button>
     </div>
     <details class="box pad help"><summary class="lbl">How suggestions work</summary>
     <p>Each exercise keeps its load and adds a rep per set until every set reaches the top of its range, then adds the smallest step. New exercises or machines ask you to <b>calibrate</b>; bad sleep or pain <b>holds</b> the load; three sessions without progress flag a <b>plateau</b>.</p></details>
@@ -251,66 +257,171 @@ async function withUndo(what, fn) {
 }
 
 // ---- importer --------------------------------------------------------------------------------------
-let imp = null; // {sessions, skipped, source, map: {exName: exId|''}, replaceSeed, raw}
+// imp: {sessions, skipped, source, dropped, sameFiles, groups, gOf: {gk(entry): groupIndex}, filter, show, sessShow, replaceSeed, raw}
+// Spellings of one lift ("Pullup", "Pull ups", "pull-up") form one group, matched and imported together.
+let imp = null;
+let impBusy = null; // {file, i, n, page, pages} while files are being read
 const COLOR_WORDS = [[/push|chest/i, 'push'], [/pull|back/i, 'pull'], [/leg.*b\b|hinge|glute/i, 'legsb'], [/leg|squat/i, 'legs'], [/arm|bicep|tricep/i, 'arms'], [/upper|shoulder/i, 'upper']];
-function prepImport(r, source, raw = '') {
-  const map = {};
+const progIds = () => new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
+function prepImport(r, source, raw = '', dropped = 0) {
+  const prefer = progIds(), groups = [], byKey = new Map();
   for (const s of r.sessions) {
-    for (const e of s.entries) if (!(e.exName in map)) map[e.exName] = e.match || matchExercise(e.exName, S.exercises)?.ex.id || '';
+    for (const e of s.entries) {
+      // Cable levels and kilos logged under one name are kept apart: "L9" and "30 kg" can't share an exercise.
+      const key = (nameKey(e.exName) || e.exName.toLowerCase()) + (e.unit === 'L' ? ' ·L' : '');
+      let g = byKey.get(key);
+      if (!g) { g = { key, names: {}, sess: 0, sets: 0, units: {}, last: null }; byKey.set(key, g); groups.push(g); }
+      g.names[e.exName] = (g.names[e.exName] || 0) + 1;
+      g.sets += e.sets.length;
+      const u = e.unit === '' ? '?' : e.unit || 'kg'; // '' = a CSV without a unit column: could be either
+      g.units[u] = (g.units[u] || 0) + 1;
+      if (g.last !== s) { g.sess++; g.last = s; }
+    }
     const day = S.program.days.find(d => d.slots.length && d.name.toLowerCase() === s.name.toLowerCase());
     s.color = day?.color || COLOR_WORDS.find(([re]) => re.test(s.name))?.[1] || 'upper';
-    s.dupOwn = S.sessions.some(x => x.date === s.date && !x.seed);
+    // Already in the app: logged there on that date, or imported before under the same name.
+    s.dupOwn = S.sessions.some(x => x.date === s.date && !x.seed && (!x.imported || x.name === s.name));
     s.dupSeed = S.sessions.some(x => x.date === s.date && x.seed);
-    s.skip = s.dupOwn; // already logged in the app: off by default so nothing doubles up
+    s.skip = s.dupOwn; // off by default so nothing doubles up
     s.notes = s.notes || [];
   }
-  imp = { sessions: r.sessions, skipped: r.skipped || 0, source, map, replaceSeed: true, raw };
+  for (const g of groups) {
+    delete g.last;
+    g.variants = Object.keys(g.names).sort((a, b) => g.names[b] - g.names[a]);
+    g.label = g.variants[0];
+    g.unit = Object.keys(g.units).filter(u => u !== '?').sort((a, b) => g.units[b] - g.units[a])[0] || null;
+    let best = null;
+    // Only exercises measured the same way: cable levels with levels, kilos (or bodyweight) with kilos.
+    const lib = g.unit ? S.exercises.filter(x => unitClass(x.unit) === unitClass(g.unit)) : S.exercises;
+    for (const n of g.variants) { const m = matchExercise(n, lib, { prefer, unit: g.unit }); if (m && (!best || m.score > best.score)) best = m; }
+    g.suggested = best?.ex.id || '';
+    g.target = g.suggested;
+    // Same lift in the library but measured the other way (kilos vs cable levels): said so, and the new one is named apart.
+    if (!best && g.unit) {
+      const other = S.exercises.filter(x => unitClass(x.unit) !== unitClass(g.unit));
+      g.twin = g.variants.map(n => matchExercise(n, other)?.ex).find(Boolean)?.name || null;
+    }
+  }
+  groups.sort((a, b) => b.sets - a.sets);
+  const gOf = {};
+  groups.forEach((g, i) => { for (const n of g.variants) gOf[n + (g.unit === 'L' ? '|L' : '')] = i; });
+  // The level-based twin of a lift logged in kilos too gets its own name.
+  for (const g of groups) if (g.unit === 'L' && byKey.has(g.key.replace(/ ·L$/, ''))) g.label += ' (levels)';
+  imp = { sessions: r.sessions, skipped: r.skipped || 0, source, dropped, sameFiles: 0, groups, gOf, filter: groups.some(g => !g.target) ? 'new' : 'all', show: 40, sessShow: 25, replaceSeed: true, raw };
 }
+const gk = e => e.exName + (e.unit === 'L' ? '|L' : '');
+const unitClass = u => (u === 'L' ? 'L' : 'w'); // cable levels vs weights (bodyweight counts as a weight)
 const setTxt = e => e.sets.map(x => `${x.w ?? '?'}×${x.r ?? '?'}`).join(' ');
+const exNameOf = id => S.exercises.find(x => x.id === id)?.name || id;
+const targetTxt = t => (t === 'skip' ? 'Not imported' : t ? exNameOf(t) : 'New exercise');
 
 function importer() {
   let h = '';
+  if (impBusy) {
+    const b = impBusy, pct = Math.round(100 * ((b.i + (b.pages ? b.page / b.pages : 0)) / b.n));
+    h = `<div class="box pad impbusy" role="status" aria-live="polite"><b>Reading file ${b.i + 1} of ${b.n}</b><small>${esc(b.file)}${b.pages ? ` · page ${b.page} of ${b.pages}` : ''}</small>
+      <div class="impbar" role="progressbar" aria-label="Reading files" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
+      <p class="fine">Big PDFs take a little while. Keep the app open.</p></div>`;
+    return { title: 'Import logs', sub: 'Reading…', back: 'more', html: h, color: 'legsb' };
+  }
   if (!imp) {
-    h = `<p class="fine">Pick old workout PDFs or text files, or paste notes. Dates, exercise names and sets like <b>25kg x 8 x 4</b>, <b>25 kg 8,8,6</b>, <b>15kg 8 8 7</b>, <b>3x8 @ 25</b>, <b>L9 x 12</b> or <b>BW 6,6,6</b> are recognised, and comments about pain, sleep and effort are kept. You check everything before it's saved.</p>
+    h = `<p class="fine">Pick old workout PDFs or text files, or paste notes. Dates, exercise names and sets like <b>25kg x 8 x 4</b>, <b>25 kg 8,8,6</b>, <b>15kg 8 8 7</b>, <b>3x8 @ 25</b>, <b>L9 x 12</b> or <b>BW 6,6,6</b> are recognised. Remarks about pain, sleep and effort are kept as notes, never as exercises. You check everything before it's saved.</p>
       <label class="btn filebtn">${ICON.upload} Choose PDF, text or CSV files<input type="file" id="imp-file" accept=".pdf,.txt,.md,.csv,application/pdf,text/plain,text/csv" multiple data-input="imp-file"></label>
-      <label class="field"><span>Or paste text</span><textarea class="inp mono" id="imp-text" rows="7" placeholder="Monday 21/9/2026 Push&#10;Flat DB bench 25kg x 8 x 4&#10;Incline DB press 25 kg 8,8,6&#10;left shoulder pinged on the last set"></textarea></label>
+      <p class="fine">Pick several files at once if you like. Older and newer copies of the same log are fine: repeated sessions are removed.</p>
+      <label class="field"><span>Or paste text</span><textarea class="inp mono" id="imp-text" rows="7" placeholder="21/9/2026 Push&#10;Flat DB bench&#10;25kg x 8 x 4&#10;Incline DB press 25 kg 8,8,6&#10;left shoulder pinged on the last set"></textarea></label>
       <div class="row2"><label class="field"><span>Year for dates without one</span><input class="inp" id="imp-year" type="number" inputmode="numeric" value="${todayIso().slice(0, 4)}"></label><button class="btn ghost" data-act="imp-parse">Read pasted text</button></div>
       <p class="fine">Reading a PDF needs internet the first time. Numeric dates are read day first (21/9 = 21 September).</p>`;
     return { title: 'Import logs', sub: 'PDFs, notes or CSV', back: 'more', html: h, color: 'legsb' };
   }
   const sel = imp.sessions.filter(s => !s.skip);
-  const nSets = imp.sessions.reduce((a, s) => a + s.entries.reduce((b, e) => b + e.sets.length, 0), 0);
-  const names = Object.keys(imp.map);
-  const unmatched = names.filter(n => !imp.map[n]);
-  h += `<div class="kpis"><div class="kpi"><b>${imp.sessions.length}</b><span>sessions</span></div><div class="kpi"><b>${nSets}</b><span>sets</span></div><div class="kpi"><b>${unmatched.length}</b><span>new exercises</span></div></div>`;
-  if (imp.skipped) h += `<p class="fine">${imp.skipped} line${imp.skipped === 1 ? '' : 's'} before the first date were skipped.</p>`;
+  const G = imp.groups;
+  const nSets = sel.reduce((a, s) => a + s.entries.reduce((b, e) => b + (G[imp.gOf[gk(e)]]?.target === 'skip' ? 0 : e.sets.length), 0), 0);
+  const nNew = G.filter(g => !g.target).length, nMatched = G.filter(g => g.target && g.target !== 'skip').length, nSkip = G.filter(g => g.target === 'skip').length;
+  h += `<div class="kpis"><div class="kpi"><b>${sel.length}</b><span>sessions</span></div><div class="kpi"><b>${nSets}</b><span>sets</span></div><div class="kpi"><b>${nNew}</b><span>new exercise${nNew === 1 ? '' : 's'}</span></div></div>`;
+  const facts = [];
+  if (imp.dropped) facts.push(`<b>${imp.dropped}</b> duplicate session${imp.dropped === 1 ? '' : 's'} removed (the same session in more than one file)`);
+  if (imp.sameFiles) facts.push(`<b>${imp.sameFiles}</b> identical cop${imp.sameFiles === 1 ? 'y' : 'ies'} of a file skipped`);
+  const fixed = imp.sessions.filter(s => s.dateWas);
+  if (fixed.length) facts.push(`<b>${fixed.length}</b> date${fixed.length === 1 ? '' : 's'} looked mistyped and ${fixed.length === 1 ? 'was' : 'were'} moved to fit the log's order: ${fixed.slice(0, 5).map(s => `${esc(fmtDate(s.dateWas, { year: true }))} → ${esc(fmtDate(s.date, { year: true }))}`).join(', ')}${fixed.length > 5 ? '…' : ''}`);
+  const nOwn = imp.sessions.filter(s => s.dupOwn).length;
+  if (nOwn) facts.push(`<b>${nOwn}</b> session${nOwn === 1 ? ' is' : 's are'} already in the app and left unticked`);
+  if (imp.skipped) facts.push(`${imp.skipped} line${imp.skipped === 1 ? '' : 's'} before the first date skipped`);
+  if (facts.length) h += `<ul class="impfacts">${facts.map(f => `<li>${f}</li>`).join('')}</ul>`;
   if (!imp.sessions.length) {
     h += `<div class="warn"><b>Nothing found.</b><span>No dated lines with sets were recognised. Each workout needs a date line (e.g. 21/9/2026 or 21 Sep) followed by sets (e.g. 25kg x 8).</span></div>`;
     if (imp.raw) h += `<details class="box pad"><summary class="lbl">Text that was read</summary><pre class="rawtxt">${esc(imp.raw.slice(0, 4000))}${imp.raw.length > 4000 ? '\n…' : ''}</pre></details>`;
   } else {
-    // Exercise names are matched once for the whole import, not per session.
-    const count = n => imp.sessions.filter(s => s.entries.some(e => e.exName === n)).length;
-    const opts = sel => `<option value="">+ Add as a new exercise</option>${S.exercises.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}`;
-    h += `<p class="lbl">Exercise names · ${names.length}</p><div class="box pad impnames">`;
-    [...unmatched, ...names.filter(n => imp.map[n])].forEach(n => {
-      const i = names.indexOf(n);
-      h += `<div class="impname ${imp.map[n] ? 'ok' : 'new'}"><div class="rowt"><b>${esc(n)}</b><small>${count(n)} session${count(n) === 1 ? '' : 's'} · ${imp.map[n] ? 'matched' : 'new'}</small></div>
-        <select class="inp" id="imp-m-${i}" data-input="imp-map" data-i="${i}" aria-label="Match ${esc(n)}">${opts(imp.map[n])}</select></div>`;
+    // Exercises: one row per lift (all its spellings), busiest first. Tap a row to change what it becomes.
+    const prog = progIds();
+    const shown = G.map((g, i) => ({ g, i })).filter(({ g }) => imp.filter === 'all' || (imp.filter === 'new' ? !g.target : imp.filter === 'skip' ? g.target === 'skip' : g.target && g.target !== 'skip'));
+    h += `<p class="lbl">Exercises · ${G.length} lift${G.length === 1 ? '' : 's'}</p>
+      <p class="fine">Lifts matched to an exercise in your programme (★) feed its suggestions and levels. The rest are added as new exercises, one per lift however it was spelled. Tap a lift to change it.</p>
+      <div class="seg impseg" role="group" aria-label="Show lifts">${[['new', `New ${nNew}`], ['matched', `Matched ${nMatched}`], ...(nSkip ? [['skip', `Skipped ${nSkip}`]] : []), ['all', `All ${G.length}`]].map(([v, t]) => `<button data-act="imp-filter" data-v="${v}" aria-pressed="${imp.filter === v}">${t}</button>`).join('')}</div>
+      <input class="inp" id="imp-q" type="search" placeholder="Search lifts" aria-label="Search lifts" autocomplete="off">
+      <ul class="box impg" id="imp-gl">`;
+    shown.forEach(({ g, i }, k) => {
+      const t = targetTxt(g.target);
+      h += `<li data-q="${esc((g.variants.join(' ') + ' ' + t).toLowerCase())}" ${k >= imp.show ? 'hidden data-more' : ''}><button data-act="imp-pickg" data-g="${i}" class="${g.target === 'skip' ? 'skip' : g.target ? 'ok' : 'new'}">
+        <span class="t"><b>${esc(g.label)}</b><small>${g.sess} session${g.sess === 1 ? '' : 's'} · ${plural(g.sets, 'set')}${g.variants.length > 1 ? ` · ${g.variants.length} spellings` : ''}${!g.target && g.twin ? ` · logged in ${g.unit === 'L' ? 'levels' : 'kg'}; ${esc(g.twin)} uses ${g.unit === 'L' ? 'kg' : 'levels'}` : g.unit === 'L' && !/\(levels\)$/.test(g.label) ? ' · levels' : ''}</small></span>
+        <span class="to">${g.target && g.target !== 'skip' ? '→ ' : ''}${esc(t)}${prog.has(g.target) ? ' ★' : ''}</span></button></li>`;
     });
-    h += `</div>`;
+    if (!shown.length) h += `<li class="fine impnone">Nothing here.</li>`;
+    h += `</ul>`;
+    if (shown.length > imp.show) h += `<button class="linkbtn center" id="imp-gmore" data-act="imp-gmore">Show all ${shown.length}</button>`;
+    h += `<div class="row2 impbulk">${imp.filter === 'new' && nNew ? `<button class="btn ghost" data-act="imp-bulk" data-v="skip">Skip these ${nNew}</button>` : ''}<button class="btn ghost" data-act="imp-bulk" data-v="reset">Reset all to suggestions</button></div>`;
+
     const nSeedDup = sel.filter(s => s.dupSeed).length;
     if (imp.sessions.some(s => s.dupSeed)) h += `<label class="toggle"><input type="checkbox" id="imp-seed" data-input="imp-seed" ${imp.replaceSeed ? 'checked' : ''}><span><b>Replace sample data on the same dates</b><small>${nSeedDup} selected session${nSeedDup === 1 ? ' is on a date' : 's are on dates'} that also have sample data, which only holds a few lifts</small></span></label>`;
-    h += `<div class="rrow"><p class="lbl">Sessions · ${sel.length} of ${imp.sessions.length} selected</p><button class="linkbtn" data-act="imp-all">${sel.length === imp.sessions.length ? 'Select none' : 'Select all'}</button></div><div class="box impsessl">`;
-    imp.sessions.forEach((s, si) => {
+    // Sessions, newest first, a page at a time so hundreds of them stay quick on a phone.
+    const order = imp.sessions.map((s, si) => ({ s, si })).sort((a, b) => b.s.date.localeCompare(a.s.date));
+    const years = [...new Set(order.map(o => o.s.date.slice(0, 4)))];
+    h += `<div class="rrow"><p class="lbl">Sessions · ${sel.length} of ${imp.sessions.length} selected</p><button class="linkbtn" data-act="imp-all">${sel.length === imp.sessions.length ? 'Select none' : 'Select all'}</button></div>`;
+    if (years.length > 1) h += `<div class="chips impyears" role="group" aria-label="Select by year">${years.map(y => { const n = order.filter(o => o.s.date.startsWith(y)); const on = n.filter(o => !o.s.skip).length; return `<button class="mini" data-act="imp-yr" data-y="${y}" aria-pressed="${on === n.length}">${y} · ${on}/${n.length}</button>`; }).join('')}</div>`;
+    h += `<div class="box impsessl">`;
+    order.slice(0, imp.sessShow).forEach(({ s, si }) => {
       const pain = s.pain || s.entries.some(e => e.pain);
-      h += `<div class="impsess2" style="--k:${cvar(s.color)}"><div class="rrow"><label class="toggle sm"><input type="checkbox" id="imp-on-${si}" data-input="imp-on" data-s="${si}" ${s.skip ? '' : 'checked'}><span><b>${fmtDate(s.date, { dow: true, year: true })} · ${esc(s.name)}</b><small>${s.entries.length} exercise${s.entries.length === 1 ? '' : 's'} · ${s.entries.reduce((a, e) => a + e.sets.length, 0)} sets</small></span></label>
-        <span class="chips">${s.dupOwn ? pill('already logged', 'flat') : ''}${s.dupSeed && !s.dupOwn ? pill('sample', 'mute') : ''}${pain ? pill('pain', 'down') : ''}</span></div>
-        <details><summary>Show sets</summary><ul class="impents">${s.entries.map(e => `<li><b>${esc(e.exName)}</b> <span class="num">${esc(setTxt(e))}</span>${e.note ? `<small class="${e.pain ? 'painn' : ''}">${esc(e.note)}</small>` : ''}</li>`).join('')}</ul>${s.notes.length ? `<p class="enote">${esc(s.notes.join(' · '))}</p>` : ''}</details></div>`;
+      h += `<div class="impsess2" style="--k:${cvar(s.color)}"><div class="rrow"><label class="toggle sm"><input type="checkbox" id="imp-on-${si}" data-input="imp-on" data-s="${si}" ${s.skip ? '' : 'checked'}><span><b>${fmtDate(s.date, { dow: true, year: true })} · ${esc(s.name)}</b><small>${s.entries.length} exercise${s.entries.length === 1 ? '' : 's'} · ${plural(s.entries.reduce((a, e) => a + e.sets.length, 0), 'set')}${s.dateWas ? ` · written as ${esc(fmtDate(s.dateWas, { year: true }))}` : ''}</small></span></label>
+        <span class="chips">${s.dupOwn ? pill('already in app', 'flat') : ''}${s.dupSeed && !s.dupOwn ? pill('sample', 'mute') : ''}${pain ? pill('pain', 'down') : ''}</span></div>
+        <details><summary>Show sets</summary><ul class="impents">${s.entries.map(e => { const g = G[imp.gOf[gk(e)]]; const to = g?.target === 'skip' ? 'not imported' : g?.target ? `→ ${exNameOf(g.target)}` : 'new exercise'; return `<li><b>${esc(e.exName)}</b> <span class="num">${esc(setTxt(e))}</span><small class="to">${esc(to)}</small>${e.note ? `<small class="${e.pain ? 'painn' : ''}">${esc(e.note)}</small>` : ''}</li>`; }).join('')}</ul>${s.notes.length ? `<p class="enote">${esc(s.notes.join(' · '))}</p>` : ''}</details></div>`;
     });
     h += `</div>`;
+    if (order.length > imp.sessShow) h += `<button class="linkbtn center" data-act="imp-smore">Show ${Math.min(50, order.length - imp.sessShow)} more (${order.length - imp.sessShow} left)</button>`;
   }
   h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="imp-cancel">Start over</button><button class="btn" data-act="imp-save" style="--c:var(--up)" ${sel.length ? '' : 'disabled'}>Import ${sel.length} session${sel.length === 1 ? '' : 's'}</button></div></div>`;
-  return { title: 'Review import', sub: esc(imp.source), back: 'more', html: h, color: 'legsb' };
+  return {
+    title: 'Review import', sub: esc(imp.source), back: 'more', html: h, color: 'legsb',
+    after: root => root.querySelector('#imp-q')?.addEventListener('input', ev => {
+      const q = ev.target.value.trim().toLowerCase();
+      for (const li of root.querySelectorAll('#imp-gl li[data-q]')) li.hidden = q ? !li.dataset.q.includes(q) : li.hasAttribute('data-more');
+      const more = root.querySelector('#imp-gmore');
+      if (more) more.hidden = !!q;
+    }),
+  };
+}
+
+/** Sheet to choose what one imported lift becomes: an existing exercise, a new one, or nothing. */
+function impPicker(gi) {
+  const g = imp.groups[gi], prog = progIds();
+  const sugg = [];
+  for (const n of g.variants) for (const x of S.exercises) { const m = matchExercise(n, [x], { prefer: prog, unit: g.unit }); if (m && !sugg.some(s => s.ex.id === x.id)) sugg.push(m); }
+  sugg.sort((a, b) => b.score - a.score);
+  const top = sugg.slice(0, 4).map(m => m.ex);
+  // Nothing close enough to suggest outright: offer exercises that share a word ("Egyptian raises" -> lateral raises).
+  if (top.length < 4) {
+    const loose = S.exercises.filter(x => !top.includes(x)).map(x => ({ x, n: Math.max(...g.variants.map(v => nameOverlap(v, x.name))) + (prog.has(x.id) ? 0.5 : 0) })).filter(o => o.n >= 1).sort((a, b) => b.n - a.n);
+    top.push(...loose.slice(0, 4 - top.length).map(o => o.x));
+  }
+  const row = (id, t, sub) => `<li data-name="${esc(t.toLowerCase())}"><button data-act="imp-pick" data-g="${gi}" data-id="${esc(id)}" ${g.target === id ? 'aria-current="true"' : ''}><b>${esc(t)}</b><small>${esc(sub)}</small></button></li>`;
+  const exRow = x => row(x.id, x.name, `${(x.muscles || []).slice(0, 2).join(', ') || 'No muscles set'} · ${unitLong(x.unit)}${prog.has(x.id) ? ' · in programme' : ''}`);
+  const el = openSheet(`<h2 class="sh-title" tabindex="-1" autofocus>${esc(g.label)}</h2>
+    <p class="sh-body">${g.sess} session${g.sess === 1 ? '' : 's'} · ${plural(g.sets, 'set')}${g.variants.length > 1 ? ` · also written ${g.variants.slice(1, 5).map(v => `“${esc(v)}”`).join(', ')}${g.variants.length > 5 ? '…' : ''}` : ''}</p>
+    <ul class="picklist">${row('', 'Add as a new exercise', `Named “${g.label}”`)}${top.map(exRow).join('')}${row('skip', "Don't import this lift", 'Its sets are left out')}</ul>
+    <input class="inp" id="imp-pq" type="search" placeholder="Search all ${S.exercises.length} exercises" aria-label="Search exercises" autocomplete="off">
+    <ul class="picklist" id="imp-pl">${S.exercises.filter(x => !top.includes(x)).map(exRow).join('')}</ul>`, { label: `Match ${g.label}` });
+  el.querySelector('#imp-pq').addEventListener('input', ev => {
+    const q = ev.target.value.trim().toLowerCase();
+    for (const li of el.querySelectorAll('#imp-pl li')) li.hidden = !!q && !li.dataset.name.includes(q);
+  });
 }
 
 // ---- settings --------------------------------------------------------------------------------------------
@@ -326,10 +437,11 @@ function settings() {
     <div class="box pad stack"><div class="row2"><label class="field"><span>Goal weight (kg)</span><input class="inp" id="st-goal" type="number" inputmode="decimal" step="0.5" value="${esc(st.goalKg)}"></label>
       <label class="field"><span>Height (cm)</span><input class="inp" id="st-height" type="number" inputmode="numeric" value="${esc(st.heightCm)}"></label></div>
       <button class="btn ghost" data-act="st-save">Save</button></div>
+    <div class="row2"><button class="btn ghost" data-act="check-update">Check for updates</button><a class="btn ghost" href="#/setup">Rebuild my split</a></div>
     <button class="btn ghost" data-act="tour">Replay the quick tour</button>
     <section class="box pad about"><p class="lbl">About and legal</p>
       <p><b>Not medical advice.</b> Suggestions are general training guidance from your own logs. Stop and see a doctor for chest pain, fainting, unusual breathlessness, palpitations, numbness, or sharp or radiating pain.</p>
-      <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it.</p>
+      <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it. Only feedback you choose to send leaves the phone.</p>
       <p><b>Credits.</b> App icon: "we go gim" kitten artwork by rartcattos, used with credit; not covered by the app's license. Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
       <p class="links"><a href="https://github.com/fir1412/we-go-gim/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
     <p class="fine">we go gim ${APP_VERSION}. Heart-rate and weight sync with Health Connect needs the Android app wrapper; for now, log them here.</p>`;
@@ -535,19 +647,42 @@ export const actions = {
   // import
   async 'imp-file'(el) {
     const files = [...(el.files || [])]; el.value = '';
-    if (!files.length) return;
+    if (!files.length || impBusy) return;
     const year = +document.getElementById('imp-year')?.value || +todayIso().slice(0, 4);
-    const src = files.map(f => f.name).join(', ');
+    const src = files.length > 2 ? `${files.length} files` : files.map(f => f.name).join(', ');
     if (files.every(f => /\.csv$/i.test(f.name))) {
       const sessions = [];
       for (const f of files) sessions.push(...sessionsFromCSV(await readFile(f)));
-      prepImport({ sessions, skipped: 0 }, src);
-      return go('import');
+      const { sessions: kept, dropped } = files.length > 1 ? dedupeSessions(sessions) : { sessions, dropped: 0 };
+      prepImport({ sessions: kept, skipped: 0 }, src, '', dropped);
+      return refresh(); // already on the import screen
     }
-    toast(`Reading ${files.length} file${files.length > 1 ? 's' : ''}…`);
-    let text = '';
-    for (const f of files) text += '\n' + (/\.pdf$/i.test(f.name) || f.type === 'application/pdf' ? await pdfToText(f) : await readFile(f));
-    prepImport(parseLogText(text, S.exercises, { year, sessionName: 'Imported' }), src, text);
+    // Each file is parsed on its own and named after it ("Monday Push 1"); copies of the same log
+    // exported twice collapse to one session per date. An exact copy (same name and size) isn't read twice.
+    const seen = new Set();
+    const todo = files.filter(f => { const k = sessionNameFromFile(f.name) + '|' + f.size; if (seen.has(k)) return false; seen.add(k); return true; });
+    let text = '', all = [], skipped = 0, last = 0;
+    const paint = force => { const now = Date.now(); if (force || now - last > 120) { last = now; refresh(); } };
+    try {
+      for (let i = 0; i < todo.length; i++) {
+        const f = todo[i];
+        impBusy = { file: f.name, i, n: todo.length, page: 0, pages: 0 };
+        paint(true);
+        const isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+        const t = isPdf ? await pdfToText(f, (page, pages) => { impBusy.page = page; impBusy.pages = pages; paint(); }) : await readFile(f);
+        if (text.length < 20000) text += '\n' + t;
+        const r = parseLogText(t, S.exercises, { year, sessionName: sessionNameFromFile(f.name) });
+        for (const s of r.sessions) { s.fileTime = f.lastModified; s.file = f.name; }
+        all.push(...r.sessions); skipped += r.skipped;
+      }
+    } catch (err) {
+      impBusy = null; refresh();
+      throw err;
+    }
+    impBusy = null;
+    const { sessions, dropped } = dedupeSessions(all);
+    prepImport({ sessions, skipped }, src, text, dropped);
+    imp.sameFiles = files.length - todo.length;
     refresh();
   },
   'imp-parse'() {
@@ -559,27 +694,54 @@ export const actions = {
   },
   'imp-on'(el) { imp.sessions[+el.dataset.s].skip = !el.checked; refresh(); },
   'imp-all'() { const all = imp.sessions.every(s => !s.skip); for (const s of imp.sessions) s.skip = all; refresh(); },
+  'imp-yr'(el) {
+    const ss = imp.sessions.filter(s => s.date.startsWith(el.dataset.y));
+    const on = ss.every(s => !s.skip);
+    for (const s of ss) s.skip = on;
+    refresh();
+  },
   'imp-seed'(el) { imp.replaceSeed = el.checked; },
-  'imp-map'(el) { imp.map[Object.keys(imp.map)[+el.dataset.i]] = el.value; refresh(); },
+  'imp-filter'(el) { imp.filter = el.dataset.v; imp.show = 40; refresh(); },
+  'imp-gmore'() { imp.show = Infinity; refresh(); },
+  'imp-smore'() { imp.sessShow += 50; refresh(); },
+  'imp-pickg'(el) { impPicker(+el.dataset.g); },
+  'imp-pick'(el) {
+    const g = imp.groups[+el.dataset.g];
+    g.target = el.dataset.id;
+    closeSheet();
+    refresh();
+    toast(`${g.label}: ${targetTxt(g.target)}`);
+  },
+  'imp-bulk'(el) {
+    if (el.dataset.v === 'skip') { for (const g of imp.groups) if (!g.target) g.target = 'skip'; }
+    else for (const g of imp.groups) g.target = g.suggested;
+    refresh();
+  },
   'imp-cancel'() { imp = null; refresh(); },
   async 'imp-save'() {
     const sel = imp.sessions.filter(s => !s.skip);
     if (!sel.length) return toast('Select at least one session', 'flat');
-    // New exercises: one per unmatched name that's actually used, with muscles guessed from the name.
-    const ids = { ...imp.map }, newEx = [];
-    for (const name of new Set(sel.flatMap(s => s.entries.map(e => e.exName)))) {
-      if (ids[name]) continue;
-      const ents = sel.flatMap(s => s.entries.filter(e => e.exName === name));
-      const unit = ents.find(e => e.unit)?.unit || (ents.every(e => e.sets.every(x => !x.w)) ? 'bw' : 'kg');
+    // New exercises: one per unmatched lift that's actually used, named after its most used spelling,
+    // with muscles guessed from the name.
+    const G = imp.groups, gid = new Map(), newEx = [];
+    const used = new Set(sel.flatMap(s => s.entries.map(e => imp.gOf[gk(e)])));
+    for (const gi of used) {
+      const g = G[gi];
+      if (g.target === 'skip') continue;
+      if (g.target) { gid.set(gi, g.target); continue; }
+      const ents = sel.flatMap(s => s.entries.filter(e => imp.gOf[gk(e)] === gi));
+      const unit = ents.every(e => e.sets.every(x => !x.w)) && g.unit !== 'L' ? 'bw' : g.unit || 'kg';
+      let name = g.label.charAt(0).toUpperCase() + g.label.slice(1);
+      if (g.twin && !/\((levels|kg)\)$/.test(name)) name += unit === 'L' ? ' (levels)' : ' (kg)';
       const ex = { id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + Math.random().toString(36).slice(2, 6), name, unit, equip: unit === 'bw' ? 'bw' : unit === 'kg/DB' ? 'db' : unit === 'L' ? 'cable' : 'machine', inc: unit === 'L' ? 1 : 2.5, rest: 90, muscles: guessMuscles(name), perGym: unit === 'L', imported: true };
-      newEx.push(ex); ids[name] = ex.id;
+      newEx.push(ex); gid.set(gi, ex.id);
     }
     const sessions = sel.map(s => ({
       id: uid('imp'), date: s.date, name: s.name, color: s.color || 'upper', gymId: S.settings.gymId,
-      entries: s.entries.map(e => ({ exId: ids[e.exName], sets: e.sets.map(x => ({ w: x.w, r: x.r, done: x.done !== false, ...(x.warm ? { warm: true } : {}) })), rir: e.rir ?? null, pain: !!e.pain, note: e.note || '' })),
-      readiness: null, feel: null, hr: null, note: s.notes.join(' '), imported: true,
-    }));
-    const dates = new Set(sel.map(s => s.date));
+      entries: s.entries.filter(e => gid.has(imp.gOf[gk(e)])).map(e => ({ exId: gid.get(imp.gOf[gk(e)]), sets: e.sets.map(x => ({ w: x.w, r: x.r, done: x.done !== false, ...(x.warm ? { warm: true } : {}) })), rir: e.rir ?? null, pain: !!e.pain, note: e.note || '' })),
+      readiness: null, feel: null, hr: null, note: [...(s.dateWas ? [`Date written as ${s.dateWas} in the log.`] : []), ...s.notes].join(' · '), imported: true,
+    })).filter(s => s.entries.length);
+    const dates = new Set(sessions.map(s => s.date));
     const seedIds = imp.replaceSeed ? S.sessions.filter(x => x.seed && dates.has(x.date)).map(x => x.id) : [];
     // Written in bulk, then reloaded once: much faster than one save per session for years of logs.
     await db.putMany('exercises', newEx);
@@ -588,13 +750,26 @@ export const actions = {
     await load();
     const noMuscle = newEx.filter(x => !x.muscles.length).length;
     imp = null;
-    refresh();
     toast(`Imported ${sessions.length} session${sessions.length === 1 ? '' : 's'}${newEx.length ? ` and ${newEx.length} new exercise${newEx.length === 1 ? '' : 's'}${noMuscle ? `; ${noMuscle === 1 ? '1 needs its' : `${noMuscle} need their`} muscles set under Exercises` : ''}` : ''}`, 'up');
     go('history');
   },
   // settings
   theme: el => saveSettings({ theme: el.dataset.v }),
   tour: () => showTour(),
+  feedback: () => openFeedback(APP_VERSION),
+  'ios-install'() {
+    openSheet(`<h2 class="sh-title">Install on iPhone</h2>
+      <ol class="steps"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
+      <p class="fine">It then opens full screen from the kitten icon, works offline and updates itself. Your data stays on this phone.</p>
+      <button class="btn" data-act="close-sheet">Got it</button>`, { label: 'Install on iPhone' });
+  },
+  'close-sheet': () => closeSheet(),
+  async 'check-update'() {
+    if (!navigator.onLine) return toast("You're offline. Connect and try again.", 'flat');
+    toast('Checking for updates…');
+    const r = await checkForUpdates().catch(() => 'error');
+    toast(r === 'updating' ? 'Update found. The app reloads when it is ready.' : r === 'latest' ? `You're on the latest version (${APP_VERSION})` : r === 'unsupported' ? 'Updates work once the app is opened from its website' : "Couldn't check right now. Try again later.", r === 'error' ? 'down' : 'up');
+  },
   'st-toggle': el => saveSettings({ [el.dataset.f]: el.checked }),
   async 'st-save'() {
     const g = num(document.getElementById('st-goal').value), h = num(document.getElementById('st-height').value);

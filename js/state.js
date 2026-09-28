@@ -1,7 +1,7 @@
 // App state held in memory, persisted through db.js.
 import * as db from './db.js';
 import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY } from './seed.js';
-import { suggest, dowOf, warmup, estimateDay } from './engine.js';
+import { suggest, dowOf, warmup, estimateDay, invalidateCaches } from './engine.js';
 
 export const S = {
   backend: null,
@@ -16,6 +16,8 @@ export const S = {
 let rerender = () => {};
 export const onChange = fn => { rerender = fn; };
 export const refresh = () => rerender();
+/** Call after changing a session or exercise in place, so cached history (XP, exposures) is rebuilt. */
+export const touch = () => invalidateCaches();
 
 /** Local calendar date. `?today=YYYY-MM-DD` in the URL overrides it for testing. */
 export function todayIso() {
@@ -28,6 +30,7 @@ export function todayIso() {
 export const uid = (p = 'x') => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
 function indexExercises() {
+  invalidateCaches();
   S.exById = Object.fromEntries(S.exercises.map(e => [e.id, e]));
 }
 const byDateDesc = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (b.end || 0) - (a.end || 0));
@@ -45,10 +48,16 @@ export async function load() {
     await db.setKv('settings', settings);
   }
   S.settings = { ...structuredClone(DEFAULT_SETTINGS), ...settings, equip: { ...DEFAULT_SETTINGS.equip, ...(settings.equip || {}) } };
-  S.exercises = (await db.all('exercises')).sort((a, b) => a.name.localeCompare(b.name));
+  let exs = await db.all('exercises');
+  // Library exercises added in an update reach existing installs too (never ones the user deleted).
+  const have = new Set(exs.map(e => e.id)), gone = new Set(S.settings.deletedExercises || []);
+  const added = EXERCISES.filter(e => !have.has(e.id) && !gone.has(e.id)).map(e => structuredClone(e));
+  if (added.length) { await db.putMany('exercises', added); exs = exs.concat(added); }
+  S.exercises = exs.sort((a, b) => a.name.localeCompare(b.name));
   indexExercises();
   S.program = (await db.getKv('program')) || structuredClone(PROGRAM);
   S.sessions = (await db.all('sessions')).sort(byDateDesc);
+  invalidateCaches();
   S.body = (await db.all('body')).sort((a, b) => a.date.localeCompare(b.date));
   S.cardio = (await db.all('cardio')).sort((a, b) => b.date.localeCompare(a.date));
   S.draft = await db.getKv('draft');
@@ -76,6 +85,7 @@ export async function saveExercise(ex) {
   refresh();
 }
 export async function deleteExercise(id) {
+  if (EXERCISES.some(e => e.id === id)) await saveSettings({ deletedExercises: [...new Set([...(S.settings.deletedExercises || []), id])] });
   S.exercises = S.exercises.filter(e => e.id !== id);
   indexExercises();
   await db.del('exercises', id);
@@ -118,7 +128,8 @@ export async function startWorkout(day, date = todayIso()) {
   const planned = { ...day, slots: entries.map(e => ({ ...e.slot, sets: e.sg.reps.length })) };
   S.draft = {
     id: uid('s'), date, dow: day.dow, name: day.name, color: day.color, gymId: S.settings.gymId,
-    start: Date.now(), readiness: { sleep: S.readiness.sleep, pain: S.readiness.pain },
+    past: date < todayIso(), minutes: null,
+    start: Date.now(), readiness: date < todayIso() ? null : { sleep: S.readiness.sleep, pain: S.readiness.pain },
     deload: ctx.deload, plannedSec: entries.length ? estimateDay(planned, S.exById, S.sessions) : null,
     entries,
     hr: null, feel: null, note: '', timer: null, summary: false,
@@ -159,9 +170,12 @@ export async function commitDraft() {
   const d = S.draft;
   const sess = {
     id: d.id, date: d.date, name: d.name, color: d.color, gymId: d.gymId,
-    start: d.start, end: Date.now(), readiness: d.readiness, deload: !!d.deload,
+    // A backfilled past workout has no real clock: keep only the duration typed in, and drop tick times
+    // so they don't teach the rest-time estimate.
+    start: d.past ? null : d.start, end: d.past ? null : Date.now(), minutes: d.past ? d.minutes ?? null : undefined,
+    readiness: d.readiness, deload: !!d.deload, ...(d.past ? { backfilled: true } : {}),
     hr: d.hr, feel: d.feel, note: d.note,
-    entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sug: e.sg?.t || null, sets: e.sets.map(s => ({ w: s.w, r: s.r, done: !!s.done, ...(s.warm ? { warm: true } : {}), ...(s.at ? { at: s.at } : {}) })), rir: e.rir, pain: e.pain, note: e.note })),
+    entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sug: e.sg?.t || null, sets: e.sets.map(s => ({ w: s.w, r: s.r, done: !!s.done, ...(s.warm ? { warm: true } : {}), ...(s.at && !d.past ? { at: s.at } : {}) })), rir: e.rir, pain: e.pain, note: e.note })),
   };
   await saveSession(sess);
   S.draft = null;
@@ -174,6 +188,7 @@ export async function saveSession(sess) {
   const i = S.sessions.findIndex(s => s.id === sess.id);
   if (i >= 0) S.sessions[i] = sess; else S.sessions.push(sess);
   S.sessions.sort(byDateDesc);
+  invalidateCaches();
   await db.put('sessions', sess);
   refresh();
 }

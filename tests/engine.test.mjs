@@ -192,3 +192,27 @@ test('duration: learned set cycle, day estimate and remaining time', () => {
   const entries = [{ exId: 'bench', sets: [{ done: true, at: t }, { done: false }, { done: false }] }, { exId: 'fly', sets: [{ done: false }, { done: false }] }];
   assert.equal(E.estimateRemaining(entries, exById, s, t), 2 * 150 + 75 + 2 * 115);
 });
+
+test('history caches follow the sessions array and invalidateCaches()', () => {
+  const ex = { id: 'cx', name: 'Cache lift', unit: 'kg', muscles: ['Chest'] };
+  const byId = { cx: ex };
+  const mk = (id, date, w) => ({ id, date, name: 'X', entries: [{ exId: 'cx', sets: [{ w, r: 8, done: true }] }] });
+  const list = [mk('a', '2026-01-02', 50), mk('b', '2026-01-01', 45)];
+  assert.equal(E.exposures(list, ex).length, 2);
+  const xp1 = E.muscleXP(list, byId).total;
+  assert.equal(E.muscleXP(list, byId), E.muscleXP(list, byId), 'same inputs reuse the cached result');
+  list.unshift(mk('c', '2026-01-03', 55)); // in-place change of the array is noticed
+  assert.equal(E.exposures(list, ex).length, 3);
+  assert.ok(E.muscleXP(list, byId).total > xp1);
+  list[0].entries[0].sets.push({ w: 55, r: 8, done: true }); // edit inside a session needs an explicit invalidate
+  E.invalidateCaches();
+  assert.equal(E.exposures(list, ex)[0].sets.length, 2);
+});
+
+test('imported sessions mark their level-ups, so banners can skip them', () => {
+  const ex = { id: 'ix', name: 'Imp lift', unit: 'kg', muscles: ['Back'] };
+  const sess = Array.from({ length: 12 }, (_, i) => ({ id: 'i' + i, date: `2026-02-${String(i + 1).padStart(2, '0')}`, name: 'Pull', imported: i < 11, entries: [{ exId: 'ix', sets: Array.from({ length: 4 }, () => ({ w: 40 + i, r: 8, done: true })) }] }));
+  const ups = E.muscleXP(sess, { ix: ex }).levelUps;
+  assert.ok(ups.length > 1);
+  assert.ok(ups.slice(0, -1).every(u => u.imported));
+});

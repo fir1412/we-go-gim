@@ -1,5 +1,6 @@
-import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive } from '../state.js';
-import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays } from '../engine.js';
+import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise } from '../state.js';
+import { guessMuscles } from '../io.js';
+import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES } from '../engine.js';
 import { esc, fmtDate, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, num, kfmt } from '../ui.js';
 import { go, startTimer } from '../app.js';
 import { groupLabels } from './today.js';
@@ -65,6 +66,9 @@ export function render() {
   const left = estimateRemaining(d.entries, S.exById, S.sessions, Date.now(), d.start);
   const finishAt = new Date(Date.now() + left * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   let h = `<div class="sbar"><div class="prog"><i style="width:${all.length ? done / all.length * 100 : 0}%"></i></div><span class="num">${done}/${all.length} sets</span></div>`;
+  // Backfilling a past day: no clock, no rest timer; an optional duration instead.
+  if (d.past) h += `<div class="warn" style="--k:var(--upper)"><b>Past workout.</b><span>Logging ${fmtDate(d.date, { dow: true, year: true })}. Tick the sets you did.</span></div>
+    <div class="rrow"><label for="past-min">How long did it take?</label><input class="inp sm" id="past-min" type="number" inputmode="numeric" min="1" max="300" placeholder="min" value="${d.minutes ?? ''}" data-input="past-min"></div>`;
   if (d.deload) h += `<div class="warn" style="--k:var(--legs)"><b>Deload.</b><span>Fewer sets, lighter loads, 3–4 reps in reserve.</span></div>`;
   else if (d.readiness?.sleep === '<6' || d.readiness?.pain) h += `<div class="warn"><b>Hold day.</b><span>Loads held at last session's numbers. Stop 2–3 reps short of failure.</span></div>`;
 
@@ -82,7 +86,7 @@ export function render() {
     <button class="linkbtn danger center" data-act="discard">Discard workout</button>`;
   return {
     // The bar is sticky, so the clock and time left stay visible while scrolling.
-    title: d.name, sub: `${d.date !== todayIso() ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${mins} min in · ${left ? `~${Math.round(left / 60)} left · done ${finishAt}` : 'last sets'}`, color: d.color,
+    title: d.name, sub: d.past ? `Past workout · ${fmtDate(d.date, { dow: true })}` : `${d.date !== todayIso() ? fmtDate(d.date, { dow: true }) + ' · ' : ''}${mins} min in · ${left ? `~${Math.round(left / 60)} left · done ${finishAt}` : 'last sets'}`, color: d.color,
     right: `<button class="mini go" data-act="finish">Finish</button>`, html: h,
   };
 }
@@ -163,7 +167,7 @@ function platesShort(ex, w) {
 }
 
 function summary(d) {
-  let v = 0, lv = 0, done = 0, tot = 0;
+  let vol = 0, v = 0, lv = 0, done = 0, tot = 0; // vol: this workout; v/lv: like-for-like with last time
   const prs = [];
   // Next-time targets come from the same engine as the Today screen, with this workout counted as the latest log.
   const asSess = { id: d.id, date: d.date, gymId: d.gymId, end: Date.now(), entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sets: e.sets, rir: e.rir, pain: e.pain })) };
@@ -176,6 +180,7 @@ function summary(d) {
     done += ws.length; tot += e.sets.filter(s => !s.warm).length;
     const prevExps = exposures(S.sessions, ex, { gymId: S.settings.gymId, before: d.date });
     const last = prevExps[0];
+    vol += volume(ex, ws);
     if (last && ws.length && isKg(ex.unit) && last.sets.every(s => s.r != null)) {
       // Like for like: only as many sets as both sessions have, so 3 sets vs last week's 4 isn't a "drop".
       const n = Math.min(ws.length, last.sets.length);
@@ -191,13 +196,13 @@ function summary(d) {
     const nx = nextFor(e, e.slot, ex);
     if (!ws.length || !e.slot) return `<div class="nt"><span>${esc(ex.name)}${e.pain ? ' ' + pill('pain', 'down') : ''}</span><b class="t-${nx.t}">${esc(nx.text)}</b></div>`;
     const sg = suggest(e.slot, ex, ctx), u = sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit);
-    return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? '?' : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
+    return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? (ex.unit === 'bw' ? 'BW' : '?') : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
   }).join('');
   const pct = lv ? Math.round((v / lv - 1) * 100) : null;
-  const mins = Math.max(1, Math.round((Date.now() - d.start) / 60000));
+  const mins = d.past ? d.minutes : Math.max(1, Math.round((Date.now() - d.start) / 60000));
   const planned = d.plannedSec ? Math.round(d.plannedSec / 60) : null;
-  let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)} · ${mins} min${planned ? ` (planned ~${planned})` : ''}</p></div></div>
-    <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div><div class="kpi"><b>${kfmt(v)}</b><span>kg volume*</span></div>
+  let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
+    <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div><div class="kpi"><b>${kfmt(vol)}</b><span>kg volume*</span></div>
     <div class="kpi"><b style="color:var(--${pct == null ? 'mute' : pct >= 0 ? 'up' : 'down'})">${pct == null ? '—' : (pct >= 0 ? '+' : '') + pct + '%'}</b><span>vs last time*</span></div></div>`;
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>★ ${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
@@ -319,6 +324,37 @@ export const actions = {
     }
     commit();
   },
+  'past-min'(el) { const v = parseInt(el.value, 10); S.draft.minutes = v > 0 && v <= 300 ? v : null; if (el.value && S.draft.minutes == null) el.value = ''; saveDraft(); },
+  'quick-new'(el) {
+    const name = (document.getElementById('exsearch')?.value || '').trim();
+    qn = { name, unit: guessUnit(name), muscle: guessMuscles(name)[0] || '', ei: el.dataset.e === '' ? null : +el.dataset.e };
+    closeSheet();
+    paintQuick();
+  },
+  'qn-unit'(el) { qnName(); qn.unit = el.dataset.v; paintQuick(); },
+  'qn-muscle'(el) { qnName(); qn.muscle = el.dataset.v; paintQuick(); },
+  'qn-full'() { closeSheet(); go('exercise/new'); },
+  async 'qn-save'() {
+    qnName();
+    if (!qn.name) return toast('Give the exercise a name', 'flat');
+    if (!qn.muscle) return toast('Pick the main muscle it trains', 'flat');
+    // An exercise with the same name already exists: use it rather than making a duplicate.
+    let ex = S.exercises.find(x => x.name.toLowerCase() === qn.name.toLowerCase());
+    if (!ex) {
+      const u = qn.unit;
+      ex = {
+        id: qn.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + Math.random().toString(36).slice(2, 6),
+        name: qn.name, unit: u, equip: u === 'bw' ? 'bw' : u === 'kg/DB' ? 'db' : u === 'L' ? 'cable' : 'machine',
+        inc: u === 'L' ? 1 : u === 'kg/DB' ? 2 : 2.5, rest: 90, muscles: [qn.muscle], perGym: u === 'L' || u === 'kg',
+      };
+      await saveExercise(ex);
+    }
+    closeSheet();
+    const target = { dataset: { id: ex.id, e: qn.ei == null ? '' : String(qn.ei) } };
+    qn = null;
+    await actions.pick(target);
+    toast(`${ex.name} added`, 'up');
+  },
   note(el) {
     const ei = +el.dataset.e, e = S.draft.entries[ei];
     closeSheet();
@@ -374,6 +410,7 @@ function carry(e, si, old, now) {
 }
 
 function restAfter(e, ex, s) {
+  if (S.draft.past) return; // no rest timer when logging a past day
   const nx = nextUp(e);
   const nex = nx && S.exById[nx.e.exId];
   const ns = nx?.e.sets[nx.si];
@@ -416,11 +453,32 @@ function pickExercise(ei) {
     <input class="inp" id="exsearch" type="search" placeholder="Search exercises" autocomplete="off">
     <p class="fine" id="exnone" hidden>No exercise matches. Create it below.</p>
     <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(x.name.toLowerCase())}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
-    <a class="btn ghost" href="#/exercise/new">Create a new exercise</a>`, { label: 'Pick exercise' });
+    <button class="btn ghost" data-act="quick-new" data-e="${ei ?? ''}">${ICON.plus} <span id="qn-label">Create a new exercise</span></button>`, { label: 'Pick exercise' });
   sheet.querySelector('#exsearch').addEventListener('input', ev => {
-    const q = ev.target.value.trim().toLowerCase();
+    const raw = ev.target.value.trim(), q = raw.toLowerCase();
     let shown = 0;
     for (const b of sheet.querySelectorAll('#exlist .li')) { b.hidden = !!q && !b.dataset.name.includes(q); if (!b.hidden) shown++; }
     sheet.querySelector('#exnone').hidden = shown > 0;
+    sheet.querySelector('#qn-label').textContent = raw ? `Create "${raw.slice(0, 40)}"` : 'Create a new exercise';
   });
 }
+
+// ---- quick create: a new exercise straight into the workout ------------------------------
+const QN_UNITS = [['kg/DB', 'kg per dumbbell'], ['kg', 'kg total'], ['L', 'Machine level'], ['bw', 'Bodyweight']];
+let qn = null; // {name, unit, muscle, ei}
+function guessUnit(name) {
+  const n = name.toLowerCase();
+  if (/\b(db|dumbbells?|dumbbel)\b/.test(n)) return 'kg/DB';
+  if (/\b(cable|rope|pec deck)\b/.test(n)) return 'L';
+  if (/\b(push.?ups?|pull.?ups?|chin.?ups?|dips?|bodyweight|bw|hanging)\b/.test(n)) return 'bw';
+  return 'kg';
+}
+function paintQuick() {
+  openSheet(`<h2 class="sh-title">New exercise</h2>
+    <label class="field"><span>Name</span><input class="inp" id="qn-name" value="${esc(qn.name)}" maxlength="60" placeholder="e.g. Hack squat" ${qn.name ? '' : 'autofocus'}></label>
+    <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${QN_UNITS.map(([v, l]) => `<button class="mini" data-act="qn-unit" data-v="${v}" aria-pressed="${qn.unit === v}">${l}</button>`).join('')}</div></div>
+    <div class="field"><span>Main muscle</span><div class="chips" role="group" aria-label="Main muscle">${MUSCLES.map(m => `<button class="mini" data-act="qn-muscle" data-v="${m}" aria-pressed="${qn.muscle === m}">${m}</button>`).join('')}</div></div>
+    <p class="fine">It starts with a calibration set, then progresses like any other lift. Helper muscles, rest time and more can be set later under More → Exercises.</p>
+    <div class="row2"><button class="btn ghost" data-act="qn-full">More options</button><button class="btn" data-act="qn-save" style="--c:var(--up)">Add to workout</button></div>`, { label: 'New exercise' });
+}
+const qnName = () => { const el = document.getElementById('qn-name'); if (el) qn.name = el.value.trim(); };

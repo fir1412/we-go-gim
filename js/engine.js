@@ -23,18 +23,51 @@ export function workSets(entry) {
   return (entry.sets || []).filter(s => s.done && !s.warm);
 }
 
+// ---- caches -----------------------------------------------------------------------
+// Big histories (hundreds of sessions) make per-render scans add up, so derived data is cached per
+// sessions array. A cache entry is trusted only while the array still holds the same session objects
+// in the same order; state.js also calls invalidateCaches() whenever a session or exercise is saved,
+// which covers edits made inside a session object.
+let cacheGen = 0;
+const caches = new WeakMap();
+export function invalidateCaches() { cacheGen++; }
+function cacheFor(sessions) {
+  let c = caches.get(sessions);
+  const ok = c && c.gen === cacheGen && c.snap.length === sessions.length && c.snap.every((x, i) => x === sessions[i]);
+  if (!ok) { c = { gen: cacheGen, snap: sessions.slice(), m: new Map() }; caches.set(sessions, c); }
+  return c.m;
+}
+/** Memoise fn() for this sessions array under a key; `dep` (an object) must also match. */
+function memo(sessions, key, dep, fn) {
+  const m = cacheFor(sessions);
+  const hit = m.get(key);
+  if (hit && hit.dep === dep) return hit.val;
+  const val = fn();
+  m.set(key, { dep, val });
+  return val;
+}
+/** exId -> [{s, e}] in sessions order. */
+function exIndex(sessions) {
+  return memo(sessions, 'idx', null, () => {
+    const idx = new Map();
+    for (const s of sessions) for (const e of s.entries || []) {
+      let l = idx.get(e.exId);
+      if (!l) idx.set(e.exId, (l = []));
+      l.push({ s, e });
+    }
+    return idx;
+  });
+}
+
 /** Past exposures of an exercise, newest first.
  *  For exercises flagged perGym (machines, cables), only sessions at the same gym count. */
 export function exposures(sessions, ex, { gymId = null, before = null } = {}) {
   const out = [];
-  for (const s of sessions) {
+  for (const { s, e } of exIndex(sessions).get(ex.id) || []) {
     if (before && s.date > before) continue;
     if (ex.perGym && gymId && s.gymId && s.gymId !== gymId) continue;
-    for (const e of s.entries || []) {
-      if (e.exId !== ex.id) continue;
-      const ws = workSets(e);
-      if (ws.length) out.push({ date: s.date, sessionId: s.id, entry: e, sets: ws, pain: !!e.pain, rir: e.rir ?? null, approx: !!s.approx });
-    }
+    const ws = workSets(e);
+    if (ws.length) out.push({ date: s.date, sessionId: s.id, entry: e, sets: ws, pain: !!e.pain, rir: e.rir ?? null, approx: !!s.approx });
   }
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
@@ -260,6 +293,9 @@ export const MUSCLES = ['Chest', 'Back', 'Quads', 'Hamstrings', 'Glutes', 'Front
 
 /** Per-muscle trend from the most recently trained lift with 2+ scoreable exposures. */
 export function muscleTrends(sessions, exercises) {
+  return memo(sessions, 'trends', exercises, () => muscleTrendsRaw(sessions, exercises));
+}
+function muscleTrendsRaw(sessions, exercises) {
   const out = [];
   for (const m of MUSCLES) {
     let best = null;
@@ -292,8 +328,9 @@ export function deloadCheck(sessions, exercises, today) {
   const recent = sessions.filter(s => !s.seed && s.date <= today && daysBetween(s.date, today) <= 14);
   const reasons = [];
   const falling = [];
+  const last3w = sessions.filter(s => s.date <= today && daysBetween(s.date, today) <= 21);
   for (const ex of exercises) {
-    const exps = exposures(sessions, ex).filter(e => e.date <= today && daysBetween(e.date, today) <= 21);
+    const exps = exposures(last3w, ex);
     if (exps.length < 3) continue;
     const sc = exps.slice(0, 3).map(e => score(e, ex.unit));
     if (sc.some(v => v == null)) continue;
@@ -385,6 +422,9 @@ export const titleFor = L => TITLES.filter(([l]) => L >= l).pop()[1];
  * Returns {muscles: {name: {xp, week, events:[{date, xp, why}], lastDate}}, total, levelUps:[{date, muscle, level}]}
  */
 export function muscleXP(sessions, exById, today = null) {
+  return memo(sessions, 'xp|' + today, exById, () => muscleXPRaw(sessions, exById, today));
+}
+function muscleXPRaw(sessions, exById, today) {
   const out = {}, best = {}, levelUps = [];
   const get = m => (out[m] ||= { xp: 0, week: 0, events: [], lastDate: null });
   const chron = [...sessions].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.end || 0) - (b.end || 0)));
@@ -421,7 +461,7 @@ export function muscleXP(sessions, exById, today = null) {
       const n = sets[m] || 0;
       rec.events.push({ date: s.date, xp: g, sets: n, pr: !!why[m], why: `${n} set${n === 1 ? '' : 's'} · ${why[m] ? why[m].join(', ') : s.name}`, sessionId: s.id, session: s.name });
       const after = levelFor(rec.xp).level;
-      if (after > before) levelUps.push({ date: s.date, muscle: m, level: after });
+      if (after > before) levelUps.push({ date: s.date, muscle: m, level: after, imported: !!(s.imported || s.seed) });
     }
   }
   const total = Object.values(out).reduce((a, r) => a + r.xp, 0);
@@ -465,15 +505,14 @@ export const SET_WORK_SEC = 40;     // time under the bar when no history exists
 /** Seconds from one set to the next for an exercise: learned median, else rest + work. */
 export function setCycleSec(ex, sessions) {
   const gaps = [];
-  for (const s of sessions) for (const e of s.entries || []) {
-    if (e.exId !== ex.id) continue;
+  for (const { e } of exIndex(sessions).get(ex.id) || []) {
     const ts = (e.sets || []).filter(x => x.done && !x.warm && x.at).map(x => x.at).sort((a, b) => a - b);
     for (let i = 1; i < ts.length; i++) {
       const g = (ts[i] - ts[i - 1]) / 1000;
       if (g >= 20 && g <= 600) gaps.push(g); // ignore double-taps and long interruptions
     }
   }
-  const m = median(gaps.slice(-30));
+  const m = median(gaps.slice(0, 30)); // sessions are newest first: learn from the recent ones
   return m ?? (ex.rest || 90) + SET_WORK_SEC;
 }
 

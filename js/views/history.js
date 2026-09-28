@@ -1,15 +1,20 @@
-import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh } from '../state.js';
+import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
 import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession } from '../engine.js';
-import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, MONTHS, kfmt, dowName } from '../ui.js';
+import { esc, fmtDate, pill, ICON, confirmSheet, toast, cvar, MONTHS, kfmt, dowName, openSheet, closeSheet } from '../ui.js';
 import { go } from '../app.js';
 
 let editing = null; // session id being edited
 let showSeed = true;
+const PAGE = 40;
+let shown = PAGE;   // sessions listed; more on demand so hundreds of imported sessions stay quick
 
 export function render(route) {
   if (route.name === 'session') return detail(route.args[0]);
   const t = todayIso();
-  const list = S.sessions.filter(s => showSeed || !s.seed);
+  const isImp = s => s.seed || s.imported;
+  const nImp = S.sessions.filter(isImp).length;
+  const all = S.sessions.filter(s => showSeed || !isImp(s));
+  const list = all.slice(0, shown);
   const on = {};
   for (const s of S.sessions) (on[s.date] ||= []).push(s);
 
@@ -26,7 +31,8 @@ export function render(route) {
     if (S.sessions.some(s => s.date >= a && s.date <= b)) streak++; else break;
   }
 
-  let h = `<div class="kpis"><div class="kpi"><b>${thisWeek}<small>/${planned}</small></b><span>this week</span></div><div class="kpi"><b>${last30}</b><span>last 30 days</span></div><div class="kpi"><b>${streak}</b><span>week streak</span></div></div>`;
+  let h = `<div class="kpis"><div class="kpi"><b>${thisWeek}<small>/${planned}</small></b><span>this week</span></div><div class="kpi"><b>${last30}</b><span>last 30 days</span></div><div class="kpi"><b>${streak}</b><span>week streak</span></div></div>
+    <button class="btn ghost" data-act="log-past">${ICON.plus} Log a past workout</button>`;
 
   // 6-week calendar, Monday first
   const start = addDays(ws, -35);
@@ -39,8 +45,8 @@ export function render(route) {
   }
   h += `<div class="box cal"><div class="cap"><b>${fmtDate(start)} – ${fmtDate(addDays(start, 41))}</b><span>${S.sessions.length} sessions logged</span></div><div class="g">${g}</div></div>`;
 
-  h += `<div class="rrow"><p class="lbl">Sessions</p><button class="linkbtn" data-act="toggle-seed">${showSeed ? 'Hide' : 'Show'} imported</button></div>`;
-  if (!list.length) h += `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here.</p></div>`;
+  h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} imported` : 'Show imported'}</button>` : ''}</div>`;
+  if (!list.length) h += nImp && !showSeed ? `<div class="empty"><b>No sessions logged in the app yet.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>` : `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here.</p></div>`;
   let month = '';
   for (const s of list) {
     const m = s.date.slice(0, 7);
@@ -55,13 +61,17 @@ export function render(route) {
     const ex = lead && S.exById[lead.exId];
     const line = ex ? `${ex.name} ${fmtLoad(ex, Math.max(...workSets(lead).map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${workSets(lead).map(x => x.r ?? '?').join('·')}` : 'No sets';
     const pain = s.entries.some(e => e.pain);
-    const mins = s.start && s.end && s.end > s.start ? Math.round((s.end - s.start) / 60000) : null;
+    const mins = s.start && s.end && s.end > s.start ? Math.round((s.end - s.start) / 60000) : s.minutes ?? null;
     const gx = xp[s.id]?.total || 0;
     h += `<li><a href="#/session/${esc(s.id)}"><div class="dt"><b>${+s.date.slice(8)}</b><span>${dowName(dowOf(s.date))}</span></div>
-      <div class="mid"><div class="w">${esc(s.name)} ${s.seed ? pill(s.approx ? 'imported · date approx' : 'imported', 'mute') : ''}${pain ? ' ' + pill('pain', 'down') : ''}</div><div class="s"><b>${n} set${n === 1 ? '' : 's'} · ${doneEx} ex${mins ? ` · ${mins} min` : ''}</b> · ${esc(line)}</div></div>
+      <div class="mid"><div class="w">${esc(s.name)} ${isImp(s) ? pill(s.approx ? 'imported · date approx' : 'imported', 'mute') : ''}${pain ? ' ' + pill('pain', 'down') : ''}</div><div class="s"><b>${n} set${n === 1 ? '' : 's'} · ${doneEx} ex${mins ? ` · ${mins} min` : ''}</b> · ${esc(line)}</div></div>
       <span class="hxp" style="--k:${cvar(s.color)}">${gx ? `+${gx}<small>XP</small>` : ''}</span></a></li>`;
   }
   if (month) h += `</ul>`;
+  if (all.length > list.length) {
+    const more = Math.min(PAGE * 2, all.length - list.length);
+    h += `<button class="btn ghost" data-act="more-hist">Show ${more} older session${more === 1 ? '' : 's'} <small>· ${all.length - list.length} more</small></button>`;
+  }
   return { title: 'History', sub: 'Every session, newest first', html: h, color: 'upper' };
 }
 
@@ -69,7 +79,7 @@ function detail(id) {
   const s = S.sessions.find(x => x.id === id);
   if (!s) return { title: 'Not found', back: 'history', html: `<div class="empty"><b>This session doesn't exist.</b><p>It may have been deleted.</p></div>` };
   const ed = editing === id;
-  const dur = s.start && s.end ? Math.round((s.end - s.start) / 60000) : null;
+  const dur = s.start && s.end ? Math.round((s.end - s.start) / 60000) : s.minutes ?? null;
   let vol = 0, sets = 0;
   for (const e of s.entries) { const ex = S.exById[e.exId]; if (ex) { vol += volume(ex, workSets(e)); sets += workSets(e).length; } }
   let h = `<div class="kpis"><div class="kpi"><b>${sets}</b><span>work sets</span></div><div class="kpi"><b>${kfmt(vol)}</b><span>kg volume</span></div><div class="kpi"><b>${dur == null ? '—' : dur < 1 ? '&lt;1' : dur}</b><span>minutes</span></div></div>`;
@@ -82,6 +92,7 @@ function detail(id) {
   const sx = xpBySession(muscleXP(S.sessions, S.exById))[s.id];
   if (sx && !ed) h += `<a class="box xpstrip" href="#/levels"><b>+${sx.total} XP</b>${Object.entries(sx.muscles).sort((a, b) => b[1] - a[1]).map(([m, g]) => `<span>${esc(m)} +${g}</span>`).join('')}</a>`;
   if (s.seed) h += `<p class="fine">Imported from the handoff summary. It holds only the lifts that summary named${s.approx ? ', and the date is approximate' : ''}.</p>`;
+  else if (s.imported) h += `<p class="fine">Imported from your old logs${s.approx ? '. The date is approximate' : ''}. It counts toward suggestions, progress and levels like any other session.</p>`;
 
   s.entries.forEach((e, ei) => {
     const ex = S.exById[e.exId];
@@ -130,8 +141,36 @@ function groupSets(sets, fl) {
 }
 
 let buffer = null;
+/** Start logging a workout on an earlier date (a programme day or an empty one). */
+export async function logPast(date, day) {
+  if (S.draft) {
+    if (!(await confirmSheet({ title: `Discard the ${S.draft.name} workout in progress?`, body: 'Sets you ticked there will be lost. Finish it first to keep them.', ok: 'Discard and continue', danger: true }))) return;
+    await discardDraft();
+  }
+  await startWorkout(day, date);
+  go('workout');
+}
+
 export const actions = {
+  'log-past'() {
+    const t = todayIso(), y = addDays(t, -1);
+    const days = S.program.days.filter(d => d.slots.length);
+    openSheet(`<h2 class="sh-title">Log a past workout</h2>
+      <label class="field"><span>Date</span><input class="inp" id="past-date" type="date" value="${y}" max="${y}"></label>
+      <div class="field"><span>Workout</span><div class="list box" id="past-days">${days.map(d => `<button class="li" data-act="log-past-go" data-dow="${d.dow}" style="--k:${cvar(d.color)}"><i class="sw"></i><span><b>${esc(d.name)}</b><small>${d.slots.length} exercises from your programme</small></span>${ICON.chev}</button>`).join('')}
+      <button class="li" data-act="log-past-go" data-dow="-1"><i class="sw"></i><span><b>Empty workout</b><small>Add exercises yourself</small></span>${ICON.chev}</button></div></div>
+      <p class="fine">Sets are pre-filled from your history up to that date. It counts for History, Insights and XP like any other workout.</p>`, { label: 'Log a past workout' });
+  },
+  async 'log-past-go'(el) {
+    const date = document.getElementById('past-date')?.value;
+    if (!date || date >= todayIso()) return toast('Pick a date before today', 'flat');
+    const dow = +el.dataset.dow;
+    const day = dow < 0 ? { dow: -1, name: 'Workout', color: 'upper', slots: [] } : S.program.days.find(d => d.dow === dow);
+    closeSheet();
+    await logPast(date, day);
+  },
   'toggle-seed'() { showSeed = !showSeed; refresh(); },
+  'more-hist'() { shown += PAGE * 2; refresh(); },
   edit(el) { editing = el.dataset.id; buffer = structuredClone(S.sessions.find(s => s.id === editing)); refresh(); },
   'edit-cancel'() {
     const i = S.sessions.findIndex(x => x.id === buffer?.id);
