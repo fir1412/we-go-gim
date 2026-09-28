@@ -22,7 +22,9 @@ const RULES = [
   [/~\s?(\d)/g, 'about $1'],
   [/\b(\d+(?:\.\d+)?)(\+?)\s?min\b/g, '$1$2 minutes'],
   [/\b(\d+(?:\.\d+)?)(\+?)\s?h\b/g, '$1$2 hours'],
-  [/\b(\d+) ex\b/g, '$1 exercises'],
+  [/\b(\d+) ex\b/g, (m, n) => (n === '1' ? '1 exercise' : `${n} exercises`)],
+  [/\+(\d+)s\b/g, '+$1 seconds'], [/\((?:s|sec)\)/g, '(seconds)'],
+  [/\b(\d+) wk\b/g, (m, n) => (n === '1' ? '1 week' : `${n} weeks`)],
   [/\s?\(kcal\)/g, ''], [/\bkcal\b/g, 'calories'],
   [/^\s*min\s*$/, 'minutes'], [/^\s*h\s*$/, 'hours'],
   [/(\d)\s?g\b/g, '$1 grams'], [/(\d)\s?L\b/g, '$1 litres'],
@@ -54,10 +56,14 @@ export function plainText(s) {
 const SKIP = 'input, textarea, select, script, style, .mono, pre, code, [data-raw], .bodysvg text';
 const ATTRS = ['placeholder', 'aria-label', 'title'];
 let plainOn = false, tr = null, obs = null;
+// Names the user typed (see setRawNames in i18n.js): a piece of text that is exactly one of them stays as typed.
+let rawTexts = new Set();
+export const setRawTexts = list => { rawTexts = new Set(list); };
+export const isRawText = s => rawTexts.has(String(s ?? '').trim());
 // Text this pass already produced is left alone, so the English rules never run on a translation.
 const done = new Set();
 const conv = (s, ctx) => {
-  if (done.has(s)) return s;
+  if (done.has(s) || (rawTexts.size && rawTexts.has(s.trim()))) return s;
   let t = plainOn ? plainText(s) : s;
   if (tr) t = tr(t, ctx);
   if (t !== s) { if (done.size > 5000) done.clear(); done.add(t); }

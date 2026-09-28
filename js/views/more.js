@@ -1,18 +1,20 @@
-import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh } from '../state.js';
+import { S, load, saveSettings, saveProgram, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay } from '../engine.js';
-import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
-import { LANGS, getLang } from '../i18n.js';
+import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
+import { LANGS, getLang, syncRawNames } from '../i18n.js';
 import { trainingIcs, googleCalendarUrl } from '../calendar.js';
 import { translate } from '../i18n.js';
 import { plainText } from '../plain.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
+import { filterList } from '../search.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
 import { parseSplitText, weeklyVolume } from '../split.js';
 
 export function render(route) {
+  syncRawNames(S);
   switch (route.name) {
     case 'program': return program();
     case 'paste': return pasteSplit();
@@ -106,9 +108,9 @@ function program() {
     h += `<section class="box pday2" style="${kstyle(d.color)}">
       <button class="pdh" data-act="p-open" data-dow="${dow}" aria-expanded="${open}"><b class="dlab">${dowName(dow)}</b><span class="grow"><b>${esc(d.name)}</b><small>${d.slots.length ? `${d.slots.length} exercises · ${nSets} sets${d.sub ? ' · ' + esc(d.sub) : ''}` : esc(d.sub || 'Rest day')}</small></span>${ICON.chev}</button>`;
     if (open) {
-      h += `<div class="pdb"><div class="pdn"><input class="inp" id="pn-${di}" value="${esc(d.name)}" data-input="p-day" data-d="${di}" data-f="name" aria-label="${dowName(dow, true)} name" enterkeyhint="done">
-        <button class="sw big" data-act="p-color" data-d="${di}" style="${kstyle(d.color)}" aria-label="Colour for ${dowName(dow, true)}: ${esc(d.color)}"></button></div>
-        <input class="inp" id="ps-${di}" value="${esc(d.sub || '')}" placeholder="Subtitle, e.g. Chest emphasis" data-input="p-day" data-d="${di}" data-f="sub" aria-label="${dowName(dow, true)} subtitle" enterkeyhint="done">`;
+      h += `<div class="pdb"><div class="pdn"><input class="inp" id="pn-${di}" value="${esc(d.name)}" data-input="p-day" data-d="${di}" data-f="name" aria-label="Name for ${dowName(dow, true)}" enterkeyhint="done">
+        <button class="sw big" data-act="p-color" data-d="${di}" style="${kstyle(d.color)}" aria-label="Change colour for ${dowName(dow, true)}"></button></div>
+        <input class="inp" id="ps-${di}" value="${esc(d.sub || '')}" placeholder="Subtitle, e.g. Chest emphasis" data-input="p-day" data-d="${di}" data-f="sub" aria-label="Subtitle for ${dowName(dow, true)}" enterkeyhint="done">`;
       h += d.slots.length ? `<ul class="pslots">${d.slots.map((s, si) => `<li><button class="pslot2" data-act="p-slot" data-d="${di}" data-s="${si}">${s.group ? `<i class="grp">${esc(s.group)}</i>` : `<i class="grp n">${si + 1}</i>`}<span class="grow">${esc(S.exById[s.exId]?.name || 'Missing exercise')}${s.note ? `<small>${esc(s.note)}</small>` : ''}</span><b class="num">${range(s)}</b></button></li>`).join('')}</ul>`
         : `<p class="fine">Rest day. Add an exercise to make it a training day.</p>`;
       h += `<div class="pdacts"><button class="mini addx" data-act="p-add" data-d="${di}">${ICON.plus} Add exercise</button>
@@ -151,17 +153,21 @@ function slotSheet(di, si) {
   else openSheet(html, { label: `Edit ${ex?.name || 'exercise'}` });
 }
 
-/** Filter a list as you type: every word must match the name, muscles or another name for it ("bicep curl" finds DB curl).
- *  Cardio words ("treadmill", "walk") show a pointer to the cardio log instead. */
+/** Filter a list as you type: every word must match the name, muscles or another name for it ("bicep curl" finds DB curl),
+ *  best matches first. Cardio words ("treadmill", "walk") show a pointer to the cardio log instead. */
 function searchList(root, raw, sel) {
-  const q = raw.trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean);
-  let shown = 0;
-  for (const li of root.querySelectorAll(sel)) { li.hidden = !!q && !words.every(w => li.dataset.name.includes(w)); if (!li.hidden) shown++; }
+  const q = raw.trim().toLowerCase();
+  const shown = filterList(root, raw, sel);
+  const none = root.querySelector('.searchnone');
+  if (none) none.hidden = !q || shown > 0;
   const hint = root.querySelector('.cardiohint');
   if (hint) hint.hidden = !CARDIO_WORDS.test(q);
   return shown;
 }
-const cardioHint = `<p class="cardiohint fine" hidden>Walking, running, bikes and other cardio are logged under <a href="#/cardio">Insights → Cardio</a>, not as an exercise.</p>`;
+const cardioHint = `<p class="searchnone fine" hidden>No exercise matches. Try fewer words, or add it with New exercise.</p><p class="cardiohint fine" hidden>Walking, running, bikes and other cardio are logged under <a href="#/cardio">Insights → Cardio</a>, not as an exercise.</p>`;
+
+// "New exercise" from a programme picker: after saving, come back and use it there (add to the day, or swap).
+let pendingPick = null;
 
 /** Searchable exercise list in a sheet. Calls onPick(id). */
 function pickExercise(title, onPick, cur = null) {
@@ -173,6 +179,7 @@ function pickExercise(title, onPick, cur = null) {
   el.querySelector('#pick-q').addEventListener('input', ev => searchList(el, ev.target.value, '.picklist li'));
   el.addEventListener('click', ev => {
     if (ev.target.closest('.cardiohint a')) { closeSheet(); return; }
+    if (ev.target.closest('a[href="#/exercise/new"]')) { pendingPick = onPick; return; }
     const b = ev.target.closest('[data-pick]');
     if (b) { closeSheet(); onPick(b.dataset.pick); }
   });
@@ -180,6 +187,7 @@ function pickExercise(title, onPick, cur = null) {
 
 // ---- exercise library -----------------------------------------------------------------------
 function exercises() {
+  pendingPick = null;
   const inProg = new Set(S.program.days.flatMap(d => d.slots.map(s => s.exId)));
   let h = `<input class="inp" id="exq" type="search" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off">${cardioHint}
     <a class="btn ghost" href="#/exercise/new">${ICON.plus} New exercise</a>`;
@@ -221,7 +229,7 @@ function exerciseEdit(id) {
     <label class="field"><span>Caution note (shown with suggestions)</span><input class="inp" id="ex-caution" value="${esc(ed.caution || '')}" data-input="ed" data-f="caution" placeholder="e.g. Lower back has flared here"></label>
     <button class="btn" data-act="ed-save" style="--c:var(--up)">${isNew ? 'Create exercise' : 'Save exercise'}</button>`;
   if (!isNew) h += `<a class="btn ghost" href="#/ex/${esc(ed.id)}">History and records (${n} session${n === 1 ? '' : 's'})</a><button class="linkbtn danger center" data-act="ed-del">Delete exercise</button>`;
-  return { title: isNew ? 'New exercise' : 'Edit exercise', sub: isNew ? 'Add to your library' : esc(ed.name), back: 'exercises', html: h, color: 'pull' };
+  return { title: isNew ? 'New exercise' : 'Edit exercise', sub: isNew ? 'Add to your library' : esc(ed.name), back: isNew && pendingPick ? 'program' : 'exercises', html: h, color: 'pull' };
 }
 
 // ---- gyms & equipment ---------------------------------------------------------------------------
@@ -264,11 +272,11 @@ function data() {
       <p class="fine">One file with everything: sessions, programme, exercises, weigh-ins, cardio and settings. If the phone is lost or the browser data is cleared, this file is the only copy.</p>
       <button class="btn" data-act="backup-share">${ICON.upload} Share backup (Drive, WhatsApp, email)</button>
       <button class="btn ghost" data-act="backup-dl">${ICON.save} Save backup file</button>
-      <label class="btn ghost filebtn">Restore from backup<input type="file" id="restore-file" data-input="restore"></label></section>`;
+      <label class="btn ghost filebtn">Restore from backup<input type="file" id="restore-file" accept=".json,application/json" data-input="restore"></label></section>`;
   if (undoMeta) h += `<div class="warn" style="--k:var(--upper)"><b>Undo copy</b><span>Your data from before ${WHAT[undoMeta.what] || 'the last change'} (${fmtDate(undoMeta.at, { year: true })}, ${plural(Number(undoMeta.n), 'session')}) is kept on this phone. <button class="linkbtn" data-act="undo-restore">Put it back</button></span></div>`;
   h += `<section class="box pad stack"><p class="lbl">Spreadsheet</p><p class="fine">One row per set. Opens in Google Sheets or Excel.</p>
       <div class="row2"><button class="btn ghost" data-act="csv-dl">Export CSV</button>
-      <label class="btn ghost filebtn">Import CSV<input type="file" id="csv-file" data-input="csv-in"></label></div></section>
+      <label class="btn ghost filebtn">Import CSV<input type="file" id="csv-file" accept=".csv,.tsv,.txt,text/csv,text/plain" data-input="csv-in"></label></div></section>
     <section class="box pad stack"><p class="lbl">Start fresh</p>
       ${nSeed ? `<button class="btn ghost" data-act="rm-seed">Remove the ${nSeed} sample sessions</button>` : ''}
       <button class="btn danger" data-act="reset">Erase everything</button></section>`;
@@ -342,7 +350,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
 }
 const gk = e => e.exName + (e.unit === 'L' ? '|L' : '');
 const unitClass = u => (u === 'L' ? 'L' : 'w'); // cable levels vs weights (bodyweight counts as a weight)
-const setTxt = e => e.sets.map(x => `${x.w ?? '?'}×${x.r ?? '?'}`).join(' ');
+const setTxt = e => e.sets.map(x => `${x.w ?? '?'}×${x.r ?? '?'}`).join(' · ');
 const exNameOf = id => S.exercises.find(x => x.id === id)?.name || id;
 const targetTxt = t => (t === 'skip' ? 'Not imported' : t ? exNameOf(t) : 'New exercise');
 
@@ -357,7 +365,7 @@ function importer() {
   }
   if (!imp) {
     h = `<p class="fine">Bring in old workouts from PDFs, notes, or a Hevy, Strong or spreadsheet CSV. You check everything before it's saved.</p>
-      <label class="btn filebtn">${ICON.upload} Choose files<input type="file" id="imp-file" multiple data-input="imp-file"></label>
+      <label class="btn filebtn">${ICON.upload} Choose files<input type="file" id="imp-file" multiple accept=".pdf,.csv,.tsv,.txt,.md,.json,.html,.htm,.xml,.rtf,application/pdf,text/*,application/json" data-input="imp-file"></label>
       <details class="box pad help"><summary class="lbl">What formats work?</summary>
         <p>Dates, exercise names and sets written like <b>25kg x 8 x 4</b>, <b>25 kg 8,8,6</b>, <b>15kg 8 8 7</b>, <b>3x8 @ 25</b>, <b>L9 x 12</b> or <b>BW 6,6,6</b>. Remarks about pain, sleep and effort are kept as notes, never as exercises.</p>
         <p>Pick several files at once if you like. Older and newer copies of the same log are fine: repeated sessions are removed.</p></details>
@@ -366,7 +374,7 @@ function importer() {
       <div class="row2"><label class="field"><span>Year for dates without one</span><input class="inp" id="imp-year" type="number" inputmode="numeric" value="${todayIso().slice(0, 4)}"></label><button class="btn ghost" data-act="imp-parse">Read pasted text</button></div>
       <p class="fine">Reading a PDF needs internet the first time.</p>
       <section class="box pad stack impres"><p class="lbl">Moving from another phone?</p><p class="fine">A backup file from this app brings back everything at once: sessions, programme, exercises and settings.</p>
-      <label class="btn ghost filebtn">${ICON.save} Restore a backup<input type="file" id="imp-restore" data-input="restore"></label></section>`;
+      <label class="btn ghost filebtn">${ICON.save} Restore a backup<input type="file" id="imp-restore" accept=".json,application/json" data-input="restore"></label></section>`;
     return { title: 'Import logs', sub: 'PDFs, notes or CSV', back: 'more', html: h, color: 'legsb' };
   }
   const sel = imp.sessions.filter(s => !s.skip);
@@ -398,7 +406,7 @@ function importer() {
     shown.forEach(({ g, i }, k) => {
       const t = targetTxt(g.target);
       h += `<li data-q="${esc((g.variants.join(' ') + ' ' + t).toLowerCase())}" ${k >= imp.show ? 'hidden data-more' : ''}><button data-act="imp-pickg" data-g="${i}" class="${g.target === 'skip' ? 'skip' : g.target ? 'ok' : 'new'}">
-        <span class="t"><b>${esc(g.label)}</b>${!g.target && g.meta ? `<small class="newmeta">New: ${esc(metaTxt(g.meta))}</small>` : ''}<small>${g.sess} session${g.sess === 1 ? '' : 's'} · ${plural(g.sets, 'set')}${g.variants.length > 1 ? ` · ${g.variants.length} spellings` : ''}${!g.target && g.twin ? ` · logged in ${g.unit === 'L' ? 'levels' : 'kg'}; ${esc(g.twin)} uses ${g.unit === 'L' ? 'kg' : 'levels'}` : g.unit === 'L' && !/\(levels\)$/.test(g.label) ? ' · levels' : ''}</small></span>
+        <span class="t"><b>${esc(g.label)}</b>${!g.target && g.meta ? `<small class="newmeta">New · ${esc(metaTxt(g.meta))}</small>` : ''}<small>${g.sess} session${g.sess === 1 ? '' : 's'} · ${plural(g.sets, 'set')}${g.variants.length > 1 ? ` · ${g.variants.length} spellings` : ''}${!g.target && g.twin ? ` · logged in ${g.unit === 'L' ? 'levels' : 'kg'}; ${esc(g.twin)} uses ${g.unit === 'L' ? 'kg' : 'levels'}` : g.unit === 'L' && !/\(levels\)$/.test(g.label) ? ' · levels' : ''}</small></span>
         <span class="to">${g.target && g.target !== 'skip' ? '→ ' : ''}${esc(t)}${prog.has(g.target) ? ' ★' : ''}</span></button></li>`;
     });
     if (!shown.length) h += `<li class="fine impnone">Nothing here.</li>`;
@@ -440,8 +448,14 @@ const impOpt = { lb: null, order: 'auto' };
 const impLb = () => (impOpt.lb ?? getUnits() === 'lb');
 function impOptions() {
   return `<div class="box pad stack impopts"><div class="rrow"><span>Weights in the logs</span><div class="seg" role="group" aria-label="Weights in the logs">${[['kg', 'kg'], ['lb', 'lb']].map(([v, l]) => `<button data-act="imp-opt" data-f="lb" data-v="${v}" aria-pressed="${(v === 'lb') === impLb()}">${l}</button>`).join('')}</div></div>
-    <div class="rrow"><span>Dates like 3/4</span><div class="seg" role="group" aria-label="Date order">${[['auto', 'Auto'], ['dmy', '3 Apr'], ['mdy', 'Mar 4']].map(([v, l]) => `<button data-act="imp-opt" data-f="order" data-v="${v}" aria-pressed="${impOpt.order === v}">${l}</button>`).join('')}</div></div>
+    <div class="rrow"><span>Dates like 3/4</span><div class="seg" role="group" aria-label="Date order">${[['auto', 'Auto'], ['dmy', orderLabel('dmy')], ['mdy', orderLabel('mdy')]].map(([v, l]) => `<button data-act="imp-opt" data-f="order" data-v="${v}" aria-pressed="${impOpt.order === v}">${l}</button>`).join('')}</div></div>
     <p class="fine">Pounds are converted to kg. "lb" or "kg" written in the log always wins. Auto reads dates day first unless the file can only be month first (like 9/21/2026).</p></div>`;
+}
+/** The two readings of "3/4" as dates in the app's language: 3 April (day first) and March 4 (month first). */
+function orderLabel(order) {
+  const cjk = /^(zh|ja)/.test(getLang());
+  if (order === 'dmy') return fmtDate('2026-04-03') + (cjk ? '（日/月）' : '');
+  return cjk ? fmtDate('2026-03-04') + '（月/日）' : `${MONTHS[2]} 4`;
 }
 const EQ_LABEL = { db: 'Dumbbells', barbell: 'Barbell', smith: 'Smith', machine: 'Machine', cable: 'Cable', bw: 'Bodyweight' };
 /** One line for a new exercise's guessed set-up: "Barbell · kg total · Glutes". */
@@ -534,7 +548,7 @@ function settings() {
       <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it. Only feedback you choose to send leaves the phone.</p>
       <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
       <p>3D view: three.js (MIT). 3D muscle model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas, CC BY-SA 4.0. Details in anatomy/ATTRIBUTION.txt.</p>
-      <p class="links"><a href="https://github.com/fir1412/we-go-gim/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
+      <p class="links"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of use</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
     <p class="fine">we go gim ${APP_VERSION}. Heart-rate and weight sync with Health Connect needs the Android app wrapper; for now, log them here.</p>`;
   return { title: 'Settings', sub: 'Make it yours', back: 'more', html: h, color: 'rest' };
 }
@@ -741,13 +755,28 @@ export const actions = {
     if (!ed.name) return toast('Give the exercise a name', 'down');
     if (!ed.muscles?.length) return toast('Pick at least one muscle', 'down');
     if (!(ed.inc > 0)) return toast('Weight jump must be above 0', 'down');
+    if (ed.inc > (ed.unit === 'L' ? 10 : 50)) return toast(ed.unit === 'L' ? 'Weight jump can be at most 10 levels' : 'Weight jump can be at most 50 kg', 'down');
+    if (!(ed.rest >= 15 && ed.rest <= 600)) return toast('Choose a rest time from 15 to 600 seconds', 'down');
     if (S.exercises.some(x => x.name.toLowerCase() === ed.name.toLowerCase() && x.id !== ed.id)) return toast('An exercise with that name exists', 'down');
     const isNew = !ed.id;
+    const was = !isNew && S.exById[ed.id];
+    if (was && was.unit !== ed.unit) {
+      const n = S.sessions.filter(s => s.entries.some(e => e.exId === ed.id)).length;
+      if (n && !(await confirmSheet({ title: 'Change how the load is logged?', body: `This exercise is in ${n} logged workout${n === 1 ? '' : 's'}. Their numbers stay the same but are read the new way, so charts and levels can jump. To keep old records apart, create a new exercise instead.`, ok: 'Change it' }))) return;
+    }
     if (isNew) ed.id = ed.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + Math.random().toString(36).slice(2, 6);
     delete ed.imported; delete ed._auto;
     await saveExercise(structuredClone(ed));
     toast(isNew ? 'Exercise created' : 'Exercise saved', 'up');
     edFor = null;
+    if (isNew && pendingPick) {
+      // Back to the programme, where the new exercise goes straight into the day it was made for.
+      const use = pendingPick, id = ed.id;
+      pendingPick = null;
+      go('program');
+      setTimeout(() => use(id), 0);
+      return;
+    }
     go(isNew ? 'exercises' : 'ex/' + ed.id);
   },
   async 'ed-del'() {
@@ -782,6 +811,10 @@ export const actions = {
     const dumbbells = [...new Set(list('eq-db'))], plates = [...new Set(list('eq-pl'))].sort((a, b) => b - a);
     const barKg = num(document.getElementById('eq-bar').value, 20), smithBarKg = num(document.getElementById('eq-smith').value, barKg);
     if (!plates.length) return toast('Add at least one plate size', 'down');
+    if (!(barKg >= 5 && barKg <= 50)) return toast('Barbell must be between 5 and 50 kg', 'down');
+    if (!(smithBarKg >= 0 && smithBarKg <= 50)) return toast('Smith bar must be between 0 and 50 kg', 'down');
+    if (dumbbells.some(x => x > 150)) return toast('Dumbbells can be at most 150 kg', 'down');
+    if (plates.some(x => x > 50)) return toast('Plates can be at most 50 kg', 'down');
     await saveSettings({ equip: { dumbbells, plates, barKg, smithBarKg } });
     toast('Equipment saved', 'up');
   },
@@ -831,9 +864,19 @@ export const actions = {
   async 'csv-in'(el) {
     const f = el.files?.[0]; el.value = '';
     if (!f) return;
-    const text = await readFile(f);
+    // Same size cap and decoding as Import logs: Excel in Japan and China saves CSVs as Shift-JIS or GBK, and
+    // "Unicode text" is UTF-16.
+    if (f.size > 25 * 1024 * 1024) return toast(`${f.name} is too big to import (${Math.round(f.size / 1048576)} MB). Split it into smaller files.`, 'down');
+    let text;
+    try { text = decodeBytes(new Uint8Array(await f.arrayBuffer())); } catch { return toast(`Could not read ${f.name}.`, 'down'); }
     if (/^\s*\{/.test(text)) return toast('That looks like a backup file. Use "Restore from backup" above.', 'flat');
-    prepImport({ sessions: sessionsFromCSV(text, { lb: impLb(), dateOrder: impOpt.order }), skipped: 0 }, f.name);
+    // Chinese, Japanese and Malay lift names are matched once their dictionaries are in (loaded on first import).
+    await (await import('../io.js')).loadForeignNames();
+    let sessions;
+    try { sessions = sessionsFromCSV(text, { lb: impLb(), dateOrder: impOpt.order, lang: S.settings.lang, today: todayIso() }); }
+    catch (e) { return toast(e.message, 'down'); }
+    // Rows dated after tomorrow are left out and counted with the skipped lines.
+    prepImport({ sessions, skipped: sessions.future || 0 }, f.name);
     go('import');
   },
   'rm-seed': async () => {
@@ -845,7 +888,7 @@ export const actions = {
     await withUndo('erase', () => resetAll());
     pOrig = null; imp = null;
     toast('Everything erased. Undo it under More → Backup.');
-    go('today');
+    go('setup');
   },
   // import
   async 'imp-file'(el) {
@@ -1004,10 +1047,10 @@ export const actions = {
   'st-missed': el => saveSettings({ missedReminders: el.checked }),
   'st-game': el => saveSettings({ gamify: el.checked }),
   'st-pause'(el) {
-    const t = todayIso(), list = (S.settings.streakPauses || []).filter(p => p && p.from).slice(-20);
+    const t = todayIso(), list = cleanPauses(S.settings.streakPauses || []);
     if (el.checked && !list.some(p => !p.to)) list.push({ from: t, to: null });
     if (!el.checked) for (const p of list) if (!p.to) p.to = t;
-    return saveSettings({ streakPauses: list });
+    return saveSettings({ streakPauses: cleanPauses(list) });
   },
   'st-text': el => saveSettings({ textSize: ['large', 'xl'].includes(el.dataset.v) ? el.dataset.v : 'normal' }),
   'st-daystart': el => saveSettings({ dayStart: +el.dataset.v || 0 }),
@@ -1074,7 +1117,7 @@ function pasteSplit() {
   if (!pst) pst = { text: '', days: null, map: {} };
   if (!pst.days) {
     const h = `<p class="fine">Paste your plan as text: one line per day like <b>Monday – Chest</b>, then one line per exercise like <b>Bench Press – 4 × 6–8</b>. Numbering, "Finish with:", "Optional:" and cardio lines are fine.</p>
-      <textarea class="inp mono" id="split-text" rows="14" placeholder="Monday – Chest&#10;1. Bench Press – 4 × 6–8&#10;2. Incline Dumbbell Press – 3 × 8–10&#10;15 min incline walk&#10;&#10;Tuesday – Back&#10;1. Lat Pulldown – 3 × 8–10">${esc(pst.text)}</textarea>
+      <textarea class="inp mono" id="split-text" rows="14" aria-label="Your split, one day per heading" placeholder="Monday – Chest&#10;1. Bench Press – 4 × 6–8&#10;2. Incline Dumbbell Press – 3 × 8–10&#10;15 min incline walk&#10;&#10;Tuesday – Back&#10;1. Lat Pulldown – 3 × 8–10">${esc(pst.text)}</textarea>
       <button class="btn" data-act="split-read">Read my split</button>`;
     return { title: 'Paste a split', sub: 'Turn your plan into the programme', back: 'program', html: h, color: 'push' };
   }

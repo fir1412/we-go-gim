@@ -59,7 +59,7 @@ export function render(route) {
 
 function question(step) {
   const q = Q[step], v = st.a[q.k];
-  const asked = Q.map((_, i) => i).filter(i => !skipQ(i)), pos = asked.indexOf(step);
+  const asked = Q.map((_, i) => i).filter(i => i === step || !skipQ(i)), pos = asked.indexOf(step);
   let h = `<div class="wz-top"><div class="dots" aria-hidden="true">${asked.map(i => `<i class="${i === step ? 'on' : i < step ? 'done' : ''}"></i>`).join('')}</div><span class="fine">${pos + 1} of ${asked.length}</span></div>
     <h2 class="wz-q">${esc(q.title)}</h2>${q.hint ? `<p class="fine">${esc(q.hint)}</p>` : ''}`;
   if (q.days) {
@@ -186,6 +186,8 @@ export const actions = {
   'wz-begin'() { fwd('setup/1'); },
   async 'wz-example'() {
     const back = returning();
+    const custom = back && JSON.stringify(S.program.days) !== JSON.stringify(PROGRAM.days);
+    if (custom && !(await confirmSheet({ title: 'Replace your programme?', body: `Your current ${S.program.days.length}-day programme is replaced by the example split. Your logged workouts stay.`, ok: 'Replace' }))) return;
     await saveProgram(structuredClone(PROGRAM));
     toast(back ? 'Programme replaced with the example split' : 'Example split ready. Change it any time under More → Programme.', 'up');
     await finish('today', { tour: !back });

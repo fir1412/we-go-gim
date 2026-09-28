@@ -110,8 +110,15 @@ export function score(exp, unit) {
 /** Machines and cables differ from gym to gym and rep-max formulas don't carry over to them, so only free
  *  weights (barbell, Smith, dumbbells) get an estimated one-rep max. The name check covers imported lifts
  *  whose equipment was guessed as "machine". */
+const TIMED_IDS = new Set(['farmer', 'suitcase', 'platepinch', 'deadhang', 'plank', 'sideplank', 'hollow', 'wallsit']);
+const TIMED_NAME = /seconds as reps|\b(farmer'?s?|suitcase) (carry|walk)|plate pinch|dead ?hang|plank|wall ?sit|hollow (hold|body)/i;
+/** Holds and carries logged as seconds in the reps box: rep-max formulas mean nothing for them. */
+export function isTimed(ex) {
+  return !!ex && (ex.timed === true || TIMED_IDS.has(ex.id) || TIMED_NAME.test(ex.name || ''));
+}
+
 export function hasEstMax(ex) {
-  if (!ex || !isKg(ex.unit) || ex.perGym || ex.equip === 'cable') return false;
+  if (!ex || !isKg(ex.unit) || ex.perGym || ex.equip === 'cable' || isTimed(ex)) return false;
   return ex.equip !== 'machine' || /\b(barbell|smith|dumbbells?|db|ez)\b/i.test(ex.name || '');
 }
 
@@ -180,18 +187,20 @@ export function trendRange(ex, tr) {
 /** Next load reachable with the available dumbbells (at or above target). */
 export function snapLoad(w, ex, equip) {
   if (ex.unit === 'kg/DB' && equip?.dumbbells?.length) {
-    const up = equip.dumbbells.filter(d => d >= w - EPS).sort((a, b) => a - b)[0];
+    const up = equip.dumbbells.filter(d => d >= w - KG_TOL).sort((a, b) => a - b)[0];
     return up ?? Math.max(...equip.dumbbells);
   }
+  if (lbMode(ex)) return lbSnap(w);
   return round(w, ex.unit === 'L' ? 1 : 0.25);
 }
 
 /** Largest reachable load at or below w (never rounds up). */
 function snapDown(w, ex, equip) {
   if (ex.unit === 'kg/DB' && equip?.dumbbells?.length) {
-    const d = equip.dumbbells.filter(x => x <= w + EPS).sort((a, b) => b - a)[0];
+    const d = equip.dumbbells.filter(x => x <= w + KG_TOL).sort((a, b) => b - a)[0];
     return d ?? Math.min(...equip.dumbbells);
   }
+  if (lbMode(ex)) return lbSnap(w, 'down');
   const step = Math.min(2.5, ex.inc > 0 ? ex.inc : 2.5);
   return Math.floor(w / step + EPS) * step;
 }
@@ -223,6 +232,38 @@ export function stepDisp(kg) {
 }
 const dispNum = kg => String(+(+toDisp(kg)).toFixed(2));
 
+// lb mode: loads are worked out in lb and stored back as kg (3 decimals), which always shows as the same lb.
+/** Barbell totals move in 5 lb (a 2.5 lb plate per side); dumbbells and machines use the same 5 lb grid. */
+export const LB_STEP = 5;
+/** kg values stored from lb carry up to 0.0005 kg of rounding; comparisons allow for it. */
+const KG_TOL = 0.01;
+const lbMode = ex => UNITS === 'lb' && isKg(ex?.unit);
+/** A kg load in lb, cleaned of the 3-decimal storage rounding (45.359 kg -> 100 lb). */
+const lbOf = kg => Math.round(+kg / LB_KG * 100) / 100;
+const lbToKg = lb => Math.round(lb * LB_KG * 1000) / 1000;
+/** kg load snapped to the lb grid ('near', 'up' or 'down'); the result is kg that shows as a clean lb number. */
+function lbSnap(kg, dir = 'near', step = LB_STEP) {
+  const x = lbOf(kg) / step;
+  const n = dir === 'up' ? Math.ceil(x - EPS) : dir === 'down' ? Math.floor(x + EPS) : Math.round(x);
+  return lbToKg(n * step);
+}
+/** The kg increment as the lb step that is really applied: whole grid steps, at least one. */
+const lbStep = (inc, step = LB_STEP) => Math.max(step, Math.round((+inc || 0) / LB_KG / step) * step);
+/** Next load above w on the lb grid, `stepLb` further on. */
+function lbNext(w, stepLb, step = LB_STEP) {
+  const cur = lbOf(w);
+  let n = Math.round((cur + stepLb) / step) * step;
+  if (n <= cur + EPS) n += step;
+  return lbToKg(n);
+}
+/** The step (in display units) that a load increase will use for this exercise. */
+function incStepDisp(ex, equip, inc = ex.inc || 1) {
+  if (ex.unit === 'L') return inc;
+  if (UNITS !== 'lb') return stepDisp(inc);
+  if (ex.unit === 'bw') return LB_STEP;
+  return ex.unit === 'kg/DB' && equip?.dumbbells?.length ? lbStep(inc, 2.5) : lbStep(inc);
+}
+
 export function fmtLoad(ex, w) {
   if (ex.unit === 'bw') return +w > 0 ? (BW_LABEL === 'BW' ? `BW+${dispNum(w)}` : `${BW_LABEL} + ${dispNum(w)} ${UNITS}`) : BW_LABEL;
   if (w == null || w === '') return '—';
@@ -240,8 +281,8 @@ export function unitLong(u) {
 
 export function incLabel(ex, step = ex.inc || 1) {
   if (ex.unit === 'L') return `+${step} level`;
-  if (ex.unit === 'bw') return `+${stepDisp(2.5)} ${UNITS}`;
-  return `+${stepDisp(step)} ${UNITS}`;
+  if (ex.unit === 'bw') return `+${UNITS === 'lb' ? LB_STEP : stepDisp(2.5)} ${UNITS}`;
+  return `+${UNITS === 'lb' ? lbStep(step) : stepDisp(step)} ${UNITS}`;
 }
 
 /**
@@ -282,6 +323,7 @@ export function suggest(slot, ex, ctx) {
       dw = snapDown(w * 0.9, ex, ctx.equip);
       if (!(dw < w) || dw <= 0) dw = snapDown(w * 0.8, ex, ctx.equip) || w;
     } else if (ex.unit === 'L') dw = Math.max(1, w - (ex.inc || 1));
+    else if (ex.unit === 'bw') dw = 0; // a deload is bodyweight only: the belt weight comes off
     return { t: 'deload', w: dw, reps: fill(dn, lo), rir: '3-4', why: 'Deload week: about half the sets at roughly 85–90% of normal load, 3–4 reps in reserve. No strength testing.' };
   }
   if (ctx.poor) {
@@ -299,15 +341,25 @@ export function suggest(slot, ex, ctx) {
   // Only add load when every planned set actually reached the top (a single logged set doesn't count for three).
   if (lastReps.length >= n && lastReps.slice(0, n).every(x => x >= hi)) {
     if (ex.unit === 'bw') {
+      if (UNITS === 'lb') {
+        const bw = lbNext(w, LB_STEP), d = +(toDisp(bw) - toDisp(w)).toFixed(2);
+        return { t: 'load', w: bw, inc: +(bw - w).toFixed(3), reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi}. Add ${d} ${UNITS} with a belt (or slow the tempo); reps drop back toward ${lo}.` };
+      }
       return { t: 'load', w: w + 2.5, inc: 2.5, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi}. Add ${stepDisp(2.5)} ${UNITS} with a belt (or slow the tempo); reps drop back toward ${lo}.` };
     }
-    const nw = snapLoad(w + (ex.inc || 1), ex, ctx.equip);
+    // lb: the step is taken in lb and the new load lands on the lb grid (or the next dumbbell in the list).
+    const lbDb = lbMode(ex) && ex.unit === 'kg/DB' && ctx.equip?.dumbbells?.length;
+    const nw = !lbMode(ex) ? snapLoad(w + (ex.inc || 1), ex, ctx.equip)
+      : lbDb ? snapLoad(lbToKg(lbOf(w) + incStepDisp(ex, ctx.equip)), ex, ctx.equip)
+      : lbNext(w, incStepDisp(ex, ctx.equip));
     if (!(nw > w + EPS)) {
       return { t: 'reps', w, reps: fill(n, hi), rir: '1-2', why: `Every set reached ${hi}, but there's no heavier dumbbell in your equipment list. Add a set, slow the lowering to 3 seconds, or switch to a harder variation.` };
     }
-    const step = +(nw - w).toFixed(2);
+    const step = +(nw - w).toFixed(lbMode(ex) ? 3 : 2);
+    // The text states the change as it will show on screen.
+    const shown = ex.unit === 'L' ? step : lbMode(ex) ? +(toDisp(nw) - toDisp(w)).toFixed(2) : stepDisp(step);
     const per = ex.unit === 'L' ? ' level' : ex.unit === 'kg/DB' ? ` ${UNITS} per dumbbell` : ' ' + UNITS;
-    return { t: 'load', w: nw, inc: step, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi} last time. Add ${ex.unit === 'L' ? step : stepDisp(step)}${per} and let reps drop back toward ${lo}.${caution}` };
+    return { t: 'load', w: nw, inc: step, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi} last time. Add ${shown}${per} and let reps drop back toward ${lo}.${caution}` };
   }
   const next = prev.map(x => clamp(x + 1, lo, hi));
   const tr = trend(exps, ex.unit);
@@ -317,7 +369,7 @@ export function suggest(slot, ex, ctx) {
       : `Two sessions without beating your best on this lift. One more flat session confirms a plateau. Log RIR on every set.${caution}`;
     return { t: 'plat', status: tr.stall, w, reps: next, rir: '1-2', why };
   }
-  return { t: 'reps', w, reps: next, rir: '1-3', why: `Last time ${lastReps.join('·')} at ${fmtLoad(ex, w)}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}. Keep the load and add a rep per set until all ${n} sets reach ${hi}, then add ${ex.unit === 'L' ? ex.inc || 1 : stepDisp(ex.inc || 1)}${unitWord}.${caution}` };
+  return { t: 'reps', w, reps: next, rir: '1-3', why: `Last time ${lastReps.join('·')} at ${fmtLoad(ex, w)}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}. Keep the load and add a rep per set until all ${n} sets reach ${hi}, then add ${incStepDisp(ex, ctx.equip)}${unitWord}.${caution}` };
 }
 
 /** What to do next time, judged from a just-finished entry. */
@@ -352,22 +404,46 @@ export function warmup(w, ex, equip) {
   if (barbell && bar > 0 && bar < w - EPS) out.push({ w: bar, r: 10, warm: true, done: false });
   for (const [p, r] of steps) {
     let x = Math.max(bar, p * w);
-    x = ex.unit === 'kg/DB' ? snapDown(x, ex, equip) : round(x, 2.5);
+    x = ex.unit === 'kg/DB' ? snapDown(x, ex, equip) : lbMode(ex) ? lbSnap(x) : round(x, 2.5);
     if (x >= w || x <= 0 || (out.length && out[out.length - 1].w === x)) continue;
     out.push({ w: x, r, warm: true, done: false });
   }
   return out;
 }
 
-/** Plates per side for barbell/Smith loads, greedy with the available plates. */
+/** Standard lb plates, used in lb mode when the plate list in Settings holds kg plates. */
+export const LB_PLATES = [45, 35, 25, 10, 5, 2.5];
+const MAX_PLATES = 100;
+/**
+ * Plates per side for barbell/Smith loads, greedy with the available plates. total and barKg are kg.
+ * Works in the display unit: in lb mode the plates are lb plates (the Settings list when it was typed in lb,
+ * else LB_PLATES) and a kg bar counts as the nearest 5 lb (20 kg = 45 lb).
+ * Returns { ok, plates (in `unit`), rem (kg per side still missing), unit ('kg' | 'lb') }.
+ */
 export function platesPerSide(total, barKg, plates) {
-  let rem = (total - barKg) / 2;
-  if (rem < -EPS) return { ok: false, plates: [], rem: +rem.toFixed(3) };
-  const res = [];
-  for (const p of [...plates].sort((a, b) => b - a)) {
-    while (rem >= p - EPS) { res.push(p); rem -= p; }
+  const lb = UNITS === 'lb';
+  const onHalfLb = kg => { const x = kg / LB_KG * 2; return Math.abs(x - Math.round(x)) < 0.02; };
+  let list = (Array.isArray(plates) ? plates : []).map(Number).filter(p => Number.isFinite(p) && p >= 0.25);
+  let T = +total, B = +barKg || 0;
+  if (lb) {
+    list = list.length && list.every(onHalfLb) ? list.map(p => Math.round(p / LB_KG * 2) / 2) : LB_PLATES;
+    T = lbOf(T);
+    B = onHalfLb(B) ? Math.round(B / LB_KG * 2) / 2 : Math.round(B / LB_KG / 5) * 5;
   }
-  return { ok: Math.abs(rem) < 1e-6, plates: res, rem: +rem.toFixed(3) };
+  const tol = lb ? 0.01 : 0.005;
+  const out = (ok, res, r) => {
+    const o = { ok, plates: res, rem: +(lb ? r * LB_KG : r).toFixed(3) || 0 };
+    if (lb) o.unit = 'lb'; else Object.defineProperty(o, 'unit', { value: 'kg', enumerable: false });
+    return o;
+  };
+  let rem = (T - B) / 2;
+  if (!Number.isFinite(rem)) return out(false, [], 0);
+  if (rem < -tol) return out(false, [], rem);
+  const res = [];
+  for (const p of [...new Set(list)].sort((a, b) => b - a)) {
+    while (rem >= p - tol && res.length < MAX_PLATES) { res.push(p); rem -= p; }
+  }
+  return out(Math.abs(rem) < tol, res, rem);
 }
 
 /** Closest available dumbbell to a target. */
@@ -418,6 +494,44 @@ const DAY = 86400000;
 export const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * DAY).toISOString().slice(0, 10);
 export const daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / DAY);
 export const dowOf = iso => new Date(iso + 'T00:00:00Z').getUTCDay();
+/** A real calendar date 'YYYY-MM-DD' from 1970 to 2100 (no 2026-02-30, 2026-00-10 or 0000-00-00). */
+export function validIso(d) {
+  if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const y = +d.slice(0, 4);
+  if (y < 1970 || y > 2100) return false;
+  const t = Date.parse(d + 'T00:00:00Z');
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === d;
+}
+
+/**
+ * One programme day per weekday. A day whose weekday is taken (or isn't 0–6) moves to the next free weekday,
+ * in order; with all seven taken it merges into the day already on its weekday. Empty days (rest placeholders)
+ * never push a training day away and are dropped when their weekday is taken. `key` names the list of
+ * exercises ('slots' in a programme, 'items' in a pasted split). Returns new day objects; order is kept.
+ */
+export function dedupeDays(days, key = 'slots') {
+  const list = (Array.isArray(days) ? days : []).filter(d => d && typeof d === 'object');
+  const has = d => Array.isArray(d[key]) && d[key].length > 0;
+  const okDow = v => Number.isInteger(v) && v >= 0 && v <= 6;
+  const out = list.map(d => ({ ...d, dow: Number.isFinite(+d.dow) && d.dow !== null && d.dow !== '' ? +d.dow : NaN, [key]: Array.isArray(d[key]) ? [...d[key]] : [] }));
+  const owner = new Map(); // dow -> day
+  const moved = [];
+  // Training days keep their own weekday when it's free (first one wins)…
+  for (const d of out) if (has(d)) { if (okDow(d.dow) && !owner.has(d.dow)) owner.set(d.dow, d); else moved.push(d); }
+  // …then the rest go to the next free weekday after theirs, or merge.
+  const drop = new Set();
+  for (const d of moved) {
+    const from = okDow(d.dow) ? d.dow : 0;
+    let dow = null;
+    for (let k = 1; k <= 7; k++) { const c = (from + k) % 7; if (!owner.has(c)) { dow = c; break; } }
+    if (dow != null) { d.dow = dow; owner.set(dow, d); continue; }
+    const host = owner.get(okDow(d.dow) ? d.dow : 1);
+    host[key].push(...d[key]);
+    drop.add(d);
+  }
+  for (const d of out) if (!has(d)) { if (okDow(d.dow) && !owner.has(d.dow)) owner.set(d.dow, d); else drop.add(d); }
+  return out.filter(d => !drop.has(d));
+}
 
 /** Monday-based week start. */
 export function weekStart(iso) {

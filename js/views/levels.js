@@ -41,7 +41,8 @@ function fillFor(m, data) {
 /** Anatomical front and back views, male or female build, coloured by level or by this week's XP. */
 function diagram(data) {
   const lvl = m => (data.muscles[m]?.xp ? levelFor(data.muscles[m].xp).level : 0);
-  return bodySVG({ female: bodyType() === 'female', fill: m => fillFor(m, data), sel, region, level: lvl, esc });
+  // Region tooltips keep their Latin names (no plain-English rewrite), but are still translated.
+  return bodySVG({ female: bodyType() === 'female', fill: m => fillFor(m, data), sel, region, level: lvl, esc }).replace('<svg ', '<svg data-noplain ');
 }
 /** Build for the map: set on this screen, else taken from the strength-standards choice, else male. */
 const bodyType = () => S.settings.bodyType || (S.settings.stdSex === 'women' ? 'female' : 'male');

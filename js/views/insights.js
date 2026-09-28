@@ -6,6 +6,9 @@ import {
 } from '../engine.js';
 import { esc, fmtDate, pill, chip, spark, lineChart, barChart, STATUS, ICON, toast, confirmSheet, openSheet, closeSheet, num, cvar, kstyle, GLYPH_ICON, T, helpTip, expertWording } from '../ui.js';
 import { weeklyVolume, baseSets } from '../split.js';
+import { syncRawNames } from '../i18n.js';
+import { filterList } from '../search.js';
+import { searchText } from '../seed.js';
 
 let volWeek = 0; // 0 = this week, 1 = last week
 // Body weight in the chosen unit (kg or lb), one decimal; stored in kg.
@@ -43,6 +46,7 @@ function doneVolume(from, to) {
 }
 
 export function render(route) {
+  syncRawNames(S);
   switch (route.name) {
     case 'ex': return exDetail(route.args[0]);
     case 'body': return body();
@@ -224,21 +228,21 @@ function lifts() {
     const exps = exposures(S.sessions, ex);
     return { ex, exps, tr: trend(exps.slice(0, 8), ex) };
   }).sort((a, b) => (b.exps[0]?.date || '').localeCompare(a.exps[0]?.date || '') || a.ex.name.localeCompare(b.ex.name));
-  let h = `<input class="inp" id="liftsearch" type="search" placeholder="Search exercises" autocomplete="off" aria-label="Search exercises"><ul class="box mus" id="liftlist">`;
+  let h = `<input class="inp" id="liftsearch" type="search" placeholder="Search exercises" autocomplete="off" aria-label="Search exercises"><p class="fine" id="liftnone" hidden>No exercise matches. Try fewer words.</p><ul class="box mus" id="liftlist">`;
   for (const { ex, exps, tr } of rows) {
     const [label, k] = STATUS[tr.status] || STATUS.none;
     const pb = personalBests(exps, ex);
     const rec = hasEstMax(ex) && pb.best ? `Best ${T('estMax')} ${num(toDisp(pb.best.v))} ${unitShort(ex.unit)}` : `Top ${fmtLoad(ex, pb.heavy?.w ?? 0)}${isKg(ex.unit) && unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}`;
     // With a trend, show the two numbers the status label is based on first, so they always agree.
     const d = !exps.length ? 'Never logged' : `${tr.n >= 2 ? trendRange(ex, tr) + ' · ' : ''}${rec} · ${plural(exps.length, 'session')}`;
-    h += `<li data-name="${esc(ex.name.toLowerCase())}"><a href="#/ex/${esc(ex.id)}"><span class="t">${esc(ex.name)} ${pill(label, k)}</span><span class="d">${esc(d)}</span>${tr.scores.length > 1 ? spark(tr.scores, k) : ''}</a></li>`;
+    h += `<li data-name="${esc(searchText(ex))}"><a href="#/ex/${esc(ex.id)}"><span class="t">${esc(ex.name)} ${pill(label, k)}</span><span class="d">${esc(d)}</span>${tr.scores.length > 1 ? spark(tr.scores, k) : ''}</a></li>`;
   }
   h += `</ul>`;
   return {
     title: 'Exercises', sub: 'Trend and records per lift', back: 'insights', html: h, color: 'legs',
     after: root => root.querySelector('#liftsearch').addEventListener('input', ev => {
-      const q = ev.target.value.trim().toLowerCase();
-      for (const li of root.querySelectorAll('#liftlist li')) li.hidden = !!q && !li.dataset.name.includes(q);
+      const shown = filterList(root, ev.target.value, '#liftlist li');
+      root.querySelector('#liftnone').hidden = !ev.target.value.trim() || shown > 0;
     }),
   };
 }
@@ -354,7 +358,7 @@ function body() {
   if (weeks) h += `<p class="fine">At this rate you'd reach ${num(bwDisp(goal))} ${u} in about ${weeks} weeks (${fmtDate(addDays(t, weeks * 7), { year: true })}). Trends over a few weeks mean more than single weigh-ins.</p>`;
   h += `<div class="box chart">${lineChart(b.map(x => ({ date: x.date, v: bwDisp(x.kg) })), { k: 'upper', goal: goal ? bwDisp(goal) : null, unit: u, label: 'Body weight over time' })}</div>`;
   h += `<div class="rrow"><p class="lbl">Weigh-ins</p><button class="linkbtn" data-act="goal">${goal ? `Goal ${num(bwDisp(goal))} ${u} · change` : 'Set a goal'}</button></div><ul class="box hist small">`;
-  for (const x of [...b].reverse()) h += `<li><div class="rowi"><span class="num big">${num(bwDisp(x.kg))}</span><span class="grow">${fmtDate(x.date, { dow: true, year: true })}${x.note ? `<small>${esc(x.note)}</small>` : ''}</span><button class="iconbtn sm" data-act="body-del" data-id="${esc(x.id)}" aria-label="Delete ${fmtDate(x.date)} weigh-in">×</button></div></li>`;
+  for (const x of [...b].reverse()) h += `<li><div class="rowi"><span class="num big">${num(bwDisp(x.kg))}</span><span class="grow">${fmtDate(x.date, { dow: true, year: true })}${x.note ? `<small data-raw>${esc(x.note)}</small>` : ''}</span><button class="iconbtn sm" data-act="body-del" data-id="${esc(x.id)}" aria-label="Delete ${fmtDate(x.date)} weigh-in">×</button></div></li>`;
   if (!b.length) h += `<li><div class="rowi"><span class="fine">No weigh-ins yet.</span></div></li>`;
   h += `</ul><a class="btn ghost" href="#/measure">Measurements and progress photos ${ICON.chev}</a>`;
   return { title: 'Body weight', sub: goal ? 'Trend toward your goal' : 'Your weigh-ins and trend', back: 'insights', html: h, color: 'upper' };
@@ -500,6 +504,8 @@ export const actions = {
   async 'm-photo'(el) {
     const f = el.files?.[0];
     if (!f) return;
+    // Only images, and not huge ones (decoding a giant file can exhaust a phone's memory).
+    if (!/^image\//.test(f.type || '') || f.size > 40 * 1024 * 1024) { el.value = ''; return toast('That file could not be read as a photo', 'down'); }
     try {
       const data = await shrink(f);
       const id = uid('p');

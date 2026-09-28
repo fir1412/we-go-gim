@@ -1,7 +1,8 @@
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
-import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score } from '../engine.js';
+import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score, MAX_KG, MAX_REPS } from '../engine.js';
 import { esc, num, fmtDate, fmtMonth, dowLetter, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
+import { syncRawNames } from '../i18n.js';
 
 let editing = null; // session id being edited
 let showSeed = true;
@@ -12,6 +13,7 @@ const addMonths = (ym, n) => { const i = +ym.slice(0, 4) * 12 + (+ym.slice(5) - 
 const monthName = ym => fmtMonth(ym);
 
 export function render(route) {
+  syncRawNames(S);
   if (route.name === 'session') return detail(route.args[0]);
   const t = todayIso();
   const isImp = s => s.seed || s.imported;
@@ -140,7 +142,7 @@ function detail(id) {
   if (s.feel) meta.push(`Feel ${s.feel}/5`);
   if (s.hr) meta.push(`Peak HR ${s.hr}`);
   if (s.deload) meta.push(T('deload'));
-  if (meta.length || s.note) h += `<div class="box pad"><p class="meta-l">${esc(meta.join(' · '))}</p>${s.note ? `<p class="enote">${esc(s.note)}</p>` : ''}</div>`;
+  if (meta.length || s.note) h += `<div class="box pad"><p class="meta-l">${esc(meta.join(' · '))}</p>${s.note ? `<p class="enote" data-raw>${esc(s.note)}</p>` : ''}</div>`;
   const sx = xpBySession(muscleXP(S.sessions, S.exById))[s.id];
   if (sx && !ed) h += `<a class="box xpstrip" href="#/levels"><b>+${sx.total} XP</b>${Object.entries(sx.muscles).sort((a, b) => b[1] - a[1]).map(([m, g]) => `<span>${esc(m)} +${g}</span>`).join('')}</a>`;
   if (s.cardio?.length) h += `<div class="box pad"><p class="lbl">Cardio</p>${s.cardio.map(c => `<p>${esc(c.type)} · ${num(c.min, 0)} min${c.km ? ` · ${num(c.km)} km` : ''} · ${esc(c.intensity)}</p>`).join('')}</div>`;
@@ -161,9 +163,9 @@ function detail(id) {
     h += `<article class="box exc hx"><header><div><h2>${ex ? `<a href="#/ex/${esc(ex.id)}">${esc(name)}</a>` : esc(name)}</h2><p>${ex ? esc(unitShort(ex.unit) || (ex.unit === 'L' ? 'level' : 'bodyweight')) : ''}${e.rir ? ` · ${esc(T('rir'))} ${esc(e.rir)}` : ''}${cmp?.prevDate ? ` · vs ${fmtDate(cmp.prevDate)}` : ''}</p></div><div class="badges">${badges}</div></header>`;
     if (ed) {
       h += `<div class="sets">${e.sets.map((x, si) => `<div class="set edit ${x.done ? 'done' : ''}"><span class="i">${x.warm ? 'W' : ++n}</span>
-        <input class="inp" id="ew-${ei}-${si}" type="number" inputmode="decimal" step="any" value="${esc(ex && ex.unit !== 'L' ? toDisp(x.w) ?? '' : x.w ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name} set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight (${getUnits()})` : `weight (${getUnits()})`}`)}">
-        <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${esc(x.r ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="${esc(`${name} set ${si + 1}: reps`)}">
-        <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="${esc(`${name} set ${si + 1} counted as done`)}">${ICON.check}</button></div>`).join('')}</div>`;
+        <input class="inp" id="ew-${ei}-${si}" type="number" inputmode="decimal" step="any" value="${esc(ex && ex.unit !== 'L' ? toDisp(x.w) ?? '' : x.w ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name}, set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight in ${getUnits()}` : `weight in ${getUnits()}`}`)}">
+        <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${esc(x.r ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="${esc(`${name}, set ${si + 1}: reps`)}">
+        <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="${esc(`${name}, set ${si + 1} done`)}">${ICON.check}</button></div>`).join('')}</div>`;
     } else {
       const fl = w => (ex ? fmtLoad(ex, w) : String(w ?? '—'));
       const work = workSets(e), warm = e.sets.filter(x => x.warm && x.done), skipped = e.sets.filter(x => !x.done && !x.warm).length;
@@ -171,7 +173,7 @@ function detail(id) {
       const extra = [warm.length ? `Warm-up ${groupSets(warm, fl)}` : '', skipped ? `${skipped} skipped` : ''].filter(Boolean).join(' · ');
       if (extra) h += `<p class="fine">${esc(extra)}</p>`;
     }
-    if (e.note) h += `<p class="enote">${esc(e.note)}</p>`;
+    if (e.note) h += `<p class="enote" data-raw>${esc(e.note)}</p>`;
     h += `</article>`;
   });
 
@@ -237,7 +239,13 @@ export const actions = {
     const entry = s.entries[+el.dataset.e], set = entry.sets[+el.dataset.s];
     const ex = S.exById[entry.exId];
     // Loads are typed in the display unit (kg or lb) and stored in kg; cable levels never convert.
-    set[el.dataset.f] = el.value === '' ? null : el.dataset.f === 'w' && ex?.unit !== 'L' ? fromDisp(el.value) : +el.value;
+    // Same limits as the live workout: no negatives, and a typo like 9999 is refused, not saved.
+    const f = el.dataset.f, lvl = ex?.unit === 'L';
+    let v = el.value === '' || !Number.isFinite(+el.value) ? null : Math.max(0, +el.value);
+    const max = f === 'r' ? MAX_REPS : lvl ? 100 : +toDisp(MAX_KG);
+    if (v != null && v > max) { v = null; el.value = ''; toast(f === 'r' ? 'That many reps looks like a typo. Please check it.' : 'That weight looks like a typo. Please check it.', 'flat'); }
+    if (v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
+    set[f] = v == null ? null : f === 'w' && !lvl ? fromDisp(v) : f === 'r' ? Math.round(v) : v;
   },
   'edit-done'(el) {
     const s = S.sessions.find(x => x.id === editing);

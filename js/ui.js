@@ -70,13 +70,17 @@ export const CHIP = {
   log: ['Log reps', 'flat'], hold: ['@hold', 'mute'], plat: ['@plateauWatch', 'flat'], deload: ['@deload', 'legs'],
 };
 const word = t => (t && t[0] === '@' ? T(t.slice(1)) : t);
+/** The words on a suggestion's tag ("+1 rep", "+2.5 kg", "Stalling?"). */
+export function chipText(sg, ex) {
+  if (!sg) return '';
+  if (sg.t === 'load') return incLabel(ex, sg.inc);
+  if (sg.t === 'plat' && sg.status === 'plateau') return T('plateau');
+  return word((CHIP[sg.t] || [''])[0]);
+}
 export function chip(sg, ex) {
   if (!sg) return '';
-  const [t, k] = CHIP[sg.t] || ['', 'mute'];
-  let txt = word(t);
-  if (sg.t === 'load') txt = incLabel(ex, sg.inc);
-  if (sg.t === 'plat' && sg.status === 'plateau') txt = T('plateau');
-  return `<span class="pill" style="--k:var(--${k})">${esc(txt)}</span>`;
+  const k = (CHIP[sg.t] || ['', 'mute'])[1];
+  return `<span class="pill" style="--k:var(--${k})">${esc(chipText(sg, ex))}</span>`;
 }
 export const pill = (txt, k = 'mute') => `<span class="pill" style="--k:var(--${k})">${esc(txt)}</span>`;
 
@@ -367,5 +371,5 @@ export const helpTip = k => (TIPS[k] ? `<button class="tipq" data-act="tip" data
 
 /** Language picker: each language in its own script, so anyone can find theirs. Changing it reloads the app. */
 export function langPicker(cur, langs) {
-  return `<label class="rrow langrow"><span>Language · Bahasa · 语言 · 言語</span><select data-input="set-lang" aria-label="Language">${langs.map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
+  return `<label class="rrow langrow"><span data-raw lang="mul">Language · Bahasa · 语言 · 語言 · 言語</span><select data-input="set-lang" aria-label="Language">${langs.map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
 }

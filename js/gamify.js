@@ -2,12 +2,19 @@
 // shields earned by perfect weeks, three small quests on training days, and badges. Everything is worked out
 // from the workout history, so it survives backups and can't drift.
 import { S, todayIso, dayForDate } from './state.js';
-import { addDays, exposures, score, workSets, muscleXP, MUSCLES } from './engine.js';
+import { addDays, exposures, score, workSets, muscleXP, MUSCLES, validIso } from './engine.js';
 
 /** Streaks, quests and badges can be switched off in Settings (on by default). */
 export const gameOn = () => S.settings.gamify !== false;
 
-const trainedDays = () => new Set(S.sessions.filter(s => !s.seed).map(s => s.date));
+// Dates are checked here too, so a bad record (from an old backup or a bug) is skipped instead of crashing Today.
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const trainedDays = () => new Set(S.sessions.filter(s => !s.seed && validIso(s.date)).map(s => s.date));
+/** Training days a week in the plan: distinct weekdays with exercises (two workouts on one weekday count once,
+ *  just as the streak counts workout days, not sessions). */
+const planPerWeek = () => new Set((S.program?.days || []).filter(d => d?.slots?.length).map(d => d.dow)).size;
+/** Pause spans that can exempt a week: valid dates, and not switched on and off the same day. */
+const realPauses = () => (S.settings.streakPauses || []).filter(p => p && validIso(p.from) && (p.to == null || (validIso(p.to) && p.to > p.from)));
 const planned = d => dayForDate(d).slots.length > 0;
 // People who train on whatever days suit them (missed-day reminders off) aren't held to fixed weekdays.
 const flexible = () => S.settings.missedReminders === false;
@@ -22,12 +29,13 @@ export function streakInfo(t = todayIso()) {
   const days = trainedDays();
   const first = [...days].sort()[0];
   const out = { streak: 0, best: 0, shields: 1, shieldUsed: null, perfectWeeks: 0, earned: {} };
-  if (!first) return out;
-  const perWeek = S.program.days.filter(d => d.slots.length).length;
+  out.pausedNow = false;
+  if (!first || !validIso(t)) return out;
+  const perWeek = planPerWeek();
   // Paused spans (travel, illness, Ramadan): weeks that touch one are never judged.
-  const pauses = (S.settings.streakPauses || []).filter(p => p && p.from);
+  const pauses = realPauses();
   const paused = (a, b) => pauses.some(p => p.from <= b && (p.to || '9999-12-31') >= a);
-  out.pausedNow = pauses.some(p => !p.to);
+  out.pausedNow = pauses.some(p => !p.to && p.from <= t);
   let weekDone = 0, firstWeek = true;
   for (let d = first; d <= t; d = addDays(d, 1)) {
     if (days.has(d)) { out.streak++; weekDone++; }
@@ -102,7 +110,7 @@ const BADGES = [
 /** Every badge with the date it was earned (null if not yet). */
 export function badges(t = todayIso()) {
   const st = streakInfo(t);
-  const real = S.sessions.filter(s => !s.seed && s.date <= t).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const real = S.sessions.filter(s => !s.seed && validIso(s.date) && s.date <= t).sort((a, b) => (a.date < b.date ? -1 : 1));
   const got = { ...st.earned };
   if (real[0]) got.first = real[0].date;
   for (const n of [10, 25, 50, 100, 250]) if (real[n - 1]) got['w' + n] = real[n - 1].date;
@@ -133,7 +141,7 @@ export function todayGame(t = todayIso()) {
     h += `<div class="box pad restcard"><b>Rest day: your streak is safe</b><p class="fine">Muscles grow while you recover. A walk or a stretch is a bonus, not a must.</p>${wk.planned ? `<p class="fine">This week: ${wk.done} of ${wk.planned} workouts</p>` : ''}<a class="btn ghost" href="#/cardio">Log a walk or stretch</a></div>`;
   } else {
     const n = q.filter(x => x.done).length;
-    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? `<p class="fine">${next ? `<span>All done.</span> <span>Next: ${next.name} · ${next.when}</span>` : 'All done. See you next training day.'}</p>` : ''}</div>`;
+    h += `<div class="box pad quests${n === q.length ? ' alldone' : ''}"><p class="lbl">Today's quests · ${n} of ${q.length}</p><ul>${q.map(x => `<li class="${x.done ? 'done' : ''}"><i aria-hidden="true">${x.done ? '✓' : ''}</i><span>${x.label}</span></li>`).join('')}</ul>${n === q.length ? `<p class="fine">${next ? `<span>All done.</span> <span>Next: ${esc(next.name)} · ${next.when}</span>` : 'All done. See you next training day.'}</p>` : ''}</div>`;
   }
   if (st.shieldUsed && st.shieldUsed >= addDays(t, -2)) h += `<p class="fine shieldnote">🛡️ A streak shield covered a missed day. Earn more with perfect weeks.</p>`;
   return h;
@@ -143,7 +151,8 @@ export function todayGame(t = todayIso()) {
 function weekCount(t) {
   const d = new Date(t + 'T00:00:00Z'), back = (d.getUTCDay() + 6) % 7;
   const start = addDays(t, -back);
-  return { done: S.sessions.filter(s => !s.seed && s.date >= start && s.date <= t).length, planned: S.program.days.filter(x => x.slots.length).length };
+  // Workout days, like the streak: two sessions on one day count once against the plan's training days.
+  return { done: new Set(S.sessions.filter(s => !s.seed && s.date >= start && s.date <= t).map(s => s.date)).size, planned: planPerWeek() };
 }
 /** The next planned training day after t: { name, when } (when = 'tomorrow' or a weekday name). */
 function nextTraining(t) {

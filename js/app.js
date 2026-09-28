@@ -2,6 +2,7 @@ import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from
 import { setUnits, setBwLabel } from './engine.js';
 import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
 import { setPlain } from './plain.js';
+import * as db from './db.js';
 import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i18n.js';
 import * as today from './views/today.js';
 import * as workout from './views/workout.js';
@@ -44,6 +45,16 @@ export const go = path => { location.hash = '#/' + path; };
 let current = null, lastKey = '';
 
 function render() {
+  try { renderRoute(); } catch (e) { console.error(e); recovery(e); }
+}
+/** Shown instead of a blank or stuck screen when something can't be drawn (for example a damaged backup). */
+function recovery(e) {
+  const sc = document.getElementById('screen');
+  if (!sc) return;
+  sc.innerHTML = `<div class="empty"><b>Something went wrong showing this screen.</b><p>Your data is still on this phone. Try another tab, reload, or restore a backup.</p><p class="fine">${esc(String(e?.message || e).slice(0, 200))}</p>
+    <div class="row2"><a class="btn" href="#/today">Go to Today</a><a class="btn ghost" href="#/data">Backup and restore</a></div><button class="btn ghost" data-act="reload-app">Reload the app</button></div>`;
+}
+function renderRoute() {
   let route = parseRoute();
   // Home-screen shortcut: #/start opens today's workout in one tap.
   if (route.name === 'start') {
@@ -127,6 +138,7 @@ const GLOBAL = {
   },
   'cal-export': () => more.exportCalendar(),
   install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
+  'reload-app': () => location.reload(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
@@ -248,8 +260,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.8.1';
+export const APP_VERSION = '1.8.2';
 const WHATS_NEW = {
+  '1.8.2': ['Exercise search finds what you mean as you type: words in any order, “pullup” or “pull-up”, best matches first', 'New users always start at the welcome screen, and a new exercise made from your programme goes straight back to it', 'Turn speed slider for the 3D muscle view', 'Many fixes from testing: safer imports and edits, long names wrap, no double saves'],
   '1.8.1': ['Prefer a plain log? Streaks, quests and badges can now be turned off in Settings'],
   '1.8.0': ['Medical mode: every muscle in 3D. Tap a muscle to see the exercises that train it', 'Day streaks, daily quests and badges. Rest days never break your streak', 'Reminders on training days through your phone calendar', '90 more exercises, a more detailed body map, and Traditional Chinese (繁體中文)', 'Import notes and spreadsheets written in Malay, Chinese or Japanese'],
   '1.7.0': ['New languages: Bahasa Melayu, 中文 and 日本語. Pick one in Settings or on the welcome screen', 'Easier English: short forms are written out in full (like “3 sets of 8 reps” and “minutes”), and muscles have everyday names', 'Safer: spreadsheets exported from the app can’t run hidden formulas, and typing mistakes like 6000 kg are caught'],
@@ -392,18 +405,11 @@ function onboarding() {
   if (new URLSearchParams(location.search).has('notour')) return; // for automated tests
   const seen = S.settings.seenVersion;
   // Brand-new users choose how to start (fresh, their own logs, or a personalised split); the tour follows.
-  // Setup opens by itself once. Left without a choice, the next launch goes straight in and says which plan is loaded.
+  // The welcome screen stays until they pick something (Skip counts). Closing the app, reopening it, or
+  // installing it (the installed app opens in a new window) never counts as a choice.
   if (!S.settings.onboarded && !S.sessions.length) {
-    // A reload in the same tab (an update, pull-to-refresh) isn't a new launch: setup comes back.
-    let sameTab = false;
-    try { sameTab = !!sessionStorage.getItem('wgg-setup-open'); sessionStorage.setItem('wgg-setup-open', '1'); } catch {}
-    if (!S.settings.setupShown || sameTab) {
-      if (!S.settings.setupShown || S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION, setupShown: true });
-      if (!['setup', 'import', 'data'].includes(parseRoute().name)) go('setup');
-      return;
-    }
-    saveSettings({ seenVersion: APP_VERSION, onboarded: true });
-    setTimeout(() => toast('Using the example 5-day split. Build your own any time: More → Settings → Rebuild my split.'), 400);
+    if (S.settings.seenVersion !== APP_VERSION) saveSettings({ seenVersion: APP_VERSION });
+    if (!['setup', 'import', 'data'].includes(parseRoute().name)) go('setup');
     return;
   }
   if (seen === APP_VERSION) return;
@@ -445,12 +451,21 @@ async function boot() {
   try {
     await load();
   } catch (e) {
-    $('#screen').innerHTML = `<div class="empty"><b>Couldn't open storage.</b><p>${esc(e.message)}</p></div>`;
+    // Storage or data couldn't load: offer a way out instead of a dead screen.
+    $('#screen').innerHTML = `<div class="empty"><b>Couldn't open your data.</b><p>${esc(e.message)}</p><p class="fine">If you just restored a backup, restore an older one. Otherwise close other tabs of the app and reload.</p><button class="btn" data-act="reload-app">Reload the app</button><a class="btn ghost" href="#/data">Backup and restore</a></div>`;
+    document.addEventListener('click', ev => { if (ev.target.closest('[data-act="reload-app"]')) location.reload(); });
     return;
   }
   await setLang(S.settings.lang || guessLang()).catch(() => setLang('en'));
   applyTheme();
   onChange(() => { applyTheme(); render(); });
+  // Another tab changed the data: reload it here too (after the workout in progress is saved, not in the middle of one).
+  db.onRemoteChange(async () => {
+    if (S.draft && parseRoute().name === 'workout') return toast('Changes were made in another tab. They will show after this workout.', 'flat');
+    await load(); applyTheme(); render();
+  });
+  db.onSaveFailed(() => toast(db.storageMode() === 'localstorage' ? "Couldn't save: this browser's storage is full. Save a backup now, then free space or use Chrome normally (not private mode)." : "Couldn't save that change. Save a backup and reload.", 'down'));
+  if (db.storageMode() === 'localstorage') setTimeout(() => toast('This browser limits storage (private mode?). Save backups often, or open the app normally.', 'flat'), 1500);
   window.addEventListener('hashchange', () => { if (sheetOpen()) closeSheet(); render(); });
   render();
   document.body.classList.add('ready');

@@ -1,5 +1,5 @@
 // Personalised split builder. Pure: answers in, programme out (same shape as PROGRAM in seed.js).
-import { SET_WORK_SEC, TRANSITION_SEC } from './engine.js';
+import { SET_WORK_SEC, TRANSITION_SEC, dedupeDays } from './engine.js';
 
 /** Training patterns and the exercises that fill them, best first, per equipment level. */
 const PATTERNS = {
@@ -130,6 +130,14 @@ export function targetsFor(answers) {
   return out;
 }
 
+/** The training weekdays the plan really uses: whole numbers 0–6 (strings accepted), no repeats, Monday first,
+ *  1 to 6 of them (no days picked means Monday; a seventh day is left for rest). */
+const trainingDows = days => {
+  const d = [...new Set((Array.isArray(days) ? days : []).map(Number))].filter(x => Number.isInteger(x) && x >= 0 && x <= 6)
+    .sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7)).slice(0, 6);
+  return d.length ? d : [1];
+};
+
 const norm = answers => {
   const a = { goal: 'muscle', days: [1, 3, 5], experience: 'some', minutes: 60, equipment: 'gym', focus: [], protect: [], ...answers };
   a.equipment = ['gym', 'db', 'home'].includes(a.equipment) ? a.equipment : 'gym';
@@ -145,7 +153,7 @@ const norm = answers => {
  */
 export function buildSplit(answers, exById) {
   const a = norm(answers);
-  const dows = [...new Set(a.days)].filter(d => d >= 0 && d <= 6).sort((x, y) => ((x + 6) % 7) - ((y + 6) % 7)).slice(0, 6);
+  const dows = trainingDows(a.days);
   const types = templateFor(dows.length, a.experience, a.equipment);
   const avoid = new Set(a.protect.flatMap(p => AVOID[p] || []));
   const eq = a.equipment;
@@ -267,7 +275,7 @@ export function planGaps(plan, answers, exById) {
 /** Short explanation of why this split was chosen. */
 export function explainSplit(answers) {
   const a = norm(answers);
-  const n = [...new Set(a.days || [])].length;
+  const n = trainingDows(a.days).length; // the same days buildSplit uses, so text and plan agree
   const t = templateFor(n, a.experience, a.equipment);
   const kind = n <= 1 ? 'one full-body session trains everything once. A second day would roughly double your weekly work'
     : n === 2 ? 'two full-body sessions, so every muscle gets trained twice a week'
@@ -338,9 +346,11 @@ const SECTION_WORD = /^(可选|选做|選做|最后加练|最後加練|最后|�
 export function parseSplitText(text) {
   const days = [], skipped = [], notAdded = [];
   let day = null, section = '', blank = true, explicit = false;
-  for (const raw of String(text).split(/\r?\n/)) {
+  // Old Mac files end lines with a bare CR.
+  for (const raw of String(text).split(/\r\n|\r|\n/)) {
     // Full-width digits, colons and brackets ("５セット", "水曜日：背中", "（月）") become their plain forms.
-    const line = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
+    // A real plan line is short; a pasted blob is cut so the patterns below stay quick.
+    const line = raw.slice(0, 500).normalize('NFKC').replace(/\s+/g, ' ').trim();
     if (!line) { blank = true; continue; }
     const wasBlank = blank;
     blank = false;
@@ -351,7 +361,8 @@ export function parseSplitText(text) {
     const wh = !dh && !explicit && (wasBlank || !day) && (!day || day.items.length) && WORKOUT_RE.test(bare);
     if (dh || wh) {
       if (dh) explicit = true;
-      const name = dh ? dh.name || 'Workout' : capFirst(bare);
+      // A day's name is kept to the programme's 40 characters.
+      const name = (dh ? dh.name || 'Workout' : capFirst(bare)).slice(0, 40).trim();
       day = { dow: dh ? dh.dow : null, name, sub: '', color: (COLOR_FOR.find(([re]) => re.test(name)) || [0, 'upper'])[1], items: [] };
       days.push(day); section = '';
       continue;
@@ -406,7 +417,7 @@ export function parseSplitText(text) {
     let m;
     if (pct) {
       const reps = [...pct[2].matchAll(/[x×]\s*(\d+)/gi)].map(x => +x[1]);
-      m = [null, pct[1], String(reps.length), String(Math.min(...reps)), String(Math.max(...reps)), [pct[2].trim().replace(/[,;/]$/, ''), pct[3].trim()].filter(Boolean).join(' ')];
+      m = [null, pct[1], String(reps.length), String(reps.reduce((a, b) => Math.min(a, b))), String(reps.reduce((a, b) => Math.max(a, b))), [pct[2].trim().replace(/[,;/]$/, ''), pct[3].trim()].filter(Boolean).join(' ')];
     } else {
       // "Bench Press – 4 × 6–8", "Bench press 3x8", "Squat: 5 sets"
       m = body.match(/^(.+?)\s*(?:[–—:-]\s*)?(\d+)\s*(?:[x×]\s*(\d+)(?:\s*[–—-]\s*(\d+))?|sets?)(?:\b|(?=[a-z]))(.*)$/i);
@@ -433,7 +444,8 @@ export function parseSplitText(text) {
     rest = rest.replace(/^[,;·-]\s*/, '').replace(/^amrap$/i, 'AMRAP').replace(/^max(?: reps)?$/i, 'AMRAP');
     const sec = own || section;
     const note = [OPTIONAL_RE.test(sec) ? 'Optional' : FINISH_RE.test(sec) ? 'Finisher' : '', rest].filter(Boolean).join(' · ');
-    day.items.push({ name, sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note, group });
+    // Names and notes kept to the lengths the programme stores (exercise names 80, slot notes 120).
+    day.items.push({ name: name.slice(0, 80).trim(), sets, lo: Math.min(lo, hi), hi: Math.max(lo, hi), note: note.slice(0, 120).trim(), group });
   }
   // A superset label on its own ("A1" with no A2) is just numbering.
   for (const d of days) for (const it of d.items) if (it.group && d.items.filter(x => x.group === it.group).length < 2) it.group = '';
@@ -454,5 +466,14 @@ export function parseSplitText(text) {
   }
   // More than seven workouts can't all get a weekday: say so rather than drop them silently.
   for (const d of kept) if (d.dow == null) notAdded.push(`${d.name} (no free weekday left)`);
+  // Weekdays are returned as written; two workouts on one weekday are spread out by spreadSameWeekday (for the
+  // review) and by saveProgram, which de-duplicates every programme it stores.
   return { days: kept.filter(d => d.dow != null), skipped, notAdded };
 }
+
+/**
+ * Parsed split days with one workout per weekday: the later of two on a weekday ("Monday – Push AM",
+ * "Monday – Pull PM") moves to the next free weekday, so both can be reached from Today and the streak can be
+ * met; with all seven taken it joins that weekday's list. Order is kept. Use on parseSplitText(...).days.
+ */
+export const spreadSameWeekday = days => dedupeDays(days, 'items');

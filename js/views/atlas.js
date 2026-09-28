@@ -13,6 +13,11 @@ const models = {};          // 'male' | 'female' → { root, meshes: [{ mesh, ke
 let meta = null;            // key → { label, group, region, layer }
 let sel = null, exSel = null, groupSel = null, layer = 'all', showBones = true, query = '';
 
+// Turn speed: a gentle default, and a slider (0.3–2×) whose choice is remembered in settings.
+const sens = () => { const v = +S.settings.atlasSens; return v >= 0.3 && v <= 2 ? v : 1; };
+function applySensitivity(controls, v = sens()) {
+  Object.assign(controls, { rotateSpeed: 1.1 * v, zoomSpeed: 0.9 * v, panSpeed: 0.5 * v });
+}
 const bodyType = () => S.settings.bodyType || (S.settings.stdSex === 'women' ? 'female' : 'male');
 const X = '<span aria-hidden="true">×</span>';
 
@@ -28,6 +33,7 @@ export function render(route) {
       <div class="seg sm" role="group" aria-label="Muscle layer">${[['all', 'Surface'], ['deep', 'Deep']].map(([v, l]) => `<button data-act="atlas-layer" data-v="${v}" aria-pressed="${layer === v}">${l}</button>`).join('')}</div>
       <div class="seg sm" role="group" aria-label="Body shown">${[['male', 'Male'], ['female', 'Female']].map(([v, l]) => `<button data-act="atlas-body" data-v="${v}" aria-pressed="${b === v}">${l}</button>`).join('')}</div>
       <label class="atlas-bones"><input type="checkbox" id="atlas-bones" ${showBones ? 'checked' : ''}> Skeleton</label>
+      <label class="atlas-sens"><span>Turn speed</span><input type="range" id="atlas-sens" min="0.3" max="2" step="0.1" value="${sens()}" aria-label="Turn speed"></label>
     </div>
     <p class="fine atlas-how">Drag to turn the body any way. Pinch or scroll to zoom, two fingers to move it. Tap a muscle to see which exercises train it.</p>
     <input type="search" id="atlas-q" class="atlas-q" placeholder="Search muscles or exercises" aria-label="Search muscles or exercises" value="${esc(query)}" autocomplete="off">
@@ -90,7 +96,8 @@ function makeView() {
   camera.add(light);   // the light follows the view, so the side facing you is always lit
   scene.add(camera);
   const controls = new lib.TrackballControls(camera, canvas);
-  Object.assign(controls, { rotateSpeed: 2.2, zoomSpeed: 1.4, panSpeed: 0.9, dynamicDampingFactor: 0.18, minDistance: 0.25, maxDistance: 7 });
+  Object.assign(controls, { dynamicDampingFactor: 0.12, minDistance: 0.25, maxDistance: 7 });
+  applySensitivity(controls);
   controls.keys = ['', '', ''];   // letter keys belong to the search box
   // A tap (not a drag) picks a muscle.
   let down = null;
@@ -269,6 +276,10 @@ function paintResults() {
 function wireUi(sc) {
   sc.querySelector('#atlas-q')?.addEventListener('input', e => { query = e.target.value; paintResults(); });
   sc.querySelector('#atlas-bones')?.addEventListener('change', e => { showBones = e.target.checked; applyLayers(); });
+  const slider = sc.querySelector('#atlas-sens');
+  // Live while dragging; saved (and remembered) when let go.
+  slider?.addEventListener('input', e => { if (view) applySensitivity(view.controls, +e.target.value); });
+  slider?.addEventListener('change', e => saveSettings({ atlasSens: Math.max(0.3, Math.min(2, +e.target.value || 1)) }));
   if (query) ensureLoaded().then(paintResults).catch(() => {});
 }
 const closeResults = () => { query = ''; const q = document.getElementById('atlas-q'); if (q) q.value = ''; paintResults(); };

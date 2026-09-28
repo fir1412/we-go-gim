@@ -29,7 +29,7 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--page); color: var(--ink); font-family: var(--body); font-size: 0.9375rem; line-height: 1.45; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+body { overflow-wrap: anywhere; background: var(--page); color: var(--ink); font-family: var(--body); font-size: 0.9375rem; line-height: 1.45; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: .4; cursor: default; }
@@ -171,8 +171,8 @@ body { display: block; }
 .prog i { display: block; height: 100%; background: var(--c); border-radius: 9px; transition: width .3s; }
 .exc { padding: 10px 12px 12px; display: grid; gap: 8px; }
 .exc header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.exc h3 { margin: 0; font-size: 0.9062rem; }
-.exc h3 a { text-decoration: none; }
+.exc :is(h2, h3) { margin: 0; font-size: 0.9062rem; }
+.exc :is(h2, h3) a { text-decoration: none; }
 .exc header p { margin: 1px 0 0; font-size: 0.75rem; color: var(--mute); }
 .hdr-r { display: flex; align-items: center; gap: 6px; flex: none; }
 .whyd { font-size: 0.75rem; color: var(--mute); margin-top: -4px; }
@@ -664,8 +664,8 @@ button, a, summary, .li, label.filebtn { transition: background-color var(--pres
 summary { padding-block: 12px; }
 .mus li a, .focus li > a, .hist a { min-height: 44px; }
 /* Small inline links keep their look but get a bigger hit area */
-.bar-t small .linkbtn, .exc h3 a, .rowi a, .xtbl td a, .facts dd a, .sug .why a { position: relative; }
-:is(.bar-t small .linkbtn, .exc h3 a, .rowi a, .xtbl td a, .facts dd a, .sug .why a)::after { content: ""; position: absolute; inset: -12px -6px; }
+.bar-t small .linkbtn, .exc h2 a, .exc h3 a, .rowi a, .xtbl td a, .facts dd a, .sug .why a { position: relative; }
+:is(.bar-t small .linkbtn, .exc h2 a, .exc h3 a, .rowi a, .xtbl td a, .facts dd a, .sug .why a)::after { content: ""; position: absolute; inset: -12px -6px; }
 .linkbtn.center, .linkbtn.danger { min-height: 44px; }
 .lvlist button, .nextxp button { min-height: 44px; }
 
@@ -1145,3 +1145,37 @@ button, a, summary, .li, label.filebtn { transition: background-color var(--pres
 .days .dn { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .callist { display: grid; gap: 8px; }
 
+/* 3D atlas turn-speed slider */
+.atlas-sens { display: inline-flex; gap: 8px; align-items: center; font-size: 0.85rem; color: var(--mute); }
+.atlas-sens input { width: 120px; accent-color: var(--push); }
+
+/* ---- narrow phones (320–400 px) and large text: set rows, programme day, badges ---- */
+/* Set rows: the weight and reps boxes stay wide enough for "27.5" (at least ~56 px). Smaller −/+ first;
+   on the narrowest rows the −/+ pair moves under its number. */
+.sets { container-type: inline-size; }
+@container (max-width: 379px) {
+  .set, .set.edit { grid-template-columns: 16px 1fr 1fr 40px; gap: 4px; }
+  .step { grid-template-columns: 30px minmax(0, 1fr) 30px; }
+}
+@container (max-width: 319px) {
+  .set:not(.edit) { align-items: stretch; }
+  .step { grid-template-columns: 1fr 1fr; grid-template-areas: "in in" "m p"; height: auto; }
+  .step > input { grid-area: in; height: 40px; }
+  .step > button { height: 36px; border-top: 1px solid var(--line); }
+  .step > button:first-child { grid-area: m; }
+  .step > button:last-child { grid-area: p; border-left: 1px solid var(--line); }
+  .set:not(.edit) .check { height: auto; min-height: 44px; }
+}
+/* Programme: the "Move to another day" icon keeps icon size and the label wraps inside its button. */
+.mini svg { width: 16px; height: 16px; flex: none; }
+.pdacts .mini { display: inline-flex; align-items: center; gap: 4px; white-space: normal; text-align: left; max-width: 100%; }
+.pslot2 { flex-wrap: wrap; }
+.pslot2 .grow { white-space: normal; overflow-wrap: break-word; flex: 1 1 7.5rem; }
+.pslot2 .num { margin-left: auto; white-space: normal; text-align: right; }
+/* Session detail: the comparison badge drops under the exercise name instead of sticking out. */
+.exc.hx header { flex-wrap: wrap; }
+.exc.hx header > div:first-child { flex: 1 1 10rem; min-width: 0; }
+.exc .badges { max-width: 100%; }
+.exc .badges .pill { white-space: normal; }
+/* Unselected segment options: comfortably above 4.5:1 in both themes (dark: about 6.5:1 on the card colour). */
+.seg button:not([aria-pressed="true"]) { color: color-mix(in srgb, var(--mute) 80%, var(--ink)); }
