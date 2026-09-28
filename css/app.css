@@ -867,3 +867,19 @@ a.mini { text-decoration: none; display: inline-grid; place-items: center; color
 .rlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.875rem; }
 .rlist li { display: flex; gap: 8px; align-items: center; }
 .rlist svg { width: 18px; height: 18px; color: var(--up); flex: none; }
+
+/* Setup: one main action, the rest folded away */
+.wz-main { width: 100%; }
+.wz-main small { font-weight: 500; opacity: .85; }
+.wz-more summary { padding: 14px; font-weight: 700; cursor: pointer; min-height: 44px; }
+.wz-more .wz-choices { border-top: 1px solid var(--line); }
+.tpl { display: grid; gap: 8px; }
+.tpl p { margin: 0; }
+.tdays { display: flex; flex-wrap: wrap; gap: 6px; }
+.tdays span { font-size: 0.75rem; padding: 4px 8px; border-radius: 8px; background: color-mix(in srgb, var(--k) 16%, var(--card)); }
+
+/* Help */
+.faq details { border-bottom: 1px solid var(--line); }
+.faq details:last-child { border-bottom: 0; }
+.faq summary { padding: 14px; font-weight: 700; cursor: pointer; min-height: 44px; }
+.faq p { margin: 0; padding: 0 14px 14px; color: var(--mute); }

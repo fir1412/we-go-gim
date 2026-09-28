@@ -66,7 +66,7 @@ export function render(route) {
   h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} imported` : 'Show imported'}</button>` : ''}</div>`;
   if (!list.length) h += inMonth.length ? `<div class="empty"><b>Only imported sessions in ${monthName(vm)}.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>`
     : S.sessions.length ? `<div class="empty"><b>No sessions in ${monthName(vm)}.</b><p>Use the arrows or the month list above to see other months.</p></div>`
-    : `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here.</p></div>`;
+    : `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here, with a calendar and a monthly recap.</p><div class="row2"><a class="btn" href="#/today">Start today's workout</a><a class="btn ghost" href="#/import">Import old logs</a></div></div>`;
   let month = '';
   for (const s of list) {
     const m = s.date.slice(0, 7);

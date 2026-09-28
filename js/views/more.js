@@ -19,6 +19,7 @@ export function render(route) {
     case 'data': return data();
     case 'import': return importer();
     case 'settings': return settings();
+    case 'help': return help();
     default: return home();
   }
 }
@@ -63,6 +64,7 @@ function home() {
     ${row('settings', ICON.gear, 'Settings', 'Theme, kg or lb, wording, rest timer, goal', 'rest')}
     ${canInstall() ? `<button class="li mrow" data-act="install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Install the app</b><small>Home-screen icon, full screen, works offline</small></span>${ICON.chev}</button>` : ''}
     ${isIOS() && !standalone() ? `<button class="li mrow" data-act="ios-install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Add to Home Screen</b><small>Install on iPhone: full screen, works offline</small></span>${ICON.chev}</button>` : ''}
+    ${row('help', ICON.help, 'Help', 'How do I…? Answers to common questions', 'legs')}
     <button class="li mrow" data-act="feedback" style="--k:var(--push)"><i class="mic">${ICON.chat || ICON.more}</i><span><b>Send feedback</b><small>Report a bug or suggest an idea</small></span>${ICON.chev}</button>
     </div>
     <details class="box pad help"><summary class="lbl">How suggestions work</summary>
@@ -88,7 +90,7 @@ function program() {
   const p = S.program;
   // One counting rule everywhere: the main muscle counts a full set, helper muscles half.
   const wv = weeklyVolume(p, S.exById), ws = Object.fromEntries(Object.entries(wv).map(([m, v]) => [m, Math.round(v * 2) / 2]));
-  let h = `<a class="btn ghost" href="#/paste">${ICON.upload} Paste a written split</a>
+  let h = `<div class="row2"><a class="btn ghost" href="#/setup/templates">${ICON.list} Ready-made plans</a><a class="btn ghost" href="#/paste">${ICON.upload} Paste a split</a></div>
     <p class="fine">Tap a day to edit it. Changes save as you go and apply to future sessions; past sessions stay as they were.</p>
     <div class="box pad vsum"><p class="lbl">Weekly ${esc(T('sets'))} per muscle · helpers count half · green is 10 or more</p><div class="chips">${MUSCLES.filter(m => ws[m]).map(m => pill(`${m} ${ws[m]}`, ws[m] >= 10 ? 'up' : ws[m] >= 6 ? 'flat' : 'mute')).join('')}</div></div>`;
   for (const dow of DOW_ORDER) {
@@ -345,9 +347,11 @@ function importer() {
     return { title: 'Import logs', sub: 'Reading…', back: 'more', html: h, color: 'legsb' };
   }
   if (!imp) {
-    h = `<p class="fine">Pick old workout PDFs or text files, or paste notes. Dates, exercise names and sets like <b>25kg x 8 x 4</b>, <b>25 kg 8,8,6</b>, <b>15kg 8 8 7</b>, <b>3x8 @ 25</b>, <b>L9 x 12</b> or <b>BW 6,6,6</b> are recognised. Remarks about pain, sleep and effort are kept as notes, never as exercises. You check everything before it's saved.</p>
-      <label class="btn filebtn">${ICON.upload} Choose PDF, text or CSV files<input type="file" id="imp-file" multiple data-input="imp-file"></label>
-      <p class="fine">Pick several files at once if you like. Older and newer copies of the same log are fine: repeated sessions are removed. CSV exports from Hevy and Strong work too.</p>
+    h = `<p class="fine">Bring in old workouts from PDFs, notes, or a Hevy, Strong or spreadsheet CSV. You check everything before it's saved.</p>
+      <label class="btn filebtn">${ICON.upload} Choose files<input type="file" id="imp-file" multiple data-input="imp-file"></label>
+      <details class="box pad help"><summary class="lbl">What formats work?</summary>
+        <p>Dates, exercise names and sets written like <b>25kg x 8 x 4</b>, <b>25 kg 8,8,6</b>, <b>15kg 8 8 7</b>, <b>3x8 @ 25</b>, <b>L9 x 12</b> or <b>BW 6,6,6</b>. Remarks about pain, sleep and effort are kept as notes, never as exercises.</p>
+        <p>Pick several files at once if you like. Older and newer copies of the same log are fine: repeated sessions are removed.</p></details>
       ${impOptions()}
       <label class="field"><span>Or paste text</span><textarea class="inp mono" id="imp-text" rows="7" placeholder="21/9/2026 Push&#10;Flat DB bench&#10;25kg x 8 x 4&#10;Incline DB press 25 kg 8,8,6&#10;left shoulder pinged on the last set"></textarea></label>
       <div class="row2"><label class="field"><span>Year for dates without one</span><input class="inp" id="imp-year" type="number" inputmode="numeric" value="${todayIso().slice(0, 4)}"></label><button class="btn ghost" data-act="imp-parse">Read pasted text</button></div>
@@ -509,6 +513,41 @@ function settings() {
   return { title: 'Settings', sub: 'Make it yours', back: 'more', html: h, color: 'rest' };
 }
 
+
+// ---- help ----------------------------------------------------------------------------------------------------
+const FAQ = [
+  ['How do I start a workout?', 'Open Today and tap the Start button at the bottom. Every set is filled in from your last session. Do the set, then tap the tick.'],
+  ['What do the coloured tags mean?', 'They say what changed since last time: +1 rep, a heavier weight, find your weight (a new lift), or an easy day. Tap the tag during a workout to see why.'],
+  ['What weight should I use for a new exercise?', 'Tap Light, Medium or Heavy on the new lift and a starting weight is filled in. Pick one you could do for the target reps with about 2 reps to spare. Next time builds on it.'],
+  ['How does the app decide my weights?', 'Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same.'],
+  ['How do I change my split or plan?', 'More → Programme. Tap a day to add, remove or reorder exercises, or pick a ready-made plan, paste your own, or rebuild it with the questions.'],
+  ['How do I do a superset?', 'In a workout, tap ⋮ on an exercise and choose Pair with the next exercise. The rest timer then runs after both.'],
+  ['Can I log cardio?', 'Yes. Tap Add cardio in a workout, or open Progress → Cardio this week for cardio on its own.'],
+  ['I missed a workout. What now?', 'Today offers to do the missed day today or skip it. Either way your plan carries on; nothing breaks.'],
+  ['How do I switch between kg and lb?', 'More → Settings → Weights. Your history is stored in kg, so switching never changes it.'],
+  ['What is RIR / reps left?', 'How many more reps you could have done before failing. 2 reps left means you had 2 more in you. Most sets should end with 1 to 3 left.'],
+  ['What is a deload or lighter week?', 'A week with about half the sets and a bit less weight, to recover. The app suggests one when several lifts stall or you log poor sleep, low energy or pain.'],
+  ['How do I back up my data?', 'More → Backup and export → Share backup. Save the file to Drive or send it to yourself. Restore it on any phone from the same screen.'],
+  ['How do I move to a new phone?', 'Back up on the old phone, open the app on the new one, and choose Restore from backup. Everything comes across: sessions, programme and settings.'],
+  ['Where is my data stored?', 'Only on this phone. There are no accounts and nothing is uploaded, which is why backups matter.'],
+  ['How do I install the app?', 'Android: More → Install the app, or the browser menu → Add to Home screen. iPhone: Share → Add to Home Screen in Safari.'],
+  ['Levels and XP?', 'Progress → Levels. Every working set earns XP for the muscles it trains, and beating a best earns a bonus.'],
+];
+function help() {
+  let h = `<input class="inp" id="faqsearch" type="search" placeholder="Search help, e.g. superset, backup, kg" autocomplete="off" aria-label="Search help">
+    <div class="box faq" id="faqlist">${FAQ.map(([q, a]) => `<details data-q="${esc((q + ' ' + a).toLowerCase())}"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
+    <p class="fine" id="faqnone" hidden>Nothing matches. Try another word, or send feedback below.</p>
+    <div class="row2"><button class="btn ghost" data-act="tour">Replay the tour</button><button class="btn ghost" data-act="feedback">Ask a question</button></div>`;
+  return {
+    title: 'Help', sub: 'How do I…?', back: 'more', html: h, color: 'legs',
+    after: root => root.querySelector('#faqsearch').addEventListener('input', ev => {
+      const q = ev.target.value.trim().toLowerCase();
+      let n = 0;
+      for (const d of root.querySelectorAll('#faqlist details')) { const hit = !q || q.split(/\s+/).every(w => d.dataset.q.includes(w)); d.hidden = !hit; if (hit) n++; if (q && hit && n === 1) d.open = true; }
+      root.querySelector('#faqnone').hidden = n > 0;
+    }),
+  };
+}
 
 // ---- actions -----------------------------------------------------------------------------------------------
 const num = (v, d = null) => (v === '' || v == null || !isFinite(+v) ? d : +v);

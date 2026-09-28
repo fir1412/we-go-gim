@@ -159,7 +159,9 @@ function overview() {
     else if (['watch', 'plateau', 'down'].includes(x.status)) c.bad++;
     else c.flat++;
   }
-  let h = progressNav('insights') + planCard(t);
+  let h = progressNav('insights');
+  if (!S.sessions.some(s => !s.seed)) h += `<div class="box pad emptyact"><b>Your progress shows up here</b><p class="fine">After two workouts you'll see which lifts are going up, which have stalled, and sets per muscle each week. Until then, here's what your next session asks for.</p><div class="row2"><a class="btn" href="#/today">Go to today's workout</a><a class="btn ghost" href="#/import">Import old logs</a></div></div>`;
+  h += planCard(t);
   const tally = `<div class="tally"><div style="--k:var(--up)"><b>${c.up}</b><span>progressing</span></div><div style="--k:var(--flat)"><b>${c.flat}</b><span>flat or new</span></div><div style="--k:var(--down)"><b>${c.bad}</b><span>need attention</span></div></div>`;
 
   const f = focusItems(t);

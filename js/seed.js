@@ -127,6 +127,60 @@ export const PROGRAM = {
   ],
 };
 
+// ---- ready-made plans ---------------------------------------------------------------
+const REST = (dow, sub = 'Rest or easy cardio') => ({ dow, name: 'Rest', sub, color: 'rest', slots: [] });
+/** A week from {dow: day}; every other day is a rest day. */
+const week = days => ({ id: 'main', days: [1, 2, 3, 4, 5, 6, 0].map(d => days[d] || REST(d)) });
+export const TEMPLATES = [
+  {
+    id: 'fb3', name: 'Full body, 3 days', days: 3, level: 'Beginner friendly', gear: 'Full gym',
+    about: 'Every muscle three times a week in short sessions. The best start for most people.',
+    program: week({
+      1: { dow: 1, name: 'Full body A', sub: 'Squat and bench', color: 'push', slots: [S('bbsquat', 3, 5, 8), S('bbbench', 3, 6, 10), S('pulldown', 3, 8, 12), S('dblat', 2, 12, 20), S('dbcurl', 2, 10, 15)] },
+      3: { dow: 3, name: 'Full body B', sub: 'Deadlift and press', color: 'pull', slots: [S('deadlift', 3, 4, 6), S('ohp', 3, 6, 10), S('csrow', 3, 8, 12), S('legcurl', 2, 10, 15), S('pushdown', 2, 10, 15)] },
+      5: { dow: 5, name: 'Full body C', sub: 'Legs and incline', color: 'legs', slots: [S('legpress', 3, 10, 15), S('incline', 3, 8, 12), S('dbrow', 3, 8, 12), S('calf', 3, 10, 20), S('crunch', 2, 10, 15)] },
+    }),
+  },
+  {
+    id: 'ul4', name: 'Upper / lower, 4 days', days: 4, level: 'Some experience', gear: 'Full gym',
+    about: 'Upper and lower body twice a week each. More sets per muscle than full body, with rest days to recover.',
+    program: week({
+      1: { dow: 1, name: 'Upper A', sub: 'Bench and row', color: 'upper', slots: [S('bbbench', 3, 6, 10), S('bbrow', 3, 8, 10), S('shp', 3, 8, 12), S('pulldown', 3, 8, 12), S('lat', 3, 12, 20), S('pushdown', 2, 10, 15)] },
+      2: { dow: 2, name: 'Lower A', sub: 'Squat', color: 'legs', slots: [S('bbsquat', 3, 5, 8), S('rdl', 3, 8, 12), S('legpress', 2, 10, 15), S('legcurl', 3, 10, 15), S('calf', 3, 10, 20)] },
+      4: { dow: 4, name: 'Upper B', sub: 'Press and pull-ups', color: 'push', slots: [S('incline', 3, 8, 12), S('csrow', 3, 8, 12), S('ohp', 3, 6, 10), S('pullup', 3, 5, 8), S('dbcurl', 3, 10, 12), S('ohext', 2, 10, 15)] },
+      5: { dow: 5, name: 'Lower B', sub: 'Deadlift', color: 'legsb', slots: [S('deadlift', 3, 4, 6), S('bss', 3, 8, 12), S('legext', 2, 10, 15), S('lyingcurl', 3, 10, 15), S('crunch', 3, 10, 15)] },
+    }),
+  },
+  {
+    id: 'ppl6', name: 'Push, pull, legs, 6 days', days: 6, level: 'Experienced', gear: 'Full gym',
+    about: 'Each muscle twice a week with lots of volume. Needs good sleep and 6 days a week.',
+    program: (() => {
+      const push = dow => ({ dow, name: 'Push', sub: 'Chest, shoulders, triceps', color: 'push', slots: [S('bbbench', 3, 6, 10), S('incline', 3, 8, 12), S('shp', 2, 8, 12), S('lat', 3, 12, 20), S('pushdown', 3, 10, 15)] });
+      const pull = dow => ({ dow, name: 'Pull', sub: 'Back, rear delts, biceps', color: 'pull', slots: [S('pullup', 3, 5, 8), S('bbrow', 3, 8, 10), S('pulldown', 2, 8, 12), S('facepull', 2, 12, 20), S('dbcurl', 3, 10, 12)] });
+      const legs = dow => ({ dow, name: 'Legs', sub: 'Quads, hamstrings, calves', color: 'legs', slots: [S('bbsquat', 3, 5, 8), S('rdl', 3, 8, 12), S('legpress', 2, 10, 15), S('legcurl', 3, 10, 15), S('calf', 3, 10, 20)] });
+      return week({ 1: push(1), 2: pull(2), 3: legs(3), 4: push(4), 5: pull(5), 6: legs(6) });
+    })(),
+  },
+  {
+    id: 'str3', name: 'Strength 5×5, 3 days', days: 3, level: 'Beginner friendly', gear: 'Barbell and rack',
+    about: 'Few lifts, heavy and simple: sets of 5 on the big barbell lifts, adding weight whenever all sets are done.',
+    program: week({
+      1: { dow: 1, name: 'Strength A', sub: 'Squat, bench, row', color: 'push', slots: [S('bbsquat', 5, 5, 5), S('bbbench', 5, 5, 5), S('bbrow', 5, 5, 5)] },
+      3: { dow: 3, name: 'Strength B', sub: 'Squat, press, deadlift', color: 'pull', slots: [S('bbsquat', 5, 5, 5), S('ohp', 5, 5, 5), S('deadlift', 1, 5, 5)] },
+      5: { dow: 5, name: 'Strength A', sub: 'Squat, bench, row', color: 'push', slots: [S('bbsquat', 5, 5, 5), S('bbbench', 5, 5, 5), S('bbrow', 5, 5, 5)] },
+    }),
+  },
+  {
+    id: 'db3', name: 'Dumbbells at home, 3 days', days: 3, level: 'Any level', gear: 'Dumbbells and a bench',
+    about: 'Full body with just dumbbells, a bench and the floor.',
+    program: week({
+      1: { dow: 1, name: 'Home A', sub: 'Full body', color: 'push', slots: [S('goblet', 3, 8, 12), S('bench', 3, 8, 12), S('dbrow', 3, 8, 12), S('dblat', 2, 12, 20), S('hammer', 2, 10, 15)] },
+      3: { dow: 3, name: 'Home B', sub: 'Full body', color: 'pull', slots: [S('dbrdl', 3, 8, 12), S('shp', 3, 8, 12), S('bss', 3, 8, 12), S('pushup', 2, 8, 15), S('dbcurl', 2, 10, 15)] },
+      5: { dow: 5, name: 'Home C', sub: 'Full body', color: 'legs', slots: [S('lunge', 3, 10, 12), S('incline', 3, 8, 12), S('dbrow', 3, 8, 12), S('dbskull', 2, 10, 15), S('plank', 3, 20, 45)] },
+    }),
+  },
+];
+
 export const DEFAULT_SETTINGS = {
   theme: 'system',
   goalKg: null, // blank until the user sets one

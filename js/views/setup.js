@@ -1,10 +1,10 @@
 // First-run setup: start fresh, bring old logs, or answer a few questions for a personalised split.
 // Steps live in the URL (#/setup, #/setup/1 … #/setup/7, #/setup/plan) so the phone's Back button walks back through them.
 import { S, saveProgram, saveSettings, refresh } from '../state.js';
-import { PROGRAM } from '../seed.js';
+import { PROGRAM, TEMPLATES } from '../seed.js';
 import { buildSplit, explainSplit, weeklyVolume, targetsFor, planGaps, dayMinutes, baseSets } from '../split.js';
 import { MUSCLES } from '../engine.js';
-import { esc, pill, cvar, dowName, toast, ICON, T, helpTip } from '../ui.js';
+import { esc, pill, cvar, dowName, toast, ICON, T, helpTip, confirmSheet } from '../ui.js';
 import { go, showTour } from '../app.js';
 
 const Q = [
@@ -41,6 +41,7 @@ export function render(route) {
   if (!st) st = fresh();
   const arg = route?.args?.[0];
   if (!arg) return start();
+  if (arg === 'templates') return templates();
   // Never show a step whose earlier answers are missing (deep links, reloads).
   const firstGap = Q.findIndex(q => !answered(q, st.a));
   if (arg === 'plan') {
@@ -88,17 +89,19 @@ function start() {
     <div class="warn wz-warn" style="--k:var(--flat)"><b>Replaces your programme.</b><span>Your current weekly plan is swapped for the new one when you tap “Use this plan”.${n ? ` Your ${n} logged session${n === 1 ? '' : 's'}, levels and personal bests stay.` : ''}</span></div>
     <div class="list box wz-choices">
       <button class="li" data-act="wz-begin" style="--k:var(--push)"><i class="sw"></i><span><b>Build my split</b><small>${S.settings.setupAnswers ? 'Your last answers are filled in; change what you need.' : '7 quick questions, then a plan to review before anything changes.'}</small></span>${ICON.chev}</button>
+      <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5 or dumbbells at home.</small></span>${ICON.chev}</a>
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower. Replaces your programme straight away.</small></span>${ICON.chev}</button>
     </div>
     <button class="linkbtn center" data-act="wz-cancel">Keep my current programme</button>`
     : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="72" height="72"><h2>Let's set you up</h2><p>we go gim plans every session from your last one. How do you want to start?</p></div>
     ${prefs()}
-    <div class="list box wz-choices">
-      <button class="li" data-act="wz-begin" style="--k:var(--push)"><i class="sw"></i><span><b>Build my split</b><small>7 quick questions, then a weekly plan made for you. About a minute.</small></span>${ICON.chev}</button>
-      <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Start fresh with the example split</b><small>A 5-day push, pull, legs, upper, lower plan for a full gym. Edit it any time.</small></span>${ICON.chev}</button>
-      <button class="li" data-act="wz-logs" style="--k:var(--legs)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes, or a Hevy, Strong or spreadsheet CSV, or restore a backup from this app. Your levels start from your real history.</small></span>${ICON.chev}</button>
-      <button class="li" data-act="wz-own" style="--k:var(--upper)"><i class="sw"></i><span><b>I have my own split</b><small>Paste your plan as text (from a note, a coach or a chat) and it becomes your programme.</small></span>${ICON.chev}</button>
-    </div>
+    <button class="btn wz-main" data-act="wz-begin">Build my plan <small>· 7 quick questions, about a minute</small></button>
+    <details class="box wz-more"><summary>Other ways to start</summary><div class="list wz-choices">
+      <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5 or dumbbells at home.</small></span>${ICON.chev}</a>
+      <button class="li" data-act="wz-logs" style="--k:var(--legsb)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes, or a Hevy, Strong or spreadsheet CSV, or restore a backup from this app.</small></span>${ICON.chev}</button>
+      <button class="li" data-act="wz-own" style="--k:var(--upper)"><i class="sw"></i><span><b>I have my own split</b><small>Paste your plan as text (from a note, a coach or a chat).</small></span>${ICON.chev}</button>
+      <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower, for a full gym.</small></span>${ICON.chev}</button>
+    </div></details>
     <button class="linkbtn center" data-act="wz-skip">Skip for now</button>
     <p class="fine center-t">Skipping keeps the example 5-day split (push, pull, legs, upper, lower). Change or rebuild it any time under More.</p>`;
   return back
@@ -106,14 +109,28 @@ function start() {
     : { title: 'Welcome', sub: 'we go gim', html: h, color: 'push' };
 }
 
-/** Units and wording, asked up front so every screen after this reads right. Both change straight away. */
+/** Units and experience, asked up front so every screen after this reads right. Experience picks plain words or gym terms. */
 function prefs() {
-  const w = S.settings.wording || (st.a.experience === 'experienced' ? 'expert' : 'plain');
   const u = S.settings.units === 'lb' ? 'lb' : 'kg';
+  const x = S.settings.experience || st.a.experience;
   const seg = (label, act, cur, opts) => `<div class="rrow"><span>${label}</span><div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
-  return `<div class="box pad stack wz-prefs">${seg('Weights in', 'wz-units', u, [['kg', 'kg'], ['lb', 'lb']])}
-    ${seg('Words', 'wz-wording', w, [['plain', 'Plain'], ['expert', 'Gym terms']])}
-    <p class="fine">Plain words suit you if you're new to lifting ("reps left", "find your weight"); gym terms if you're experienced (RIR, calibrate). Both can be changed in Settings.</p></div>`;
+  return `<div class="box pad stack wz-prefs">${seg('Lifting for', 'wz-exp', x, [['new', 'Under 6 mo'], ['some', 'Up to 2 yrs'], ['experienced', '2 yrs +']])}
+    ${seg('Weights in', 'wz-units', u, [['kg', 'kg'], ['lb', 'lb']])}
+    <p class="fine">${x === 'experienced' ? 'You\'ll see gym terms like RIR and e1RM.' : x ? 'You\'ll see plain words like "reps left" instead of gym jargon.' : 'This sets the words the app uses and your starting weights.'} Change either in Settings.</p></div>`;
+}
+
+/** Ready-made plans to start from. */
+function templates() {
+  const back = returning();
+  let h = `<p class="fine">Pick one to start. Every exercise, set and rep range can be changed later under More → Programme.${back ? ' Your logged sessions, levels and bests stay.' : ''}</p>`;
+  for (const t of TEMPLATES) {
+    const days = t.program.days.filter(d => d.slots.length);
+    h += `<section class="box pad tpl"><div class="rrow"><b>${esc(t.name)}</b>${pill(t.level, t.level === 'Experienced' ? 'flat' : 'up')}</div>
+      <p class="fine">${esc(t.about)} ${esc(t.gear)}.</p>
+      <p class="tdays">${days.map(d => `<span style="--k:${cvar(d.color)}"><b>${dowName(d.dow)}</b> ${esc(d.name)}</span>`).join('')}</p>
+      <button class="btn ghost" data-act="wz-tpl" data-id="${t.id}">Use this plan</button></section>`;
+  }
+  return { title: 'Ready-made plans', sub: 'Pick one to start', html: h, color: 'legs', back: back ? 'program' : 'setup' };
 }
 
 function preview() {
@@ -175,6 +192,20 @@ export const actions = {
   },
   'wz-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
   'wz-wording': el => saveSettings({ wording: el.dataset.v === 'expert' ? 'expert' : 'plain' }),
+  'wz-exp'(el) {
+    const v = el.dataset.v;
+    st.a.experience = v; st.plan = null; keep();
+    saveSettings({ experience: v, wording: v === 'experienced' ? 'expert' : 'plain' });
+  },
+  async 'wz-tpl'(el) {
+    const t = TEMPLATES.find(x => x.id === el.dataset.id);
+    if (!t) return;
+    const back = returning();
+    if (back && !(await confirmSheet({ title: `Switch to ${t.name}?`, body: 'Your weekly plan is replaced. Logged sessions, levels and bests stay.', ok: 'Use this plan' }))) return;
+    await saveProgram(structuredClone(t.program));
+    toast(`${t.name} is your plan. Change anything under More → Programme.`, 'up');
+    await finish('today', { tour: !back });
+  },
   'wz-cancel'() { st = null; try { sessionStorage.removeItem(DRAFT); } catch {} go('settings'); },
   'wz-day'(el) {
     const d = +el.dataset.v, a = st.a.days;

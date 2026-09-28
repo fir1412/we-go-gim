@@ -27,7 +27,7 @@ const ROUTES = {
   setup: [setup, 'more'],
   history: [history, 'history'], session: [history, 'history'],
   more: [more, 'more'], program: [more, 'more'], paste: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
-  gyms: [more, 'more'], equip: [more, 'more'], data: [more, 'more'], settings: [more, 'more'], import: [more, 'more'],
+  gyms: [more, 'more'], equip: [more, 'more'], data: [more, 'more'], settings: [more, 'more'], import: [more, 'more'], help: [more, 'more'],
 };
 
 export function parseRoute() {
@@ -68,6 +68,7 @@ function render() {
     b.setAttribute('aria-current', on ? 'page' : 'false');
     b.classList.toggle('live', b.dataset.tab === 'workout' && !!S.draft);
   }
+  for (const b of document.querySelectorAll('#app .iconbtn[aria-label]:not([title]), #app .tipq:not([title])')) b.title = b.getAttribute('aria-label');
   out.after?.(sc);
   wake();
   paintTimer();
@@ -92,6 +93,15 @@ function dispatch(kind, ev) {
   if (kind === 'click') ev.preventDefault();
   Promise.resolve(fn(el, ev, current.route)).catch(err => { console.error(err); toast(err.message || 'Something went wrong', 'down'); });
 }
+// Long-press an icon-only button to see what it does (phones have no hover tooltips).
+let pressT = null, pressShown = false;
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target.closest?.('.iconbtn[aria-label], .tipq[aria-label], .whybtn[aria-label]');
+  clearTimeout(pressT); pressShown = false;
+  if (b) pressT = setTimeout(() => { pressShown = true; toast(b.getAttribute('aria-label')); navigator.vibrate?.(10); }, 550);
+});
+for (const t of ['pointerup', 'pointercancel', 'pointerleave']) document.addEventListener(t, () => clearTimeout(pressT));
+document.addEventListener('click', ev => { if (pressShown) { pressShown = false; ev.preventDefault(); ev.stopPropagation(); } }, true);
 document.addEventListener('click', ev => { unlockAudio(); dispatch('click', ev); });
 document.addEventListener('change', ev => dispatch('change', ev));
 // Tapping a number field selects it, so typing replaces "25" instead of making "257".
