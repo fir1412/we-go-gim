@@ -22,7 +22,10 @@ const shutDone = new Set();
 const localIso = ms => { const t = new Date(ms); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
 const allTicked = e => e.sets.length > 0 && e.sets.every(s => s.done);
 const lastAt = e =>Math.max(0, ...e.sets.map(s => s.at || 0));
-const pending = e => e.sets.findIndex(s => !s.done);
+// A skipped exercise has nothing pending: it's passed over for the next set, the timer and the time left.
+const pending = e => (e.skip ? -1 : e.sets.findIndex(s => !s.done));
+/** Sets that count toward the total: all work sets, less the unticked ones of a skipped exercise. */
+const counted = e => e.sets.filter(s => !s.warm && (s.done || !e.skip));
 
 /** The set to do next after working on `e`: superset partner first, then `e` itself, then the next unfinished exercise. */
 function nextUp(e) {
@@ -86,8 +89,8 @@ export function render() {
   const clock = draftClock(d.start);
   if (timerStale(d.timer)) { d.timer = null; saveDraft(); }
   const clockTxt = clock.stale ? `Started ${fmtDate(localIso(d.start), { dow: true })}, ${fmtTime(d.start)}` : `${clock.mins} min in`;
-  const all = d.entries.flatMap(e => e.sets.filter(s => !s.warm)), done = all.filter(s => s.done).length;
-  const left = estimateRemaining(d.entries, S.exById, S.sessions, Date.now(), d.start);
+  const all = d.entries.flatMap(counted), done = all.filter(s => s.done).length;
+  const left = estimateRemaining(d.entries.filter(e => !e.skip), S.exById, S.sessions, Date.now(), d.start);
   const finishAt = fmtTime(Date.now() + left * 1000);
   let h = `<div class="sbar"><div class="prog"><i style="width:${all.length ? done / all.length * 100 : 0}%"></i></div><span class="num">${done}/${all.length} sets</span></div>`;
   // Backfilling a past day: no clock, no rest timer; an optional duration instead.
@@ -136,6 +139,10 @@ function card(e, ei, grp, focusSi = -1) {
   const ex = S.exById[e.exId];
   if (!ex) return '';
   const g = grp ? `<em class="grp">${grp}</em>` : '';
+  if (e.skip) {
+    const ws = workSets(e);
+    return `<article class="box exc fold skipped" id="ex-${e.uid}"><div class="foldbtn"><span class="ok" aria-hidden="true">–</span><span class="grow"><b>${g}${esc(ex.name)}</b><small>Skipped${ws.length ? ` · ${esc(setsText(ex, ws))}` : ''}</small></span><button class="mini" data-act="unskip" data-e="${ei}" aria-label="Undo skip: ${esc(ex.name)}">Undo</button></div></article>`;
+  }
   if (folded(e)) {
     const ws = workSets(e);
     return `<article class="box exc fold" id="ex-${e.uid}"><button class="foldbtn" data-act="unfold" data-uid="${e.uid}" aria-expanded="false" aria-label="${esc(ex.name)} done. Show sets">
@@ -296,7 +303,7 @@ function summary(d) {
     const ex = S.exById[e.exId];
     if (!ex) return '';
     const ws = workSets(e);
-    done += ws.length; tot += e.sets.filter(s => !s.warm).length;
+    done += ws.length; tot += counted(e).length;
     if (ws.length && isKg(ex.unit)) anyKg = true;
     reps += ws.reduce((a, s) => a + (+s.r || 0), 0);
     const prevExps = exposures(S.sessions, ex, { gymId: S.settings.gymId, before: d.date });
@@ -417,6 +424,8 @@ export const actions = {
   },
   why(el) { const u = el.dataset.uid; openWhy.has(u) ? openWhy.delete(u) : openWhy.add(u); refresh(); },
   unfold(el) { const u = el.dataset.uid; shutDone.delete(u); openDone.add(u); refresh(); },
+  skip(el) { closeSheet(); skipEntry(E(el)); },
+  unskip(el) { delete E(el).skip; commit(); },
   fold(el) { const u = el.dataset.uid; openDone.delete(u); shutDone.add(u); refresh(); },
   rir(el) { const e = E(el); e.rir = e.rir === el.dataset.v ? null : el.dataset.v; commit(); },
   pain(el) {
@@ -443,6 +452,7 @@ export const actions = {
       <button class="li" data-act="del-set" data-e="${ei}"><span><b>Remove last set</b></span></button>
       <button class="li" data-act="move" data-e="${ei}" data-d="-1" ${moveEntry(S.draft.entries, ei, -1) ? '' : 'disabled'}><span><b>Move up</b></span></button>
       <button class="li" data-act="move" data-e="${ei}" data-d="1" ${moveEntry(S.draft.entries, ei, 1) ? '' : 'disabled'}><span><b>Move down</b></span></button>
+      ${allTicked(e) ? '' : `<button class="li" data-act="skip" data-e="${ei}"><span><b>Skip exercise</b><small>Or swipe the card left</small></span></button>`}
       <button class="li danger" data-act="remove" data-e="${ei}"><span><b>Remove from workout</b></span></button></div>`, { label: ex.name });
   },
   warm(el) {
@@ -673,6 +683,61 @@ if (typeof document !== 'undefined') {
   if (tm && typeof ResizeObserver === 'function') new ResizeObserver(() => document.documentElement.style.setProperty('--timer-h', `${tm.hidden ? 0 : tm.offsetHeight}px`)).observe(tm);
 }
 
+/** Skip the rest of an exercise: ticked sets are kept, the others stop counting. Undo from the toast or the card. */
+function skipEntry(e) {
+  if (!e || e.skip) return;
+  e.skip = true;
+  openDone.delete(e.uid);
+  commit();
+  toast(`${S.exById[e.exId]?.name || 'Exercise'} skipped`, 'ink', { undo: () => { delete e.skip; commit(); } });
+}
+
+// Swipe a card left to skip the exercise. Only a clearly sideways drag counts, so scrolling is never taken
+// for a swipe; fields and −/+ buttons don't start one. The ⋮ menu has the same action.
+let sw = null;
+const SKIP_AT = 110;
+function endSwipe(ev) {
+  const x = sw;
+  sw = null;
+  if (!x?.on) return;
+  const go = ev.type === 'pointerup' && x.dx <= -Math.min(SKIP_AT, x.card.offsetWidth * 0.4);
+  x.card.querySelector('.swipe-lbl')?.remove();
+  x.card.classList.remove('swiping', 'swipe-go');
+  x.card.style.transform = '';
+  swallowed = { id: x.card.id, until: Date.now() + 250 }; // the tap a drag can end with, on that card only
+  if (go) skipEntry(S.draft?.entries.find(e => `ex-${e.uid}` === x.card.id));
+}
+let swallowed = null;
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', ev => {
+    if (sw || !S.draft || ev.pointerType === 'mouse') return;
+    const card = ev.target.closest?.('#screen article.exc:not(.fold):not(.cardioc)');
+    if (!card || ev.target.closest('input, textarea, .step, .seg')) return;
+    sw = { card, id: ev.pointerId, x: ev.clientX, y: ev.clientY, dx: 0, on: false };
+  });
+  document.addEventListener('pointermove', ev => {
+    if (!sw || ev.pointerId !== sw.id) return;
+    const dx = ev.clientX - sw.x, dy = ev.clientY - sw.y;
+    if (!sw.on) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) { sw = null; return; } // a scroll
+      if (!(dx < -14 && -dx > Math.abs(dy) * 1.5)) return;
+      sw.on = true;
+      sw.card.classList.add('swiping');
+      const l = document.createElement('span');
+      l.className = 'swipe-lbl'; l.setAttribute('aria-hidden', 'true'); l.textContent = 'Skip';
+      sw.card.appendChild(l);
+    }
+    sw.dx = Math.min(0, dx);
+    sw.card.style.transform = `translateX(${sw.dx}px)`;
+    sw.card.classList.toggle('swipe-go', sw.dx <= -Math.min(SKIP_AT, sw.card.offsetWidth * 0.4));
+  });
+  for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, ev => { if (sw && ev.pointerId === sw.id) endSwipe(ev); });
+  document.addEventListener('click', ev => {
+    if (!swallowed || Date.now() > swallowed.until || !ev.target.closest?.(`#${swallowed.id}`)) return;
+    swallowed = null; ev.preventDefault(); ev.stopPropagation();
+  }, true);
+}
+
 function carry(e, si, old, now) {
   const s = e.sets[si];
   for (const n of e.sets.slice(si + 1)) if (!n.done && !!n.warm === !!s.warm && (n.w === old || n.w == null)) n.w = now;
@@ -764,6 +829,7 @@ const qnName = () => { const el = document.getElementById('qn-name'); if (el) qn
 /** A video search for good form, in the app's language (the user taps it; nothing is sent until then). */
 function howToUrl(ex) {
   const lang = getLang();
+  // A dictionary lookup (keys are plain English), not display text: the search always wants the translated name.
   const name = lang === 'en' ? ex.name : translate(plainText(ex.name));
   const how = { en: 'exercise proper form', ms: 'cara betul senaman', zh: '动作要领', 'zh-Hant': '動作要領', ja: 'やり方 フォーム' }[lang] || 'exercise proper form';
   if (lang === 'zh') return `https://search.bilibili.com/all?keyword=${encodeURIComponent(`${name} ${how}`)}`;
