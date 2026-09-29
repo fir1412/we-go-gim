@@ -32,7 +32,21 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://docs.google.com/forms/d/e/1FAIpQLSf4dXE3MAv2QBqA2vImim-I5mPMAOYKynjETzDyXT19wXh9hw/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
 <link rel="preload" href="fonts/dm-sans-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Everything the first screen (Today) imports, fetched at once instead of one import level at a time. Other screens load later (js/app.js LAZY). -->
+<link rel="modulepreload" href="js/app.js">
 <link rel="modulepreload" href="js/state.js">
+<link rel="modulepreload" href="js/engine.js">
+<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/plain.js">
+<link rel="modulepreload" href="js/db.js">
+<link rel="modulepreload" href="js/i18n.js">
+<link rel="modulepreload" href="js/seed.js">
+<link rel="modulepreload" href="js/learn.js">
+<link rel="modulepreload" href="js/gamify.js">
+<link rel="modulepreload" href="js/fx.js">
+<link rel="modulepreload" href="js/views/today.js">
+<link rel="modulepreload" href="js/views/daily.js">
+<link rel="modulepreload" href="js/views/learn.js">
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="css/app.css">
 </head>
