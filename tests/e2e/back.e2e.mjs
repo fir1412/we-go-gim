@@ -67,3 +67,17 @@ test('on Today, a sheet closed with its own button leaves one back press to clos
   await new Promise(r => setTimeout(r, 200));
   assert.equal(await back(), 'left the app');
 });
+
+test('opening the app straight onto a screen that loads later shows it, and back still works', { skip }, async () => {
+  await fresh();
+  // Past the welcome screen (a new phone always opens there), then a real page load straight onto Settings.
+  await b.go('__blank'); await b.go('#/setup');
+  await b.until(() => [...document.querySelectorAll('a,button')].some(x => /Skip for now/.test(x.textContent)), 'the welcome screen');
+  await b.run(() => [...document.querySelectorAll('a,button')].find(x => /Skip for now/.test(x.textContent)).click());
+  await b.until(() => !location.hash.includes('setup'), 'leaving setup');
+  await b.go('__blank'); await b.go('#/settings');
+  await b.until(() => document.querySelector('#bar h1')?.textContent === 'Settings', 'the settings screen');
+  await tap('help');
+  await b.until(() => document.querySelector('#bar h1')?.textContent === 'Help', 'the help screen');
+  assert.equal(await back(), 'settings');
+});

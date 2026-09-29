@@ -5,13 +5,6 @@ import { setPlain } from './plain.js';
 import * as db from './db.js';
 import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i18n.js';
 import * as today from './views/today.js';
-import * as workout from './views/workout.js';
-import * as insights from './views/insights.js';
-import * as history from './views/history.js';
-import * as levels from './views/levels.js';
-import * as atlas from './views/atlas.js';
-import * as setup from './views/setup.js';
-import * as more from './views/more.js';
 import * as daily from './views/daily.js';
 import * as learnView from './views/learn.js';
 import './fx.js'; // motion and touch feedback (self-starting)
@@ -24,18 +17,27 @@ const TABS = [
   ['more', 'More', ICON.more],
 ];
 
-// route name -> [view module, tab]
+// route name -> [view, tab]
 const ROUTES = {
-  today: [today, 'today'], daily: [daily, 'today'], start: [today, 'today'],
-  workout: [workout, 'workout'],
-  insights: [insights, 'insights'], ex: [insights, 'insights'], body: [insights, 'insights'], cardio: [insights, 'insights'], lifts: [insights, 'insights'],
-  levels: [levels, 'insights'], atlas: [atlas, 'insights'], measure: [insights, 'insights'],
-  learn: [learnView, 'more'],
-  setup: [setup, 'more'],
-  history: [history, 'history'], session: [history, 'history'],
-  more: [more, 'more'], program: [more, 'more'], paste: [more, 'more'], exercises: [more, 'more'], exercise: [more, 'more'],
-  gyms: [more, 'more'], equip: [more, 'more'], data: [more, 'more'], settings: [more, 'more'], import: [more, 'more'], help: [more, 'more'],
+  today: ['today', 'today'], daily: ['daily', 'today'], start: ['today', 'today'],
+  workout: ['workout', 'workout'],
+  insights: ['insights', 'insights'], ex: ['insights', 'insights'], body: ['insights', 'insights'], cardio: ['insights', 'insights'], lifts: ['insights', 'insights'],
+  levels: ['levels', 'insights'], atlas: ['atlas', 'insights'], measure: ['insights', 'insights'],
+  learn: ['learn', 'more'],
+  setup: ['setup', 'more'],
+  history: ['history', 'history'], session: ['history', 'history'],
+  more: ['more', 'more'], program: ['more', 'more'], paste: ['more', 'more'], exercises: ['more', 'more'], exercise: ['more', 'more'],
+  gyms: ['more', 'more'], equip: ['more', 'more'], data: ['more', 'more'], settings: ['more', 'more'], import: ['more', 'more'], help: ['more', 'more'],
 };
+// The first screen needs only Today (and the daily and learn cards on it). The other screens load on first
+// visit, and in the background once the phone is idle, so a tab is still instant the first time it's tapped.
+const views = { today, daily, learn: learnView };
+const LAZY = {
+  workout: () => import('./views/workout.js'), insights: () => import('./views/insights.js'), history: () => import('./views/history.js'),
+  levels: () => import('./views/levels.js'), atlas: () => import('./views/atlas.js'), setup: () => import('./views/setup.js'), more: () => import('./views/more.js'),
+};
+const loading = {};
+const loadView = n => views[n] ? Promise.resolve(views[n]) : (loading[n] ??= LAZY[n]().then(m => (views[n] = m), e => { delete loading[n]; throw e; }));
 
 export function parseRoute() {
   const h = location.hash.replace(/^#\/?/, '');
@@ -110,7 +112,8 @@ function renderRoute() {
     route = parseRoute();
     setTimeout(quickStart, 0);
   }
-  const [view, tab] = ROUTES[route.name];
+  const [vn, tab] = ROUTES[route.name], view = views[vn];
+  if (!view) return void loadView(vn).then(() => render(), recovery); // the screen so far stays up meanwhile
   current = { view, route };
   if (!touring) learnView.learnFrom({ route: route.name }); // "Learn the app" missions done by visiting a screen (the tour's own visits don't count)
   const key = route.name + '/' + route.args.join('/');
@@ -219,7 +222,7 @@ const GLOBAL = {
     await saveSettings({ lang: v });
     await reloadSaved();
   },
-  'cal-export': () => more.exportCalendar(),
+  'cal-export': async () => (await loadView('more')).exportCalendar(),
   install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
   'reload-app': () => reloadSaved(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
@@ -345,8 +348,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.5';
+export const APP_VERSION = '1.9.6';
 const WHATS_NEW = {
+  '1.9.6': ['Opens faster: only Today loads at start, and the other screens load in the background right after'],
   '1.9.5': ['Back goes up the app instead of retracing every screen: a few presses reach Today, and one more closes the app', 'Safer saves: a restore that fails half-way can still be undone, and an update never reloads before your last set is written', 'Easier to see and use: clearer edges on weight, reps and tick boxes, focus stays put when you tap +/−, and Undo waits while you reach for it', 'Opens faster, and the “Start workout” home-screen shortcut works again'],
   '1.9.4': ['Exercise details no longer repeat the unit after the progress range (“88.7 kg each”, not “kg each kg per dumbbell”)'],
   '1.9.3': ['Numbers you type are saved as you type, so nothing is lost if the phone locks mid-set', 'The rest timer’s “Next” updates when you skip an exercise', 'A finished exercise shows its name in full: the target tag makes room for the ^ button', 'The backup reminder on Today no longer hides behind other notices', 'Tip: swipe an exercise card left to skip it'],
@@ -543,6 +547,9 @@ async function boot() {
     return;
   }
   $('#tabs').innerHTML = TABS.map(([k, l, i]) => `<a href="#/${k}" data-tab="${k}">${i}<span>${l}</span><i class="dot"></i></a>`).join('');
+  // Most people keep the phone's language: start fetching its dictionary while the data loads.
+  const guess = guessLang();
+  if (guess !== 'en') import(`./i18n/${guess}.js`).catch(() => {});
   try {
     await load();
   } catch (e) {
@@ -564,6 +571,8 @@ async function boot() {
   window.addEventListener('hashchange', () => { if (sheetOpen()) closeSheet(); render(); });
   render();
   document.body.classList.add('ready');
+  const idle = window.requestIdleCallback || (f => setTimeout(f, 1500));
+  idle(() => Object.keys(LAZY).reduce((p, n) => p.then(() => loadView(n).catch(() => {})), Promise.resolve()));
   // Confirm a reload caused by an update, so a manual "Check for updates" visibly lands.
   try { if (sessionStorage.getItem('wgg-updated')) { sessionStorage.removeItem('wgg-updated'); setTimeout(() => toast('Updated to the latest version', 'up'), 300); } } catch {}
   onboarding();

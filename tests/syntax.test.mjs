@@ -23,3 +23,16 @@ test('the check itself catches a broken file', () => {
   const r = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: "export const a = ['it's broken'];", encoding: 'utf8' });
   assert.notEqual(r.status, 0);
 });
+
+test('index.html preloads only files that exist, work offline, and are not screens loaded later', () => {
+  const html = readFileSync(join(root, 'index.html'), 'utf8'), sw = readFileSync(join(root, 'sw.js'), 'utf8');
+  const app = readFileSync(join(root, 'js', 'app.js'), 'utf8');
+  const lazy = [...app.matchAll(/import\('\.\/(views\/\w+\.js)'\)/g)].map(m => 'js/' + m[1]);
+  const pre = [...html.matchAll(/rel="(?:modulepreload|preload)" href="([^"]+)"/g)].map(m => m[1]);
+  assert.ok(pre.length && lazy.length);
+  for (const p of pre) {
+    assert.ok(readFileSync(join(root, p)).length, p);
+    assert.ok(sw.includes(`'./${p}'`), `${p} is not in the offline cache (sw.js CORE)`);
+    assert.ok(!lazy.includes(p), `${p} is loaded lazily; preloading it undoes that`);
+  }
+});
