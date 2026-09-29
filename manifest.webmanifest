@@ -3,6 +3,8 @@
   "short_name": "we go gim",
   "description": "Workout tracker that pre-fills every session from your last one.",
   "id": "./",
+  "lang": "en",
+  "categories": ["health", "fitness", "sports"],
   "start_url": "./#/today",
   "scope": "./",
   "display": "standalone",

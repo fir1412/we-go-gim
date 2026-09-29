@@ -467,8 +467,6 @@ export function mergeSessions(local, incoming) {
 export async function importAll(data, { merge = false } = {}) {
   validateBackup(data);
   data = sanitizeBackup(data);
-  await db.del('kv', 'draft');
-  S.draft = null;
   if (!merge) for (const s of ['sessions', 'exercises', 'body', 'cardio']) await db.clear(s);
   await db.putMany('exercises', data.exercises || []);
   const merged = merge ? mergeSessions(S.sessions, data.sessions) : { put: data.sessions || [], skipped: 0 };
@@ -491,6 +489,8 @@ export async function importAll(data, { merge = false } = {}) {
     await db.setKv('measures', measures);
     for (const [d, v] of daily) await db.setKv('daily:' + d, v);
   }
+  await db.del('kv', 'draft');
+  S.draft = null;
   await load();
   refresh();
   return { skipped: merged.skipped };

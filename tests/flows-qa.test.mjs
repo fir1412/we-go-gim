@@ -46,3 +46,11 @@ test('a draft left open for days saves its date but no made-up length', async ()
   const t = await state.commitDraft();
   assert.ok(t.end - t.start >= 40 * 60e3 - 1000);
 });
+
+test('a workout that fails to save (storage full) stays open instead of vanishing', async () => {
+  S.sessions = []; S.cardio = []; S.draft = draft();
+  const set = localStorage.setItem;
+  localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+  try { await assert.rejects(state.commitDraft()); } finally { localStorage.setItem = set; }
+  assert.equal(S.draft?.id, 'w1');
+});

@@ -143,6 +143,9 @@ function renderRoute() {
   paintTimer();
 }
 
+/** Reload once the workout draft (typing is saved a moment later) is safely written. */
+const reloadSaved = () => saveDraft().then(() => location.reload());
+
 async function quickStart() {
   if (S.draft) return go('workout');
   const t = todayIso(), day = dayForDate(t);
@@ -208,11 +211,11 @@ const GLOBAL = {
     const v = el.value || el.dataset.v;
     if (!LANGS.some(([k]) => k === v) || v === getLang()) return;
     await saveSettings({ lang: v });
-    location.reload();
+    await reloadSaved();
   },
   'cal-export': () => more.exportCalendar(),
   install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
-  'reload-app': () => location.reload(),
+  'reload-app': () => reloadSaved(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
@@ -547,7 +550,7 @@ async function boot() {
   onChange(() => { applyTheme(); render(); });
   // Another tab changed the data: reload it here too (after the workout in progress is saved, not in the middle of one).
   db.onRemoteChange(async () => {
-    if (S.draft && parseRoute().name === 'workout') return toast('Changes were made in another tab. They will show after this workout.', 'flat');
+    if (S.draft) return toast('Changes were made in another tab. They will show after this workout.', 'flat');
     await load(); applyTheme(); render();
   });
   db.onSaveFailed(() => toast(db.storageMode() === 'localstorage' ? "Couldn't save: this browser's storage is full. Save a backup now, then free space or use Chrome normally (not private mode)." : "Couldn't save that change. Save a backup and reload.", 'down'));
@@ -572,7 +575,7 @@ async function boot() {
       if (reloading || document.activeElement?.matches('input, textarea, select') || sheetOpen()) return false;
       reloading = true;
       try { sessionStorage.setItem('wgg-updated', '1'); } catch {}
-      location.reload(); return true;
+      reloadSaved().catch(() => { reloading = false; }); return true;
     };
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!hadController || tryReload()) return;
