@@ -32,7 +32,7 @@ test('every seeded programme slot yields a sane suggestion on every day of week'
   }
 });
 
-test('seed matches handoff numbers', () => {
+test('the sample log has the shape the tests rely on', () => {
   const ss = seedSessions();
   const b = ss.find(s => s.date === '2026-09-21').entries.find(e => e.exId === 'bench');
   assert.deepEqual(b.sets.map(x => [x.w, x.r]), [[25, 8], [25, 8], [25, 8], [25, 8]]);

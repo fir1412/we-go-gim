@@ -37,7 +37,7 @@ export const uid = (p = 'x') => `${p}-${Date.now().toString(36)}-${Math.random()
 
 function indexExercises() {
   invalidateCaches();
-  S.exById = Object.fromEntries(S.exercises.map(e => [e.id, e]));
+  S.exById = Object.assign(Object.create(null), Object.fromEntries(S.exercises.map(e => [e.id, e])));
 }
 const byDateDesc = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (b.end || 0) - (a.end || 0));
 
@@ -68,18 +68,21 @@ export async function load() {
   if (fixed.length) await db.putMany('exercises', fixed);
   S.exercises = exs.sort((a, b) => a.name.localeCompare(b.name));
   indexExercises();
-  S.program = withUniqueDays((await db.getKv('program')) || structuredClone(PROGRAM));
-  S.sessions = (await db.all('sessions')).sort(byDateDesc);
-  invalidateCaches();
-  S.body = (await db.all('body')).sort((a, b) => a.date.localeCompare(b.date));
-  S.cardio = (await db.all('cardio')).sort((a, b) => b.date.localeCompare(a.date));
-  S.draft = await db.getKv('draft');
-  S.daily = {};
+  // The rest don't depend on each other: read them at once (the first screen waits for all of them).
   // Only the daily-log keys, never every value (the kv store also holds progress photos).
-  for (const k of await db.kvKeys('daily:')) S.daily[k.slice(6)] = await db.getKv(k);
-  S.measures = ((await db.getKv('measures')) || []).sort((a, b) => a.date.localeCompare(b.date));
-  S.photos = ((await db.getKv('photos')) || []).sort((a, b) => a.date.localeCompare(b.date));
-  const r = await db.getKv('readiness');
+  const dailyKeys = db.kvKeys('daily:').then(ks => Promise.all(ks.map(async k => [k.slice(6), await db.getKv(k)])));
+  const [program, sessions, body, cardio, draft, daily, measures, photos, r] = await Promise.all([
+    db.getKv('program'), db.all('sessions'), db.all('body'), db.all('cardio'), db.getKv('draft'), dailyKeys, db.getKv('measures'), db.getKv('photos'), db.getKv('readiness'),
+  ]);
+  S.program = withUniqueDays(program || structuredClone(PROGRAM));
+  S.sessions = sessions.sort(byDateDesc);
+  invalidateCaches();
+  S.body = body.sort((a, b) => a.date.localeCompare(b.date));
+  S.cardio = cardio.sort((a, b) => b.date.localeCompare(a.date));
+  S.draft = draft;
+  S.daily = Object.fromEntries(daily);
+  S.measures = (measures || []).sort((a, b) => a.date.localeCompare(b.date));
+  S.photos = (photos || []).sort((a, b) => a.date.localeCompare(b.date));
   S.readiness = r && r.date === todayIso() ? r : { date: todayIso(), sleep: null, pain: false };
 }
 
@@ -316,6 +319,7 @@ export function validateBackup(data) {
   if (!data || data.app !== 'setlist' || !Array.isArray(data.sessions)) throw new Error('This file is not a we go gim backup.');
   const bad = (what, i) => { throw new Error(`Backup rejected: ${what} #${i + 1} is malformed. Nothing was changed.`); };
   const iso = validIso; // a real calendar date from 1970 to 2100
+  if (data.sessions.length > 20000 || data.sessions.some(s => s?.entries?.length > 100 || s?.entries?.some?.(e => e?.sets?.length > 100))) throw new Error('Backup rejected: it is far larger than any real training log. Nothing was changed.');
   data.sessions.forEach((s, i) => { if (!s || typeof s.id !== 'string' || !iso(s.date) || !Array.isArray(s.entries) || s.entries.some(e => !e || typeof e.exId !== 'string' || !Array.isArray(e.sets))) bad('session', i); });
   (data.exercises || []).forEach((e, i) => { if (!e || typeof e.id !== 'string' || typeof e.name !== 'string' || !['kg', 'kg/DB', 'L', 'bw'].includes(e.unit)) bad('exercise', i); });
   (data.body || []).forEach((b, i) => { if (!b || typeof b.id !== 'string' || !iso(b.date) || !(+b.kg > 0)) bad('weigh-in', i); });
@@ -374,6 +378,7 @@ export function sanitizeBackup(data) {
   if (data.program && Array.isArray(data.program.days)) out.program = prog(data.program);
   if (data.settings && typeof data.settings === 'object') {
     const s = { ...data.settings };
+    delete s.feedbackQueue; delete s.feedbackSent; // this phone's own, never another's
     for (const k of ['goalKg', 'heightCm', 'sessionLen']) if (k in s) s[k] = numOr(s[k]);
     if (s.targets && typeof s.targets === 'object') s.targets = Object.fromEntries(DAILY_FIELDS.filter(k => k in s.targets).map(k => [k, numOr(s.targets[k])]));
     // Today and the CSV export look gyms up on every render: always a list of real gyms, and gymId one of them.
@@ -467,8 +472,6 @@ export function mergeSessions(local, incoming) {
 export async function importAll(data, { merge = false } = {}) {
   validateBackup(data);
   data = sanitizeBackup(data);
-  await db.del('kv', 'draft');
-  S.draft = null;
   if (!merge) for (const s of ['sessions', 'exercises', 'body', 'cardio']) await db.clear(s);
   await db.putMany('exercises', data.exercises || []);
   const merged = merge ? mergeSessions(S.sessions, data.sessions) : { put: data.sessions || [], skipped: 0 };
@@ -491,6 +494,8 @@ export async function importAll(data, { merge = false } = {}) {
     await db.setKv('measures', measures);
     for (const [d, v] of daily) await db.setKv('daily:' + d, v);
   }
+  await db.del('kv', 'draft');
+  S.draft = null;
   await load();
   refresh();
   return { skipped: merged.skipped };

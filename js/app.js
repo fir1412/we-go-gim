@@ -1,6 +1,6 @@
 import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from './state.js';
 import { setUnits, setBwLabel } from './engine.js';
-import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
+import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, setOnBack, sheetSettling, selectorFor, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
 import { setPlain } from './plain.js';
 import * as db from './db.js';
 import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i18n.js';
@@ -39,16 +39,57 @@ const ROUTES = {
 
 export function parseRoute() {
   const h = location.hash.replace(/^#\/?/, '');
-  const [name = 'today', ...rest] = h.split('/').map(decodeURIComponent);
+  const dec = s => { try { return decodeURIComponent(s); } catch { return s; } };
+  const [name = 'today', ...rest] = h.split('/').map(dec);
   return { name: ROUTES[name] ? name : 'today', args: rest };
 }
-export const go = path => { location.hash = '#/' + path; };
+// Back goes up the app, not through every screen visited. `trail` is the way back: a tab starts it
+// over from Today, and opening a kind of screen already on it (another lift, another session) trims
+// back to there. Each history entry carries `i`, how many entries it sits above the app's first, so
+// reaching Today can jump straight to the first entry and the next back press closes the app.
+const TOP = new Set([...TABS.map(t => t[0]), 'levels']);
+let trail = ['today'], collapsing = false, lastI = 0, queued = null;
+const depth = () => window.history.state?.i ?? 0;
+export function go(path) {
+  if (collapsing || sheetSettling()) { queued = path; return; } // a jump back is still landing: go once it has
+  if (location.hash === '#/' + path) return;
+  window.history.pushState({ i: depth() + 1 }, '', '#/' + path);
+  dispatchEvent(new HashChangeEvent('hashchange'));
+}
+function follow(path, name) {
+  if (name === 'today') trail = [path];
+  else if (TOP.has(name)) trail = ['today', path];
+  else {
+    const k = trail.findIndex(p => p === path || p.split('/')[0] === name);
+    trail = [...(k > 0 ? trail.slice(0, k) : trail), path];
+  }
+}
+function toToday() {
+  if (collapsing || trail.length > 1 || !depth() || window.history.state?.sheet) return;
+  collapsing = true;
+  window.history.go(-depth());
+}
+const flush = () => { const p = queued; queued = null; if (p) go(p); };
+setOnBack(settled => {
+  if (settled) return flush(); // a closed sheet's entry was dropped
+  if (window.history.state?.i == null) return; // a new entry (the address bar), not a step back
+  if (collapsing) { // landed on the first entry: show Today there
+    collapsing = false;
+    window.history.replaceState({ i: 0 }, '', '#/' + trail.at(-1));
+  } else {
+    trail.pop();
+    if (!trail.length) trail = ['today'];
+    window.history.replaceState({ i: depth() }, '', '#/' + trail.at(-1));
+    toToday();
+  }
+  dispatchEvent(new HashChangeEvent('hashchange'));
+  if (!collapsing) flush();
+});
 
 let current = null, lastKey = '';
-// Where the lifter came from, so a detail screen's back arrow returns there, at the same scroll position.
-let curPath = '', prevPath = '', left = null; // left: the screen just left and its scroll position
+let left = null; // the screen just left and its scroll position, so going back picks up where the lifter was
 /** The screen before this one ('workout', 'history', …), or `fallback` when the app was opened here. */
-export const backTo = fallback => prevPath || fallback;
+export const backTo = fallback => trail.at(-2) || fallback;
 let touring = false; // while the quick tour moves between screens
 
 function render() {
@@ -65,7 +106,7 @@ function renderRoute() {
   let route = parseRoute();
   // Home-screen shortcut: #/start opens today's workout in one tap.
   if (route.name === 'start') {
-    history.replaceState(history.state, '', '#/today');
+    window.history.replaceState(window.history.state, '', '#/today');
     route = parseRoute();
     setTimeout(quickStart, 0);
   }
@@ -79,11 +120,14 @@ function renderRoute() {
     // Straight back to the screen just left (back arrow or phone back): pick up where the lifter was.
     if (left && left.key === key && left.to === lastKey) keep = left.top;
     left = lastKey ? { key: lastKey, top: sc.scrollTop, to: key } : null;
-    prevPath = curPath;
-    curPath = location.hash.replace(/^#\/?/, '');
+    if (window.history.state?.i == null) window.history.replaceState({ ...window.history.state, i: lastKey ? lastI + 1 : 0 }, ''); // typed into the address bar, or first open
+    lastI = depth();
+    follow(location.hash.replace(/^#\/?/, '') || 'today', route.name);
+    toToday();
   }
   const out = view.render(route) || {};
-  const focusId = key === lastKey && sc.contains(document.activeElement) ? document.activeElement.id : null;
+  // Redrawing the same screen (a tick, a +/- tap) keeps focus on the same control.
+  const focusSel = key === lastKey && sc.contains(document.activeElement) ? selectorFor(document.activeElement) : null;
 
   $('#app').style.setProperty('--c', cvar(out.color || 'push'));
   if (isHex(out.color)) $('#app').style.setProperty('--on', onFor(out.color)); else $('#app').style.removeProperty('--on');
@@ -91,7 +135,7 @@ function renderRoute() {
     <div class="bar-t"><small>${out.sub || ''}</small><h1 tabindex="-1">${esc(out.title || '')}</h1></div><div class="bar-r">${out.right || ''}</div>`;
   sc.innerHTML = out.html || '';
   sc.scrollTop = keep;
-  if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+  if (focusSel) sc.querySelector(focusSel)?.focus({ preventScroll: true });
   else if (key !== lastKey && lastKey) $('#bar h1')?.focus?.({ preventScroll: true });
   lastKey = key;
   for (const b of $$('.tabs a')) {
@@ -104,6 +148,9 @@ function renderRoute() {
   wake();
   paintTimer();
 }
+
+/** Reload once the workout draft (typing is saved a moment later) is safely written. */
+const reloadSaved = () => saveDraft().then(() => location.reload());
 
 async function quickStart() {
   if (S.draft) return go('workout');
@@ -135,6 +182,13 @@ document.addEventListener('pointerdown', ev => {
 for (const t of ['pointerup', 'pointercancel', 'pointerleave']) document.addEventListener(t, () => clearTimeout(pressT));
 document.addEventListener('click', ev => { if (pressShown) { pressShown = false; ev.preventDefault(); ev.stopPropagation(); } }, true);
 document.addEventListener('click', ev => { unlockAudio(); dispatch('click', ev); });
+// In-app links go through go(), so every history entry knows its depth.
+document.addEventListener('click', ev => {
+  const a = ev.target.closest('a[href^="#/"]');
+  if (!a || ev.defaultPrevented || ev.button || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+  ev.preventDefault();
+  go(a.getAttribute('href').slice(2));
+});
 document.addEventListener('change', ev => dispatch('change', ev));
 // Tapping a number field selects it, so typing replaces "25" instead of making "257".
 document.addEventListener('focusin', ev => {
@@ -163,11 +217,11 @@ const GLOBAL = {
     const v = el.value || el.dataset.v;
     if (!LANGS.some(([k]) => k === v) || v === getLang()) return;
     await saveSettings({ lang: v });
-    location.reload();
+    await reloadSaved();
   },
   'cal-export': () => more.exportCalendar(),
   install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
-  'reload-app': () => location.reload(),
+  'reload-app': () => reloadSaved(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
 
@@ -291,8 +345,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.4';
+export const APP_VERSION = '1.9.5';
 const WHATS_NEW = {
+  '1.9.5': ['Back goes up the app instead of retracing every screen: a few presses reach Today, and one more closes the app', 'Safer saves: a restore that fails half-way can still be undone, and an update never reloads before your last set is written', 'Easier to see and use: clearer edges on weight, reps and tick boxes, focus stays put when you tap +/−, and Undo waits while you reach for it', 'Opens faster, and the “Start workout” home-screen shortcut works again'],
   '1.9.4': ['Exercise details no longer repeat the unit after the progress range (“88.7 kg each”, not “kg each kg per dumbbell”)'],
   '1.9.3': ['Numbers you type are saved as you type, so nothing is lost if the phone locks mid-set', 'The rest timer’s “Next” updates when you skip an exercise', 'A finished exercise shows its name in full: the target tag makes room for the ^ button', 'The backup reminder on Today no longer hides behind other notices', 'Tip: swipe an exercise card left to skip it'],
   '1.9.2': ['Swipe an exercise card left to skip it. Its sets stop counting and the time left updates. Undo from the card, or use Skip exercise in the ⋮ menu', 'Calendar reminders use the same wording as the app: gym terms stay gym terms'],
@@ -501,7 +556,7 @@ async function boot() {
   onChange(() => { applyTheme(); render(); });
   // Another tab changed the data: reload it here too (after the workout in progress is saved, not in the middle of one).
   db.onRemoteChange(async () => {
-    if (S.draft && parseRoute().name === 'workout') return toast('Changes were made in another tab. They will show after this workout.', 'flat');
+    if (S.draft) return toast('Changes were made in another tab. They will show after this workout.', 'flat');
     await load(); applyTheme(); render();
   });
   db.onSaveFailed(() => toast(db.storageMode() === 'localstorage' ? "Couldn't save: this browser's storage is full. Save a backup now, then free space or use Chrome normally (not private mode)." : "Couldn't save that change. Save a backup and reload.", 'down'));
@@ -526,7 +581,7 @@ async function boot() {
       if (reloading || document.activeElement?.matches('input, textarea, select') || sheetOpen()) return false;
       reloading = true;
       try { sessionStorage.setItem('wgg-updated', '1'); } catch {}
-      location.reload(); return true;
+      reloadSaved().catch(() => { reloading = false; }); return true;
     };
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!hadController || tryReload()) return;

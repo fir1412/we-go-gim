@@ -109,7 +109,7 @@ export function render() {
   for (const [ci, c] of (d.cardio || []).entries()) h += `<article class="box exc cardioc"><div class="rowi"><span class="sw" style="--k:var(--pull)"></span><span class="grow"><b>${esc(c.type)}</b> · ${c.min} min${c.km ? ` · ${num(c.km)} km` : ''} · ${esc(c.intensity)}<small>Cardio, added to your cardio log when you save</small></span><button class="mini" data-act="cardio-rm" data-i="${ci}" aria-label="Remove ${esc(c.type)}">Remove</button></div></article>`;
   h += `<div class="row2"><button class="btn ghost" data-act="add-ex">${ICON.plus} Add exercise</button><button class="btn ghost" data-act="add-cardio">${ICON.plus} Add cardio</button></div>`;
   h += `<section class="box notesbox"><p class="lbl">Session notes</p>
-    <div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([v, l]) => `<button data-act="feel" data-v="${v}" aria-pressed="${d.feel === v}" title="${l}">${v}</button>`).join('')}</div></div>
+    <div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([v, l]) => `<button data-act="feel" data-v="${v}" aria-pressed="${d.feel === v}" title="${l}" aria-label="${v}: ${l}">${v}</button>`).join('')}</div></div>
     <div class="rrow"><label for="hr">Peak heart rate</label><input class="inp sm" id="hr" type="number" inputmode="numeric" placeholder="bpm" value="${d.hr ?? ''}" data-input="hr"></div>
     <textarea class="inp" id="snote" rows="2" aria-label="Session notes" placeholder="Anything worth remembering: sleep, energy, technique" data-input="snote">${esc(d.note || '')}</textarea></section>`;
   // Every set ticked: the Finish button sticks to the bottom of the screen, within thumb reach.
@@ -357,7 +357,7 @@ function summary(d) {
   const gains = Object.entries(after.muscles).map(([m, r]) => ({ m, g: r.xp - (before.muscles[m]?.xp || 0), up: levelFor(r.xp).level > levelFor(before.muscles[m]?.xp || 0).level, L: levelFor(r.xp).level })).filter(x => x.g > 0).sort((a, b) => b.g - a.g);
   if (gains.length) h += `<a class="box prbox" href="#/levels"><p class="lbl">${expertWording() ? 'XP' : 'XP (experience points)'} earned · +${gains.reduce((a, x) => a + x.g, 0)}</p><div class="xpgain">${gains.map(x => pill(`${x.up ? '▲ ' : ''}${x.m} +${x.g}${x.up ? ` · level ${x.L}` : ''}`, x.up ? 'push' : 'up')).join('')}</div></a>`;
   h += `<div class="box pad0"><p class="lbl in">Next time</p>${rows}</div>
-    <div class="box ready"><div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([val, l]) => `<button data-act="feel" data-v="${val}" aria-pressed="${d.feel === val}" title="${l}">${val}</button>`).join('')}</div></div></div>
+    <div class="box ready"><div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([val, l]) => `<button data-act="feel" data-v="${val}" aria-pressed="${d.feel === val}" title="${l}" aria-label="${val}: ${l}">${val}</button>`).join('')}</div></div></div>
     <p class="fine">*${anyKg ? `${esc(T('volume'))} is weight × reps added up and counts both dumbbells. ` : ''}"vs last time" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.</p>
     <button class="btn" data-act="save" style="--c:var(--up)">Save workout</button>
     <button class="btn ghost" data-act="back-to-workout">Back to workout</button>`;

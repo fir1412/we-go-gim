@@ -1178,7 +1178,7 @@ const isoOf = ms => new Date(ms).toISOString().slice(0, 10);
  */
 export function fixDateTypos(list) {
   const n = list.length;
-  if (n < 4) return list;
+  if (n < 4 || n > 2000) return list; // ponytail: O(n²) run search; a log this long would freeze the phone (patience sort if it's ever needed)
   // Longest run of dates in order (not necessarily adjacent): everything else is out of place.
   const len = Array(n).fill(1), prev = Array(n).fill(-1);
   for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (list[j].date <= list[i].date && len[j] + 1 > len[i]) { len[i] = len[j] + 1; prev[i] = j; }

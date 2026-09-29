@@ -108,3 +108,21 @@ test('service worker: only page loads fall back to the app shell, never scripts'
   assert.match(sw, /shell \? caches\.match\('\.\/index\.html'\) : undefined/);
   for (const f of ['streak.js', 'calendar.js', 'atlas-map.js', 'i18n.js']) assert.ok(sw.includes(`'./js/${f}'`), `${f} precached`);
 });
+
+// 2026-09-29 review: a shared backup can't queue feedback posts or be absurdly large; long logs can't freeze the importer.
+test('a restored backup never brings feedback to send from this phone', () => {
+  const out = sanitizeBackup({ ...crafted, settings: { ...crafted.settings, feedbackQueue: [{ type: 'Bug', message: 'spam' }], feedbackSent: [1] } });
+  assert.equal(out.settings.feedbackQueue, undefined);
+  assert.equal(out.settings.feedbackSent, undefined);
+});
+
+test('a backup far larger than any real log is rejected before anything is written', () => {
+  const sets = Array.from({ length: 101 }, () => ({ w: 1, r: 1 }));
+  assert.throws(() => validateBackup({ ...crafted, sessions: [{ ...crafted.sessions[0], entries: [{ exId: 'bench', sets }] }] }), /far larger/);
+});
+
+test('a pasted log with thousands of dated sessions skips the slow date-typo check', () => {
+  const list = Array.from({ length: 20000 }, (_, i) => ({ date: `20${10 + (i * 7) % 16}-0${1 + i % 9}-1${i % 10}` }));
+  const t = performance.now(); io.fixDateTypos(list);
+  assert.ok(performance.now() - t < 300, `took ${Math.round(performance.now() - t)} ms`);
+});

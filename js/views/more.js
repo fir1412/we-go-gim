@@ -406,11 +406,11 @@ function data() {
   return { title: 'Backup and export', sub: 'Your data, your files', back: 'more', html: h, color: 'upper' };
 }
 
-/** Copy of all data taken before a destructive step, stored after it, so the step can be undone. */
+/** Copy of all data saved before a destructive step, so the step can be undone (even one that failed half-way). */
 async function withUndo(what, fn) {
   const snap = structuredClone(await exportAll());
-  await fn();
   await db.setKv('undo', { at: todayIso(), what, data: snap });
+  await fn();
   undoMeta = { at: todayIso(), what, n: snap.sessions.length };
   refresh();
 }

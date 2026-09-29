@@ -40,11 +40,16 @@ function open() {
 function lsLoad() {
   mem = {};
   for (const s of STORES) {
-    try { mem[s] = JSON.parse(localStorage.getItem(`${NAME}.${s}`) || '{}'); } catch { mem[s] = {}; }
+    const raw = localStorage.getItem(`${NAME}.${s}`);
+    try { mem[s] = JSON.parse(raw || '{}'); } catch {
+      // Damaged: keep the raw text aside so the next save can't overwrite the only copy.
+      mem[s] = {};
+      try { localStorage.setItem(`${NAME}.${s}.damaged`, raw); } catch {}
+    }
   }
 }
 function lsSave(store) {
-  try { localStorage.setItem(`${NAME}.${store}`, JSON.stringify(mem[store])); } catch (e) { console.warn('save failed', e); failHandler(e); }
+  try { localStorage.setItem(`${NAME}.${store}`, JSON.stringify(mem[store])); } catch (e) { console.warn('save failed', e); failHandler(e); throw e; }
 }
 
 let mode = null;
@@ -63,13 +68,14 @@ export async function init() {
 
 function tx(store, mode, fn) {
   return new Promise((resolve, reject) => {
-    const t = idb.transaction(store, mode);
-    const os = t.objectStore(store);
-    let result;
-    Promise.resolve(fn(os)).then(r => { result = r; });
+    let t, result, failed = false;
+    const fail = e => { if (failed) return; failed = true; if (mode === 'readwrite') failHandler(e); reject(e); };
+    try { t = idb.transaction(store, mode); } catch (e) { return fail(e); } // closed (another tab upgraded) or similar
+    const broke = e => { try { t.abort(); } catch {} fail(e); };
+    try { Promise.resolve(fn(t.objectStore(store))).then(r => { result = r; }, broke); } catch (e) { broke(e); }
     t.oncomplete = () => resolve(result);
-    t.onerror = () => { failHandler(t.error); reject(t.error); };
-    t.onabort = () => { failHandler(t.error); reject(t.error); };
+    t.onerror = () => fail(t.error);
+    t.onabort = () => fail(t.error);
   });
 }
 const reqP = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
