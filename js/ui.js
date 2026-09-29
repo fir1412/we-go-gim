@@ -159,11 +159,18 @@ function niceTicks(a, b, n) {
 }
 
 // ---- sheets & toasts -------------------------------------------------------------
-let sheetClose = null;
+let sheetClose = null, dropping = false;
+/** A selector that finds the same control after the screen is redrawn: its id, else its data-* attributes. */
+export function selectorFor(el) {
+  if (!el?.tagName || el === document.body) return null;
+  if (el.id) return '#' + CSS.escape(el.id);
+  const d = Object.entries(el.dataset || {});
+  return d.length ? el.tagName.toLowerCase() + d.map(([k, v]) => `[data-${k.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(v)}"]`).join('') : null;
+}
 /** Open a bottom sheet. Returns the sheet element. onClose runs when it's dismissed. */
 export function openSheet(html, { onClose, label = 'Dialog' } = {}) {
   closeSheet();
-  const opener = document.activeElement;
+  const opener = document.activeElement, openerSel = selectorFor(opener);
   const app = document.getElementById('app');
   const wrap = document.createElement('div');
   wrap.className = 'scrim';
@@ -184,25 +191,39 @@ export function openSheet(html, { onClose, label = 'Dialog' } = {}) {
     }
   });
   // Android back button closes the sheet instead of leaving the screen.
-  // One history entry is reused across sheets; closing from the UI leaves it in place
-  // (going back asynchronously would race a sheet that opens right after). The next back press
-  // then lands on the screen's own entry and goes up a screen, as usual.
+  // Android back button closes the sheet; closing it from its own buttons drops the entry again (closeSheet).
   if (!history.state?.sheet) history.pushState({ sheet: true, i: (history.state?.i ?? 0) + 1 }, '');
   sheetClose = () => {
     wrap.remove(); sheetClose = null;
     app?.removeAttribute('inert');
-    if (opener?.isConnected) opener.focus({ preventScroll: true });
+    // The screen may have been redrawn by the sheet's action: find the same button again.
+    (opener?.isConnected ? opener : openerSel && document.querySelector(openerSel))?.focus({ preventScroll: true });
     onClose?.();
   };
   const f = sheet.querySelector('[autofocus]') || sheet.querySelector('input, select, textarea, button');
   setTimeout(() => (f || sheet).focus({ preventScroll: true }), 30);
   return sheet;
 }
-export function closeSheet() { sheetClose?.(); }
+export function closeSheet() {
+  if (!sheetClose) return;
+  sheetClose();
+  // Closed from the UI: drop the sheet's history entry too, so the next back press isn't spent on it.
+  if (history.state?.sheet) { dropping = true; history.back(); }
+}
+/** True while a closed sheet's history entry is being dropped (navigating now would land on the wrong entry). */
+export const sheetSettling = () => dropping;
 let onBack = null;
 /** What the phone's back button does when no sheet is open. */
 export const setOnBack = fn => { onBack = fn; };
-window.addEventListener('popstate', () => { if (sheetClose) sheetClose(); else onBack?.(); });
+window.addEventListener('popstate', () => {
+  if (dropping) {
+    dropping = false;
+    // A sheet opened while the old entry was being dropped: give it its own entry back.
+    if (sheetClose) history.pushState({ sheet: true, i: (history.state?.i ?? 0) + 1 }, '');
+    onBack?.(true);
+  } else if (sheetClose) sheetClose();
+  else onBack?.();
+});
 export const sheetOpen = () => !!sheetClose;
 
 /** In-app confirmation (never window.confirm). */
@@ -235,7 +256,10 @@ export function toast(msg, k = 'ink', { undo = null, action = null } = {}) {
     b.className = 'tundo'; b.type = 'button'; b.textContent = undo.label || 'Undo';
     b.addEventListener('click', () => { hideToast(); undo(); });
     el.append(' ', b);
-  }
+    // Undo stays while a finger or keyboard is on it, and gets its time again after.
+    el.onpointerenter = el.onfocusin = () => clearTimeout(toastT);
+    el.onpointerleave = el.onfocusout = () => { clearTimeout(toastT); toastT = setTimeout(hideToast, 6000); };
+  } else el.onpointerenter = el.onfocusin = el.onpointerleave = el.onfocusout = null;
   el.style.setProperty('--k', `var(--${k})`);
   el.classList.add('on');
   toastAt = Date.now();

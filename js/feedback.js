@@ -24,7 +24,7 @@ async function post(item) {
 
 /** Send anything that was written while offline. */
 export async function flushFeedback() {
-  const q = S.settings?.feedbackQueue || [];
+  const q = (S.settings?.feedbackQueue || []).slice(-20);
   if (!q.length || !navigator.onLine) return;
   const left = [];
   for (const item of q) { try { await post(item); } catch { left.push(item); } }

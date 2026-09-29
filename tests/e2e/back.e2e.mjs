@@ -51,3 +51,19 @@ test('the back arrow and a closed sheet add no extra presses', { skip }, async (
   assert.equal(await back(), 'today');
   assert.equal(await back(), 'left the app');
 });
+
+test('on Today, a sheet closed with its own button leaves one back press to close the app', { skip }, async () => {
+  await fresh();
+  await tab('more'); await tab('today');
+  // A link tapped in the same moment the sheet closes waits for its dropped entry, then goes.
+  await b.run(async () => {
+    const ui = await import('/js/ui.js'); ui.openSheet('<p>hi</p>'); ui.closeSheet();
+    const a = Object.assign(document.createElement('a'), { href: '#/settings' }); document.getElementById('screen').append(a); a.click();
+    await new Promise(r => setTimeout(r, 200));
+  });
+  assert.equal(await screen(), 'settings');
+  assert.equal(await back(), 'today');
+  await b.run(async () => { const ui = await import('/js/ui.js'); ui.openSheet('<p>hi</p>'); ui.closeSheet(); });
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(await back(), 'left the app');
+});

@@ -648,10 +648,13 @@ a.prbox { display: block; }
 /* == UI/UX pass (ui-ux-pro-max checklist): contrast, touch targets, pressed feedback == */
 :root { --rest: #858CA1; --faint: #8A91A6; --press: 110ms; }
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) { --push: #C2540F; --pull: #08776E; --legs: #5B4AD6; --upper: #1A68B3; --legsb: #B8285F; --up: #0F7A42; --down: #C0283F; --flat: #8A6100; --rest: #6B7186; --faint: #6F768A; }
+  :root:not([data-theme="dark"]) { --push: #C2540F; --pull: #08776E; --legs: #5B4AD6; --upper: #1A68B3; --legsb: #B8285F; --up: #0F7A42; --down: #C0283F; --flat: #8A6100; --rest: #6B7186; --faint: #666D82; --line-ctl: #80869A; }
 }
-:root[data-theme="light"] { --push: #C2540F; --pull: #08776E; --legs: #5B4AD6; --upper: #1A68B3; --legsb: #B8285F; --up: #0F7A42; --down: #C0283F; --flat: #8A6100; --rest: #6B7186; --faint: #6F768A; }
-:root[data-theme="dark"] { --rest: #858CA1; --faint: #8A91A6; }
+:root[data-theme="light"] { --push: #C2540F; --pull: #08776E; --legs: #5B4AD6; --upper: #1A68B3; --legsb: #B8285F; --up: #0F7A42; --down: #C0283F; --flat: #8A6100; --rest: #6B7186; --faint: #666D82; --line-ctl: #80869A; }
+:root[data-theme="dark"] { --rest: #858CA1; --faint: #8A91A6; --line-ctl: #6B7288; }
+/* Edges of things you type into or tick: 3:1 against the card (WCAG 1.4.11). */
+:root { --line-ctl: #6B7288; }
+.step, .check, .inp, .mini { border-color: var(--line-ctl); }
 
 /* Pressed feedback on everything tappable, without moving layout */
 button, a, summary, .li, label.filebtn { transition: background-color var(--press) ease-out, opacity var(--press) ease-out, filter var(--press) ease-out; }
