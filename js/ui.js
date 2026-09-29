@@ -185,13 +185,11 @@ export function openSheet(html, { onClose, label = 'Dialog' } = {}) {
   });
   // Android back button closes the sheet instead of leaving the screen.
   // One history entry is reused across sheets; closing from the UI leaves it in place
-  // (going back asynchronously would race a sheet that opens right after).
-  if (!history.state?.sheet) history.pushState({ sheet: true }, '');
+  // (going back asynchronously would race a sheet that opens right after). The next back press
+  // then lands on the screen's own entry and goes up a screen, as usual.
+  if (!history.state?.sheet) history.pushState({ sheet: true, i: (history.state?.i ?? 0) + 1 }, '');
   sheetClose = () => {
     wrap.remove(); sheetClose = null;
-    // Closed from the UI: we're still on the sheet's history entry. Remember it so the next
-    // back press skips straight past it instead of appearing to do nothing.
-    staleHref = history.state?.sheet ? location.href : null;
     app?.removeAttribute('inert');
     if (opener?.isConnected) opener.focus({ preventScroll: true });
     onClose?.();
@@ -201,14 +199,10 @@ export function openSheet(html, { onClose, label = 'Dialog' } = {}) {
   return sheet;
 }
 export function closeSheet() { sheetClose?.(); }
-let staleHref = null;
-window.addEventListener('popstate', () => {
-  if (sheetClose) { sheetClose(); staleHref = null; return; }
-  const skip = staleHref && location.href === staleHref;
-  staleHref = null;
-  if (skip) history.back();
-});
-window.addEventListener('hashchange', () => { staleHref = null; });
+let onBack = null;
+/** What the phone's back button does when no sheet is open. */
+export const setOnBack = fn => { onBack = fn; };
+window.addEventListener('popstate', () => { if (sheetClose) sheetClose(); else onBack?.(); });
 export const sheetOpen = () => !!sheetClose;
 
 /** In-app confirmation (never window.confirm). */
