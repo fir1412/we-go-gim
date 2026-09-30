@@ -172,10 +172,10 @@ export function trend(exps, unitOrEx) {
 export function trendRange(ex, tr) {
   if (!tr?.fromExp || !tr.toExp) return '';
   const num = (v, alt) => (typeof v === 'number' ? v : alt);
-  const d1 = kg => String(+(+toDisp(kg)).toFixed(1));
-  if (hasEstMax(ex)) return `${d1(num(tr.from, tr.fromScore))} → ${d1(num(tr.to, tr.toScore))}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}`;
+  const d1 = kg => String(+(+toDisp(kg, ex)).toFixed(1));
+  if (hasEstMax(ex)) return `${d1(num(tr.from, tr.fromScore))} → ${d1(num(tr.to, tr.toScore))}${unitShort(ex) ? ' ' + unitShort(ex) : ''}`;
   const a = topLoad(tr.fromExp), b = topLoad(tr.toExp);
-  const u = isKg(ex.unit) && unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : '';
+  const u = isKg(ex.unit) && unitShort(ex) ? ' ' + unitShort(ex) : '';
   // Same load at both ends (or bodyweight with nothing added): the reps tell the story.
   if (Math.abs(a.w - b.w) < EPS) {
     const side = x => `${fmtLoad(ex, x.w)}${u} × ${x.reps.map(r => r ?? '?').join('·')}`;
@@ -206,35 +206,38 @@ function snapDown(w, ex, equip) {
 }
 
 // ---- display units -------------------------------------------------------------------
-// Loads are always stored in kg. With lb chosen in Settings, kg loads are shown and typed in lb.
+// Loads are always stored in kg. With lb chosen in Settings, kg loads are shown and typed in lb. A single kg lift can
+// override that (ex.disp 'kg' or 'lb': a gym with one lb machine); every helper below takes the exercise for that.
 // Cable/machine levels are never converted.
 export const LB_KG = 0.45359237;
 let UNITS = 'kg';
 let BW_LABEL = 'BW';
 export function setUnits(u) { UNITS = u === 'lb' ? 'lb' : 'kg'; }
 export const getUnits = () => UNITS;
+/** The weight unit a lift shows and is typed in: its own kg/lb choice for kg lifts, else the app setting. */
+export const unitsFor = ex => (ex && isKg(ex.unit) && (ex.disp === 'kg' || ex.disp === 'lb') ? ex.disp : UNITS);
 /** Label used for bodyweight loads ("BW" in gym terms, "Bodyweight" in plain wording). */
 export function setBwLabel(s) { BW_LABEL = s || 'BW'; }
 /** kg -> display number (lb rounded to 0.5, kg to 0.01 so loads entered in lb never show as 13.381). Blank/invalid values pass through. */
-export function toDisp(kg) {
+export function toDisp(kg, ex) {
   if (kg == null || kg === '' || !Number.isFinite(+kg)) return kg;
-  return UNITS === 'lb' ? Math.round(+kg / LB_KG * 2) / 2 : Math.round(+kg * 100) / 100;
+  return unitsFor(ex) === 'lb' ? Math.round(+kg / LB_KG * 2) / 2 : Math.round(+kg * 100) / 100;
 }
 /** Display number -> kg (lb converted, kept to 3 decimals). Blank becomes null. */
-export function fromDisp(v) {
+export function fromDisp(v, ex) {
   if (v == null || v === '') return null;
   if (!Number.isFinite(+v)) return v;
-  return UNITS === 'lb' ? Math.round(+v * LB_KG * 1000) / 1000 : +v;
+  return unitsFor(ex) === 'lb' ? Math.round(+v * LB_KG * 1000) / 1000 : +v;
 }
 /** A kg step (increment, plate jump) as a tidy display step: lb snaps to 2.5 lb. */
-export function stepDisp(kg) {
-  return UNITS === 'lb' ? Math.max(2.5, Math.round(+kg / LB_KG / 2.5) * 2.5) : +(+kg).toFixed(2);
+export function stepDisp(kg, ex) {
+  return unitsFor(ex) === 'lb' ? Math.max(2.5, Math.round(+kg / LB_KG / 2.5) * 2.5) : +(+kg).toFixed(2);
 }
-const dispNum = kg => String(+(+toDisp(kg)).toFixed(2));
+const dispNum = (kg, ex) => String(+(+toDisp(kg, ex)).toFixed(2));
 const kg2 = x => Math.round(x * 100) / 100;
 /** A load typed or stepped on screen -> kg to store, rounded to 0.01 kg (still shows as the same lb number). */
-export function kgFromDisp(v) {
-  const kg = fromDisp(v);
+export function kgFromDisp(v, ex) {
+  const kg = fromDisp(v, ex);
   return typeof kg === 'number' && Number.isFinite(kg) ? kg2(kg) : kg;
 }
 
@@ -252,7 +255,7 @@ export function stepLoad(w, ex, dir, { step = ex?.inc || 2.5, dumbbells = null }
     if (nx != null) return nx;
   }
   if (ex?.unit === 'L') return Math.max(0, +(cur + step * d).toFixed(2));
-  if (UNITS === 'lb') return Math.max(0, kgFromDisp(Math.max(0, (+toDisp(cur) || 0) + stepDisp(step) * d)));
+  if (unitsFor(ex) === 'lb') return Math.max(0, kgFromDisp(Math.max(0, (+toDisp(cur, ex) || 0) + stepDisp(step, ex) * d), ex));
   const offGrid = Math.abs(cur * 4 - Math.round(cur * 4)) > 0.01;
   if (offGrid && step > 0) {
     const n = d > 0 ? Math.floor(cur / step + EPS) + 1 : Math.ceil(cur / step - EPS) - 1;
@@ -331,7 +334,7 @@ export function moveEntry(entries, i, dir) {
 export const LB_STEP = 5;
 /** kg values stored from lb carry up to 0.0005 kg of rounding; comparisons allow for it. */
 const KG_TOL = 0.01;
-const lbMode = ex => UNITS === 'lb' && isKg(ex?.unit);
+const lbMode = ex => unitsFor(ex) === 'lb' && isKg(ex?.unit);
 /** A kg load in lb, cleaned of the 3-decimal storage rounding (45.359 kg -> 100 lb). */
 const lbOf = kg => Math.round(+kg / LB_KG * 100) / 100;
 const lbToKg = lb => Math.round(lb * LB_KG * 1000) / 1000;
@@ -353,7 +356,7 @@ function lbNext(w, stepLb, step = LB_STEP) {
 /** The step (in display units) that a load increase will use for this exercise. */
 function incStepDisp(ex, equip, inc = ex.inc || 1) {
   if (ex.unit === 'L') return inc;
-  if (UNITS !== 'lb') return stepDisp(inc);
+  if (unitsFor(ex) !== 'lb') return stepDisp(inc, ex);
   if (ex.unit === 'bw') return LB_STEP;
   return ex.unit === 'kg/DB' && equip?.dumbbells?.length ? lbStep(inc, 2.5) : lbStep(inc);
 }
@@ -362,21 +365,25 @@ export function fmtLoad(ex, w) {
   if (ex.unit === 'bw') return +w > 0 ? (BW_LABEL === 'BW' ? `BW+${dispNum(w)}` : `${BW_LABEL} + ${dispNum(w)} ${UNITS}`) : BW_LABEL;
   if (w == null || w === '') return '—';
   if (ex.unit === 'L') return 'L' + w;
-  return dispNum(w);
+  return dispNum(w, ex);
 }
 
-export function unitShort(u) {
-  return u === 'kg/DB' ? `${UNITS} ea` : u === 'kg' ? UNITS : '';
+/** Takes the exercise (its own kg/lb choice counts) or just a unit code (the app setting). */
+export function unitShort(x) {
+  const u = typeof x === 'object' ? x?.unit : x, U = typeof x === 'object' ? unitsFor(x) : UNITS;
+  return u === 'kg/DB' ? `${U} ea` : u === 'kg' ? U : '';
 }
 
-export function unitLong(u) {
-  return u === 'kg/DB' ? `${UNITS} per dumbbell` : u === 'kg' ? `${UNITS} total` : u === 'L' ? 'cable/machine level' : 'bodyweight';
+export function unitLong(x) {
+  const u = typeof x === 'object' ? x?.unit : x, U = typeof x === 'object' ? unitsFor(x) : UNITS;
+  return u === 'kg/DB' ? `${U} per dumbbell` : u === 'kg' ? `${U} total` : u === 'L' ? 'cable/machine level' : 'bodyweight';
 }
 
 export function incLabel(ex, step = ex.inc || 1) {
   if (ex.unit === 'L') return `+${step} level`;
   if (ex.unit === 'bw') return `+${UNITS === 'lb' ? LB_STEP : stepDisp(2.5)} ${UNITS}`;
-  return `+${UNITS === 'lb' ? lbStep(step) : stepDisp(step)} ${UNITS}`;
+  const U = unitsFor(ex);
+  return `+${U === 'lb' ? lbStep(step) : stepDisp(step, ex)} ${U}`;
 }
 
 /**
@@ -389,7 +396,7 @@ export function suggest(slot, ex, ctx) {
   const lo = Math.max(1, +slot.lo || 8), hi = Math.max(lo, +slot.hi || lo), n = Math.max(1, Math.round(+slot.sets) || 3);
   const mid = Math.round((lo + hi) / 2);
   const exps = exposures(ctx.sessions || [], ex, { gymId: ctx.gymId, before: ctx.date });
-  const unitWord = ex.unit === 'L' ? ' level' : ' ' + UNITS;
+  const unitWord = ex.unit === 'L' ? ' level' : ' ' + unitsFor(ex);
   const caution = ex.caution ? ' ' + ex.caution : '';
 
   if (ex.unitUnclear) {
@@ -410,6 +417,14 @@ export function suggest(slot, ex, ctx) {
   while (prev.length < n) prev.push(prev[prev.length - 1]);
   const held = prev.map(x => Math.min(x, hi));
 
+  // Pain two sessions running: holding the load isn't enough. Go lighter and get it looked at. Checked before a
+  // deload or a poor night, which would otherwise hand back the full load.
+  if (last.pain && exps[1]?.pain) {
+    const lw = isKg(ex.unit) ? snapDown(w * 0.8, ex, ctx.equip) || w : ex.unit === 'L' ? Math.max(1, w - (ex.inc || 1)) : ex.unit === 'bw' ? 0 : w;
+    // One set fewer, and never more than a deload week would give.
+    const pn = Math.max(1, ctx.deload ? Math.round(n * 0.55) : n - 1);
+    return { t: 'hold', w: lw, reps: held.slice(0, pn), rir: '3-4', why: 'Pain two sessions running. Go lighter, or swap or skip this lift, and get it checked by a doctor or physio.' };
+  }
   if (ctx.deload) {
     const dn = Math.max(1, Math.round(n * 0.55));
     let dw = w;
@@ -451,8 +466,8 @@ export function suggest(slot, ex, ctx) {
     }
     const step = +(nw - w).toFixed(lbMode(ex) ? 3 : 2);
     // The text states the change as it will show on screen.
-    const shown = ex.unit === 'L' ? step : lbMode(ex) ? +(toDisp(nw) - toDisp(w)).toFixed(2) : stepDisp(step);
-    const per = ex.unit === 'L' ? ' level' : ex.unit === 'kg/DB' ? ` ${UNITS} per dumbbell` : ' ' + UNITS;
+    const shown = ex.unit === 'L' ? step : lbMode(ex) ? +(toDisp(nw, ex) - toDisp(w, ex)).toFixed(2) : stepDisp(step, ex);
+    const per = ex.unit === 'L' ? ' level' : ex.unit === 'kg/DB' ? ` ${unitsFor(ex)} per dumbbell` : ' ' + unitsFor(ex);
     return { t: 'load', w: nw, inc: step, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi} last time. Add ${shown}${per} and let reps drop back toward ${lo}.${caution}` };
   }
   const next = prev.map(x => clamp(x + 1, lo, hi));
@@ -470,7 +485,7 @@ export function suggest(slot, ex, ctx) {
 export function nextFor(entry, slot, ex) {
   const d = workSets(entry);
   if (!d.length) return { t: 'none', text: 'Not logged' };
-  if (entry.pain) return { t: 'hold', text: 'Pain flagged · hold load' };
+  if (entry.pain) return { t: 'hold', text: 'Pain flagged · hold or go lighter. If it keeps up, see a doctor or physio.' };
   if (!slot) return { t: 'reps', text: 'Logged' };
   const lo = +slot.lo, hi = +slot.hi, sets = +slot.sets;
   const { reps } = topLoad({ sets: d });
@@ -514,8 +529,8 @@ const MAX_PLATES = 100;
  * else LB_PLATES) and a kg bar counts as the nearest 5 lb (20 kg = 45 lb).
  * Returns { ok, plates (in `unit`), rem (kg per side still missing), unit ('kg' | 'lb') }.
  */
-export function platesPerSide(total, barKg, plates) {
-  const lb = UNITS === 'lb';
+export function platesPerSide(total, barKg, plates, units = UNITS) {
+  const lb = units === 'lb';
   const onHalfLb = kg => { const x = kg / LB_KG * 2; return Math.abs(x - Math.round(x)) < 0.02; };
   let list = (Array.isArray(plates) ? plates : []).map(Number).filter(p => Number.isFinite(p) && p >= 0.25);
   let T = +total, B = +barKg || 0;
@@ -685,7 +700,8 @@ export function weeklyRate(points) {
  * Returns {dir: first|up|down|same, kind: load|reps|sets, text, pr, prevDate}. Load changes win over rep changes;
  * a changed load is reported as the load step, not as better/worse strength.
  */
-export function compareExposure(exps, i, unit) {
+export function compareExposure(exps, i, unitOrEx) {
+  const ex = typeof unitOrEx === 'object' ? unitOrEx : null, unit = ex ? ex.unit : unitOrEx;
   const cur = exps[i];
   if (!cur) return null;
   // The same exercise logged twice in one workout is not "the session before": compare with earlier workouts only.
@@ -697,9 +713,9 @@ export function compareExposure(exps, i, unit) {
   const pr = sc != null && older.length > 0 && sc > Math.max(...older) + EPS;
   if (!prev) return { dir: 'first', text: 'first log', pr: false };
   const a = topLoad(cur), b = topLoad(prev);
-  const unitWord = unit === 'L' ? ' lvl' : ' ' + UNITS;
+  const unitWord = unit === 'L' ? ' lvl' : ' ' + unitsFor(ex);
   if (Math.abs(a.w - b.w) > EPS) {
-    const d = unit === 'L' ? +(a.w - b.w).toFixed(2) : +(toDisp(a.w) - toDisp(b.w)).toFixed(2);
+    const d = unit === 'L' ? +(a.w - b.w).toFixed(2) : +(toDisp(a.w, ex) - toDisp(b.w, ex)).toFixed(2);
     return { dir: d > 0 ? 'up' : 'down', kind: 'load', text: `${d > 0 ? '+' : ''}${d}${unitWord}`, pr, prevDate: prev.date, prevSessionId: prev.sessionId };
   }
   // Reps are compared set by set over the sets both sessions have; a different set count is reported separately.

@@ -358,8 +358,3 @@ export const DEFAULT_SETTINGS = {
   deloadUntil: null,
   units: 'kg', // 'kg' | 'lb': loads are always stored in kg
 };
-
-// ---- starting history -------------------------------------------------------
-// The public app starts empty. Import old logs or restore a backup from More.
-export const seedSessions = () => [];
-export const SEED_BODY = [];

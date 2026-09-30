@@ -138,3 +138,13 @@ test('very long text is left alone quickly', async () => {
   assert.equal(translate(big), big);
   await setLang('en');
 });
+
+// Screen text goes through the plain-English pass before the lookup, so a sentence key written with a short form
+// ("sessions", "min") never matches and shows in English. Short labels and names are exempt.
+test('sentence keys are written the way they appear on screen', async () => {
+  for (const L of LANGS) {
+    const dict = (await import(`../js/i18n/${L}.js`)).default.s;
+    const off = Object.keys(dict).filter(k => k.length > 40 && plainText(k) !== k);
+    assert.deepEqual(off, [], `${L}: ${off.join(' | ')}`);
+  }
+});

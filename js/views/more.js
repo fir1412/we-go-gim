@@ -1,7 +1,7 @@
 import { S, load, saveSettings, saveProgram, withUniqueDays, MAX_TEMPLATES, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
 import * as db from '../db.js';
-import { MUSCLES, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, MAX_KG, MAX_REPS, cleanText } from '../engine.js';
-import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker } from '../ui.js';
+import { MUSCLES, isKg, unitsFor, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, MAX_KG, MAX_REPS, cleanText } from '../engine.js';
+import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker, isIOS, standalone } from '../ui.js';
 import { LANGS, getLang, syncRawNames } from '../i18n.js';
 import { trainingIcs, googleCalendarUrl } from '../calendar.js';
 import { displayText } from '../plain.js';
@@ -35,8 +35,6 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const agoTxt = iso => { const n = daysAgo(iso); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`; };
 
 // ---- home -----------------------------------------------------------------------------
-const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
 function home() {
   const row = (href, icon, title, sub, k) => `<a class="li mrow" href="#/${href}" style="--k:var(--${k})"><i class="mic">${icon}</i><span><b>${title}</b><small>${sub}</small></span>${ICON.chev}</a>`;
@@ -62,7 +60,7 @@ function home() {
   h += `<div class="list box">
     ${row('program', ICON.list, 'Programme', `${nDays} training days · sets and rep ranges`, 'push')}
     ${row('exercises', ICON.workout, 'Exercises', `${S.exercises.length} in your library`, 'pull')}
-    ${row('atlas', ICON.levels, 'Medical mode: every muscle in 3D', 'Tap a muscle to see the exercises that train it', 'upper')}
+    ${row('atlas', ICON.levels, '3D muscle map: see every muscle', 'Tap a muscle to see the exercises that train it', 'upper')}
     ${row('gyms', ICON.pin, 'Gyms', `Training at ${esc(gym?.name || '—')}`, 'legs')}
     ${row('equip', ICON.plate, 'Equipment', 'Dumbbells, plates, bars', 'arms')}
     </div><div class="list box">
@@ -317,7 +315,7 @@ function exercises() {
   if (recheck.length) h += `<div class="box pad"><p><b>Check muscles on ${recheck.length} imported exercise${recheck.length === 1 ? '' : 's'}</b></p><p class="fine">The app now reads exercise names better. These may count toward the wrong muscles on your levels and the 3D view.</p><ul class="recheck">${recheck.slice(0, 12).map(({ x, g }) => `<li><span class="grow" data-raw><b>${esc(x.name)}</b></span><small>${(x.muscles || []).map(m => `<span>${esc(m)}</span>`).join(', ') || '—'} → ${g.map(m => `<span>${esc(m)}</span>`).join(', ')}</small><span class="row2"><button class="mini go" data-act="mus-fix" data-id="${esc(x.id)}">Use suggested</button><button class="mini" data-act="mus-keep" data-id="${esc(x.id)}">Keep</button></span></li>`).join('')}</ul>${recheck.length > 1 ? `<button class="btn ghost" data-act="mus-fix-all">Use suggested for all ${recheck.length}</button>` : ''}</div>`;
   h += `<ul class="box mus" id="exl">`;
   for (const x of S.exercises) {
-    h += `<li data-name="${esc(searchText(x))}"><a href="#/exercise/${esc(x.id)}"><span class="t">${esc(x.name)} ${inProg.has(x.id) ? pill('in programme', 'up') : ''}${x.unitUnclear ? pill('unit unclear', 'flat') : ''}${!(x.muscles || []).length ? pill('set muscles', 'down') : ''}</span><span class="d">${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</span></a></li>`;
+    h += `<li data-name="${esc(searchText(x))}"><a href="#/exercise/${esc(x.id)}"><span class="t">${esc(x.name)} ${inProg.has(x.id) ? pill('in programme', 'up') : ''}${x.unitUnclear ? pill('unit unclear', 'flat') : ''}${!(x.muscles || []).length ? pill('set muscles', 'down') : ''}</span><span class="d">${esc((x.muscles || []).join(', '))} · ${unitLong(x)}</span></a></li>`;
   }
   h += `</ul>`;
   return {
@@ -339,10 +337,11 @@ function exerciseEdit(id) {
   const isNew = id === 'new';
   const n = isNew ? 0 : exposures(S.sessions, ed).length;
   let h = `<label class="field"><span>Name</span><input class="inp" id="ex-name" value="${esc(ed.name)}" data-input="ed" data-f="name" placeholder="e.g. Hack squat" autofocus></label>
-    <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${UNITS.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="unit" data-v="${v}" aria-pressed="${ed.unit === v}">${l.replace(/\bkg\b/, getUnits())}</button>`).join('')}</div></div>
+    <div class="field"><span>Load is logged as</span><div class="chips" role="group" aria-label="Unit">${UNITS.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="unit" data-v="${v}" aria-pressed="${ed.unit === v}">${l.replace(/\bkg\b/, unitsFor(ed))}</button>`).join('')}</div></div>
+    ${isKg(ed.unit) ? `<div class="field"><span>Weights shown in</span><div class="chips" role="group" aria-label="Weights shown in">${[['', 'App setting'], ['kg', 'kg'], ['lb', 'lb']].map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="disp" data-v="${v}" aria-pressed="${(ed.disp || '') === v}">${l}</button>`).join('')}</div></div>` : ''}
     ${ed.unitUnclear ? `<div class="warn"><b>Unit unclear.</b><span>Old logs mixed per-side and total. Choosing a unit above clears this flag.</span></div>` : ''}
     <div class="field"><span>Equipment</span><div class="chips" role="group" aria-label="Equipment">${EQUIP.map(([v, l]) => `<button class="mini" data-act="ed-set" data-f="equip" data-v="${v}" aria-pressed="${ed.equip === v}">${l}</button>`).join('')}</div></div>
-    <div class="row2"><label class="field"><span>Weight jump ${ed.unit === 'L' ? '(levels)' : ed.unit === 'kg/DB' ? `(${getUnits()} per dumbbell)` : `(${getUnits()})`}</span><input class="inp" id="ex-inc" type="text" inputmode="decimal" autocomplete="off" step="0.25" min="0.25" value="${ed.unit === 'L' ? ed.inc : toDisp(ed.inc)}" data-input="ed" data-f="inc" aria-describedby="inc-help"></label>
+    <div class="row2"><label class="field"><span>Weight jump ${ed.unit === 'L' ? '(levels)' : ed.unit === 'kg/DB' ? `(${unitsFor(ed)} per dumbbell)` : `(${unitsFor(ed)})`}</span><input class="inp" id="ex-inc" type="text" inputmode="decimal" autocomplete="off" step="0.25" min="0.25" value="${ed.unit === 'L' ? ed.inc : toDisp(ed.inc, ed)}" data-input="ed" data-f="inc" aria-describedby="inc-help"></label>
     <label class="field"><span>Rest between sets (s)</span><input class="inp" id="ex-rest" type="number" inputmode="numeric" step="15" min="15" max="600" value="${ed.rest}" data-input="ed" data-f="rest"></label></div>
     <p class="fine" id="inc-help">How much weight gets added when every set reaches the top of its rep range. Use the smallest increase your gym allows: e.g. 2.5 kg for dumbbells, the plate size on a machine, 1 level on a cable.</p>
     <div class="field"><span>Muscles · tap in order, first is the main one</span><div class="chips" role="group" aria-label="Muscles">${MUSCLES.map(m => { const i = (ed.muscles || []).indexOf(m); return `<button class="mini" data-act="ed-muscle" data-v="${m}" aria-pressed="${i >= 0}">${i === 0 ? '★ ' : ''}${m}</button>`; }).join('')}</div></div>
@@ -391,8 +390,8 @@ function data() {
   const n = S.sessions.length, lb = S.settings.lastBackup, nSeed = S.sessions.filter(s => s.seed).length;
   const WHAT = { restore: 'restoring a backup', erase: 'erasing everything', undo: 'the last undo' };
   let h = `<div class="kpis"><div class="kpi"><b>${n}</b><span>sessions</span></div><div class="kpi"><b>${S.body.length}</b><span>weigh-ins</span></div><div class="kpi"><b>${S.cardio.length}</b><span>cardio</span></div></div>
-    <section class="box pad stack"><div class="rrow"><p class="lbl">Backup</p>${lb ? pill(`Last: ${agoTxt(lb)}`, daysAgo(lb) > 14 ? 'flat' : 'up') : pill('Never backed up', 'down')}</div>
-      <p class="fine">One file with everything: sessions, programme, exercises, weigh-ins, cardio and settings. If the phone is lost or the browser data is cleared, this file is the only copy.</p>
+    <section class="box pad stack"><div class="rrow"><p class="lbl">Backup</p>${lb ? pill(`Last: ${agoTxt(lb)}`, daysAgo(lb) > 14 ? 'flat' : 'up') : S.sessions.some(s => !s.seed) ? pill('Never backed up', 'down') : ''}</div>
+      <p class="fine">One file with everything: sessions, programme, exercises, weigh-ins, cardio and settings. If the phone is lost or the browser data is cleared, this file is the only copy. The file isn't encrypted, so keep it somewhere private; progress photos aren't included.${isIOS() ? ' On iPhone, choose Save to Files, then iCloud Drive, to keep a copy in iCloud.' : ''}</p>
       <button class="btn" data-act="backup-share">${ICON.upload} Share backup (Drive, WhatsApp, email)</button>
       <button class="btn ghost" data-act="backup-dl">${ICON.save} Save backup file</button>
       <label class="btn ghost filebtn">Restore from backup<input type="file" id="restore-file" accept=".json,application/json" data-input="restore"></label></section>`;
@@ -622,7 +621,7 @@ function impPicker(gi) {
     top.push(...loose.slice(0, 4 - top.length).map(o => o.x));
   }
   const row = (id, t, sub, x = null) => `<li data-name="${esc(x ? searchText(x) : t.toLowerCase())}"><button data-act="imp-pick" data-g="${gi}" data-id="${esc(id)}" ${g.target === id ? 'aria-current="true"' : ''}><b>${esc(t)}</b><small>${esc(sub)}</small></button></li>`;
-  const exRow = x => row(x.id, x.name, `${(x.muscles || []).slice(0, 2).join(', ') || 'No muscles set'} · ${unitLong(x.unit)}${prog.has(x.id) ? ' · in programme' : ''}`, x);
+  const exRow = x => row(x.id, x.name, `${(x.muscles || []).slice(0, 2).join(', ') || 'No muscles set'} · ${unitLong(x)}${prog.has(x.id) ? ' · in programme' : ''}`, x);
   const el = openSheet(`<h2 class="sh-title" tabindex="-1" autofocus>${esc(g.label)}</h2>
     <p class="sh-body">${g.sess} session${g.sess === 1 ? '' : 's'} · ${plural(g.sets, 'set')}${g.variants.length > 1 ? ` · also written ${g.variants.slice(1, 5).map(v => `“${esc(v)}”`).join(', ')}${g.variants.length > 5 ? '…' : ''}` : ''}</p>
     <ul class="picklist">${row('', 'Add as a new exercise', `Named “${g.label}” · ${g.meta ? metaTxt(g.meta) : ''}`)}${top.map(exRow).join('')}${row('skip', "Don't import this lift", 'Its sets are left out')}</ul>
@@ -673,7 +672,7 @@ function settings() {
     <button class="btn ghost" data-act="tour">Replay the quick tour</button>
     <section class="box pad about"><p class="lbl">About and legal</p>
       <p><b>Not medical advice.</b> Suggestions are general training guidance from your own logs. Stop and see a doctor for chest pain, fainting, unusual breathlessness, palpitations, numbness, or sharp or radiating pain.</p>
-      <p><b>Privacy.</b> No accounts, analytics or trackers. Your data stays on this phone; nobody else can see it. Only feedback you choose to send leaves the phone.</p>
+      <p><b>Privacy.</b> No accounts, analytics or trackers. Your workouts stay on this phone; nobody else can see them. Feedback you choose to send goes to the developer. The privacy page lists the few other times the app goes online.</p>
       <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
       <p>3D view: three.js (MIT). 3D muscle model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas, CC BY-SA 4.0. Details in anatomy/ATTRIBUTION.txt.</p>
       <p class="links"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of use</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
@@ -684,6 +683,10 @@ function settings() {
 
 // ---- help ----------------------------------------------------------------------------------------------------
 const FAQ = [
+  ['Why is it free? Who makes it?', 'It is a free, open-source hobby project by one developer, fir1412, with no ads, no account and nothing to sell. The code is public on GitHub, so anyone can check that the app never uploads your workouts. Contact: fir1412dev@gmail.com.'],
+  ['Is there a watch app?', 'Not yet. Heart-rate and weight sync with Health Connect needs the Android app, which is not out yet. For now, log them here.'],
+  ['Does it work with a screen reader?', 'Buttons and controls are labelled, changes are announced, and text goes up to extra large (More → Settings, or on the welcome screen). It has not been tested with every screen reader, so tell us through Send feedback if something can’t be reached.'],
+  ['Can I use it on two phones?', 'Not at the same time: there is no cloud copy, on purpose. To move, back up on one phone and restore on the other. Using two, like a phone and an iPad? Restore with Merge to combine them without losing either side.'],
   ['How do I start a workout?', 'Open Today and tap the Start button at the bottom. Every set is filled in from your last session. Do the set, then tap the tick.'],
   ['What do the coloured tags mean?', 'They say what changed since last time: +1 rep, a heavier weight, find your weight (a new lift), or an easy day. Tap the tag during a workout to see why.'],
   ['What weight should I use for a new exercise?', 'Tap Light, Medium or Heavy on the new lift and a starting weight is filled in. Pick one you could do for the target reps with about 2 reps to spare. Next time builds on it.'],
@@ -935,7 +938,7 @@ export const actions = {
     const f = el.dataset.f;
     if (f === 'perGym') ed.perGym = el.checked;
     else if (f === 'rest') ed.rest = num(el.value, ed.rest);
-    else if (f === 'inc') { const v = num(el.value, toDisp(ed.inc)); ed.inc = ed.unit === 'L' ? v : v === toDisp(ed.inc) ? ed.inc : fromDisp(v); }
+    else if (f === 'inc') { const v = num(el.value, toDisp(ed.inc, ed)); ed.inc = ed.unit === 'L' ? v : v === toDisp(ed.inc, ed) ? ed.inc : fromDisp(v, ed); }
     else ed[f] = el.value.trim();
     if (f === 'name' && ed._auto && ed.name) { autoFill(); refresh(); }
   },
@@ -965,7 +968,7 @@ export const actions = {
     if (!ed.name) return toast('Give the exercise a name', 'down');
     if (!ed.muscles?.length) return toast('Pick at least one muscle', 'down');
     if (!(ed.inc > 0)) return toast('Weight jump must be above 0', 'down');
-    if (ed.inc > (ed.unit === 'L' ? 10 : 50)) return toast(ed.unit === 'L' ? 'Weight jump can be at most 10 levels' : `Weight jump can be at most ${toDisp(50)} ${getUnits()}`, 'down');
+    if (ed.inc > (ed.unit === 'L' ? 10 : 50)) return toast(ed.unit === 'L' ? 'Weight jump can be at most 10 levels' : `Weight jump can be at most ${toDisp(50, ed)} ${unitsFor(ed)}`, 'down');
     if (!(ed.rest >= 15 && ed.rest <= 600)) return toast('Choose a rest time from 15 to 600 seconds', 'down');
     if (S.exercises.some(x => x.name.toLowerCase() === ed.name.toLowerCase() && x.id !== ed.id)) return toast('An exercise with that name exists', 'down');
     const isNew = !ed.id;
@@ -1096,7 +1099,7 @@ export const actions = {
     go('import');
   },
   'rm-seed': async () => {
-    if (!(await confirmSheet({ title: 'Remove the sample data?', body: 'Deletes the sessions and weigh-ins that came with the app. Your own workouts and imports stay.', ok: 'Remove', danger: true }))) return;
+    if (!(await confirmSheet({ title: 'Remove the sample data?', body: 'Deletes the made-up sample workouts and weigh-ins. Your own workouts and imports stay.', ok: 'Remove', danger: true }))) return;
     await removeSeedData(); toast('Sample data removed');
   },
   async reset() {
@@ -1249,6 +1252,7 @@ export const actions = {
     openSheet(`<h2 class="sh-title">Install on iPhone</h2>
       <ol class="steps"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
       <p class="fine">It then opens full screen from the kitten icon, works offline and updates itself. Your data stays on this phone.</p>
+      <p class="fine">Safari can clear data from sites you haven't opened for 7 days, and workouts logged in a Safari tab don't move to the Home Screen app. Install first, then log.</p>
       <button class="btn" data-act="close-sheet">Got it</button>`, { label: 'Install on iPhone' });
   },
   'close-sheet': () => closeSheet(),

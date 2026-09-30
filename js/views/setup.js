@@ -1,10 +1,10 @@
 // First-run setup: start fresh, bring old logs, or answer a few questions for a personalised split.
 // Steps live in the URL (#/setup, #/setup/1 … #/setup/7, #/setup/plan) so the phone's Back button walks back through them.
-import { S, saveProgram, saveSettings, refresh } from '../state.js';
+import { S, saveProgram, saveSettings, refresh, addSeedData, todayIso } from '../state.js';
 import { PROGRAM, TEMPLATES } from '../seed.js';
 import { buildSplit, explainSplit, weeklyVolume, targetsFor, planGaps, dayMinutes, baseSets } from '../split.js';
 import { MUSCLES } from '../engine.js';
-import { esc, pill, cvar, kstyle, dowName, dowLetter, toast, ICON, T, helpTip, confirmSheet, langPicker } from '../ui.js';
+import { esc, pill, cvar, kstyle, dowName, dowLetter, toast, ICON, T, helpTip, confirmSheet, langPicker, isIOS, standalone } from '../ui.js';
 import { LANGS, getLang } from '../i18n.js';
 import { go, showTour } from '../app.js';
 
@@ -87,8 +87,9 @@ function backToBack(days) {
 }
 
 function start() {
-  const back = returning();
-  const n = S.sessions.length;
+  // Rebuild mode only once set up: someone back from the sample with a workout logged is still choosing how to start.
+  const back = !!S.settings.onboarded;
+  const n = S.sessions.filter(s => !s.seed).length;
   const h = back
     ? `<p class="fine">Answer a few questions for a new weekly plan, or go back to the example split.</p>
     <div class="warn wz-warn" style="--k:var(--flat)"><b>Replaces your programme.</b><span>Your current weekly plan is swapped for the new one when you tap “Use this plan”.${n ? ` Your ${n} logged session${n === 1 ? '' : 's'}, levels and personal bests stay.` : ''}</span></div>
@@ -98,17 +99,22 @@ function start() {
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower. Replaces your programme straight away.</small></span>${ICON.chev}</button>
     </div>
     <button class="linkbtn center" data-act="wz-cancel">Keep my current programme</button>`
-    : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="72" height="72"><h2>Let's set you up</h2><p>This app fills in each workout for you, based on your last one. How do you want to start?</p></div>
+    : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="48" height="48"><h2>Every workout, filled in for you</h2><p>Your next weights and reps come from your last session, with a small step up when you've earned it.</p><p class="wz-trust">No account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.</p></div>
+    ${isIOS() && !standalone() ? `<div class="warn wz-warn" style="--k:var(--flat)"><b>On iPhone, add to Home Screen first</b><span>Safari can clear data after 7 days unopened, and data from a Safari tab doesn't move to the installed app. Tap Share, then Add to Home Screen.</span></div>` : ''}
     ${prefs()}
+    <p class="fine center-t wz-consent"><a href="terms.html" target="_blank" rel="noopener">Not medical advice. By continuing you agree to the terms of use.</a></p>
     <button class="btn wz-main" data-act="wz-begin">Build my plan <small>· ${S.settings.experience ? 6 : 7} quick questions, about a minute</small></button>
+    <button class="btn ghost wz-main" data-act="wz-sample">Not sure yet? Look around with sample data</button>
+    <button class="btn ghost wz-main" data-act="wz-logs">Coming from Hevy or Strong? Bring your history</button>
     <details class="box wz-more"><summary>Other ways to start</summary><div class="list wz-choices">
       <a class="li" href="#/setup/templates" style="--k:var(--legs)"><i class="sw"></i><span><b>Pick a ready-made plan</b><small>Full body, upper / lower, push pull legs, 5×5, home with no equipment, or easy on the joints.</small></span>${ICON.chev}</a>
-      <button class="li" data-act="wz-logs" style="--k:var(--legsb)"><i class="sw"></i><span><b>I already have logs</b><small>Import old PDFs, notes, or a Hevy, Strong or spreadsheet CSV, or restore a backup from this app.</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-own" style="--k:var(--upper)"><i class="sw"></i><span><b>I have my own split</b><small>Paste your plan as text (from a note, a coach or a chat).</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower, for a full gym.</small></span>${ICON.chev}</button>
     </div></details>
     <button class="linkbtn center" data-act="wz-skip">Skip for now</button>
-    <p class="fine center-t">Skipping starts you on Full body, 3 days: the easiest plan to begin with. Change or rebuild it any time under More.</p>`;
+    <p class="fine center-t">Skipping starts you on Full body, 3 days: the easiest plan to begin with. Change or rebuild it any time under More.</p>
+    <p class="fine center-t">General training guidance, not medical advice. Check with a doctor first if you have a condition or injury, or are pregnant. Nothing about your workouts leaves this phone unless you send it; details on the privacy page.</p>
+    <p class="fine center-t"><a href="terms.html" target="_blank" rel="noopener">Terms of use</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="https://github.com/fir1412/we-go-gim" target="_blank" rel="noopener">Source code</a></p>`;
   return back
     ? { title: 'Rebuild my split', sub: 'Programme', html: h, color: 'push', back: 'settings' }
     : { title: 'Welcome', sub: 'we go gim', html: h, color: 'push' };
@@ -123,7 +129,7 @@ function prefs() {
     ${seg('Text size', 'wz-text', S.settings.textSize || 'normal', [['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']])}<p class="lbl wz-explbl">How long have you lifted weights?</p>
     <div class="seg wz-expseg" role="group" aria-label="How long have you lifted weights?">${[['new', 'Under 6 months'], ['some', '6 months to 2 years'], ['experienced', 'Over 2 years']].map(([v, l]) => `<button data-act="wz-exp" data-v="${v}" aria-pressed="${x === v}">${l}</button>`).join('')}</div>
     ${seg('Weights in', 'wz-units', u, [['kg', 'kg'], ['lb', 'lb']])}
-    <p class="fine">${getLang() !== 'en' ? 'This sets your starting weights.' : x === 'experienced' ? 'You\'ll see gym terms like RIR and e1RM.' : x ? 'You\'ll see plain words like "reps left" instead of gym jargon.' : 'This sets the words the app uses and your starting weights.'} Change either in Settings.</p></div>`;
+    ${x ? `<p class="fine">${getLang() !== 'en' ? 'This sets your starting weights.' : x === 'experienced' ? 'You\'ll see gym terms like RIR and e1RM.' : 'You\'ll see plain words like "reps left" instead of gym jargon.'} Change either in Settings.</p>` : ''}</div>`;
 }
 
 /** Ready-made plans to start from. */
@@ -194,6 +200,13 @@ export const actions = {
   },
   async 'wz-logs'() { await finish('import', { tour: false }); },
   async 'wz-own'() { await finish('paste', { tour: false }); },
+  // Sample data: eight made-up weeks on the example split to look around in; "Start for real" on Today removes them.
+  async 'wz-sample'() {
+    const { sampleData } = await import('../sample.js');
+    await saveProgram(structuredClone(PROGRAM));
+    await addSeedData(sampleData(todayIso(), PROGRAM, S.exById, S.settings.gymId));
+    await finish('today', { tour: false });   // Today's Learn card offers the tour; opening it over that card doubled up
+  },
   // Skip: straight to Today, no tour, and one line saying which plan is loaded.
   async 'wz-skip'() {
     const fb = TEMPLATES.find(x => x.id === 'fb3');
@@ -218,7 +231,7 @@ export const actions = {
     toast(`${t.name} is your plan. Change anything under More → Programme.`, 'up');
     await finish('today', { tour: !back });
   },
-  'wz-cancel'() { st = null; try { sessionStorage.removeItem(DRAFT); } catch {} go('settings'); },
+  async 'wz-cancel'() { st = null; try { sessionStorage.removeItem(DRAFT); } catch {} await saveSettings({ onboarded: true }); go('settings'); },
   'wz-day'(el) {
     const d = +el.dataset.v, a = st.a.days;
     const i = a.indexOf(d);

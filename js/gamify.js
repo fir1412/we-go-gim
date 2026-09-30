@@ -80,7 +80,7 @@ export function quests(t = todayIso()) {
   const firstEver = !S.sessions.some(s => !s.seed && s.date < t);
   return [
     { id: 'train', label: "Do today's workout", done: today.length > 0 },
-    firstEver ? { id: 'beat', label: 'Save your first workout', done: today.length > 0 } : { id: 'beat', label: 'Beat last time on one lift', done: beat },
+    firstEver ? { id: 'beat', label: 'Say how the workout felt', done: today.some(s => s.feel != null) } : { id: 'beat', label: 'Beat last time on one lift', done: beat },
     { id: 'all', label: 'Tick every planned set', done: allSets },
   ];
 }
@@ -134,7 +134,7 @@ export const badgesOn = d => badges(d).filter(b => b.date === d);
 /** Streak chip, then today's quests (training day) or a calm rest-day card. */
 export function todayGame(t = todayIso()) {
   const st = streakInfo(t), q = quests(t);
-  const shields = st.shields ? `<span class="shield"><i aria-hidden="true">🛡️</i> Shields: ${st.shields}</span>` : '';
+  const shields = st.shields && S.sessions.some(s => !s.seed) ? `<span class="shield"><i aria-hidden="true">🛡️</i> Shields: ${st.shields}</span>` : '';
   const pause = st.pausedNow ? `<span class="shield"><i aria-hidden="true">⏸️</i> Streak paused</span>` : '';
   let h = st.best
     ? `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</b>${pause || shields}<span>Best: ${st.best}</span></a>`

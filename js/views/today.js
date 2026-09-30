@@ -1,4 +1,4 @@
-import { S, todayIso, dayForDate, setReadiness, startWorkout, suggestionCtx, isPoor, deloadActive, saveSettings, saveBody, discardDraft, refresh, trimmedCounts } from '../state.js';
+import { S, todayIso, dayForDate, setReadiness, startWorkout, suggestionCtx, isPoor, deloadActive, saveSettings, saveBody, discardDraft, refresh, trimmedCounts, removeSeedData } from '../state.js';
 import { suggest, weekStart, addDays, daysBetween, deloadCheck, fmtLoad, unitShort, dowOf, estimateDay, planSec, SESSION_LENGTHS, toDisp, fromDisp, getUnits } from '../engine.js';
 import { esc, fmtDate, fmtTime, chip, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, dowName, dowLetter, num, T, helpTip, expertWording } from '../ui.js';
 import { dailyCard } from './daily.js';
@@ -27,7 +27,7 @@ export function render(route) {
     h += `<a class="resume" href="#/workout" style="${kstyle(S.draft.color)}"><span><b>${esc(S.draft.name)} ${stale ? `from ${fmtDate(S.draft.date, { dow: true })} not saved` : 'in progress'}</b><small>${done}/${all.length} sets · ${stale ? 'finish or discard it' : `started ${fmtTime(S.draft.start)}`}</small></span><span class="pill">${stale ? 'Open' : 'Resume'} ${ICON.chev}</span></a>`;
   }
   // One banner at a time, most useful first, so Start stays near the top.
-  h += (date === t ? missedCard(t) : '') || deloadCard(t);
+  h += sampleCard() || (date === t ? missedCard(t) : '') || deloadCard(t);
   // The backup reminder has its own slot: sharing one with the banners above let a long run of missed days hide it for weeks.
   if (date === t) h += backupCard(t);
 
@@ -41,7 +41,7 @@ export function render(route) {
   }
   h += `</div>`;
   if (date === t) h += learnCard();
-  if (date === t && gameOn()) h += todayGame(t);
+  if (date === t && gameOn() && !S.settings.sample) h += todayGame(t);   // quests are about your own workout
 
   const doneHere = S.sessions.filter(s => s.date === date && !s.seed);
   for (const s of doneHere) {
@@ -71,6 +71,8 @@ export function render(route) {
   const sets = trim.reduce((a, n) => a + n, 0), exN = day.slots.filter((x, i) => S.exById[x.exId] && trim[i] > 0).length;
   const estSec = isTrimmed ? planSec(day.slots, trim, S.exById, S.sessions) : estimateDay({ ...day, slots: day.slots.map((x, i) => ({ ...x, sets: counts[i] })) }, S.exById, S.sessions);
   const last = S.sessions.find(s => (s.name === day.name || s.color === day.color) && s.date <= date);
+  // No lift has a real log yet: Start opens on "find your weight", so don't promise pre-filled sets.
+  const fresh = !S.sessions.some(s => !s.seed && s.entries.some(e => day.slots.some(x => x.exId === e.exId)));
   h += `<div class="hero"><div><h2>${esc(day.name)}</h2><p>${esc(day.sub || '')}</p></div>
     <div class="meta"><span><b>${exN}</b>exercises</span><span><b>${sets}</b>work sets</span><span><b>~${Math.round(estSec / 60)}</b>min</span><span><b>${last ? (last.date === t ? 'Today' : fmtDate(last.date)) : '—'}</b>last done</span></div></div>`;
 
@@ -87,9 +89,10 @@ export function render(route) {
   } else if (!isToday) {
     h += `<p class="fine">Preview for ${fmtDate(date, { dow: true })}. Suggestions assume your current readiness.</p>`;
   }
-  if (isToday) h += dailyCard(date);
+  // Full daily targets once someone has set or logged one; until then one line, not a row of 0/140 g nobody asked for.
+  if (isToday) h += S.settings.targets || Object.keys(S.daily).length ? dailyCard(date) : `<section class="box dailycard"><div class="cap"><b>Daily targets</b><a class="linkbtn" href="#/daily">Set targets</a></div></section>`;
 
-  h += `<p class="lbl">${doneToday ? 'Next time · tap for why' : 'Suggested · tap for why'}</p><ul class="box sug">`;
+  h += `<p class="lbl">${doneToday ? 'Next time · tap for why' : 'Suggested · tap for why'}${S.settings.sample ? '<span> · sample numbers</span>' : ''}</p><ul class="box sug">`;
   const groups = groupLabels(day.slots);
   day.slots.forEach((slot, i) => {
     const ex = S.exById[slot.exId];
@@ -98,13 +101,13 @@ export function render(route) {
     const lastExp = S.sessions.find(s => s.date <= ctx.date && s.entries.some(e => e.exId === ex.id && e.sets.some(x => x.done && !x.warm)));
     const le = lastExp?.entries.find(e => e.exId === ex.id);
     const ls = le ? le.sets.filter(x => x.done && !x.warm) : [];
-    const lastTxt = ls.length ? `Last ${fmtLoad(ex, Math.max(...ls.map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${ls.map(x => x.r ?? '?').join('·')} · ${fmtDate(lastExp.date)}` : 'First time: no past sets yet';
+    const lastTxt = ls.length ? `Last ${fmtLoad(ex, Math.max(...ls.map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex)} × ${ls.map(x => x.r ?? '?').join('·')} · ${fmtDate(lastExp.date)}` : 'First time: no past sets yet';
     const isOpen = open.has(i);
     const reps = sg.reps.slice(0, n || sg.reps.length);
     const load = sg.w == null ? (ex.unit === 'bw' ? T('bw') : expertWording() ? '?' : 'Find weight') : fmtLoad(ex, sg.w);
     h += `<li class="${n === 0 ? 'skip' : ''}"><button class="head" data-act="why" data-i="${i}" aria-expanded="${isOpen}">
       <span class="name">${groups[i] ? `<em class="grp">${groups[i]}</em>` : ''}${esc(ex.name)}</span>
-      ${n === 0 ? `<span class="to">${pill('Skipped today')}</span>` : `<span class="to"><span class="num">${esc(load)}<small>${sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit)}</small> × ${reps.join('·')}</span>${chip(sg, ex)}</span>`}
+      ${n === 0 ? `<span class="to">${pill('Skipped today')}</span>` : `<span class="to"><span class="num">${esc(load)}<small>${sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex)}</small> × ${reps.join('·')}</span>${chip(sg, ex)}</span>`}
       ${slot.note ? `<span class="snote">${esc(slot.note)}</span>` : ''}
       <span class="last">${esc(lastTxt)} · ${n && n !== sg.reps.length ? `${n} of ` : ''}${slot.sets}×${slot.lo}–${slot.hi}</span></button>
       ${isOpen ? `<p class="why">${esc(sg.why)} ${sg.t === 'cal' ? helpTip('calibrate') : ''}<span class="rir">Aim for ${esc(sg.rir)} ${expertWording() ? 'RIR' : 'reps left'} on each set.</span>${helpTip('rir')} <a href="#/ex/${esc(ex.id)}">History ${ICON.chev}</a></p>` : ''}</li>`;
@@ -114,7 +117,7 @@ export function render(route) {
   if (pastNoLog) h += `<div class="cta"><div class="row2"><button class="btn ghost" data-act="log-day" data-date="${date}">Log this day</button><button class="btn" data-act="start" data-date="${date}">Do ${esc(day.name)} today</button></div></div>`;
   else if (doneToday && !resume) h += `<button class="btn ghost" data-act="pick-day">Train again today</button>`;
   else if (date < t && doneHere.length && !resume) h += `<a class="btn ghost" href="#/session/${esc(doneHere[0].id)}">See this workout</a>`;
-  else if (!pastNoLog) h += `<div class="cta"><button class="btn" data-act="start" data-date="${date}">${resume ? 'Resume workout' : isToday ? `Start ${esc(day.name)} <small>· sets pre-filled</small>` : `Do ${esc(day.name)} today <small>· sets pre-filled</small>`}</button></div>`;
+  else if (!pastNoLog) h += `<div class="cta"><button class="btn" data-act="start" data-date="${date}">${resume ? 'Resume workout' : isToday ? `Start ${esc(day.name)} <small>· ${S.settings.sample ? 'with your own weights' : fresh ? 'first time: find your weights' : 'sets pre-filled'}</small>` : `Do ${esc(day.name)} today <small>· ${fresh ? 'first time: find your weights' : 'sets pre-filled'}</small>`}</button></div>`;
 
   if (/^rest$/i.test(day.name)) h = h.replaceAll(`Start ${esc(day.name)} <small>`, 'Start this workout <small>').replaceAll(`Do ${esc(day.name)} today`, 'Do this workout today');
   return { title: isToday ? 'Today' : fmtDate(date, { dow: true }), sub: sub(t, gym), right: bwBtn(lastBw), html: h, color: day.color };
@@ -156,10 +159,13 @@ function missedCard(t) {
     <span class="bcol"><button class="mini" data-act="missed-do" data-date="${m.date}">Do it today</button><button class="mini" data-act="missed-skip" data-date="${m.date}">Skip it</button></span></div>`;
 }
 
-/** Nudge to back up once there's something worth losing: 3+ workouts and no backup in 3 weeks. */
+/** Sample data on: say so, one tap to clear it, and no nudges about made-up workouts. */
+const sampleCard = () => (S.settings.sample ? `<div class="banner" style="--k:var(--pull)"><span><b>You're looking at sample data</b><small>Made-up workouts to look around in. The sample weights aren't for lifting, and anything you log yourself is kept as yours.</small></span><button class="mini go" data-act="sample-end">Start for real</button></div>` : '');
+
+/** Nudge to back up once there's something worth losing: the first workout if never backed up, then every 3 weeks from 3 workouts. */
 function backupCard(t) {
   const own = S.sessions.filter(s => !s.seed).length, lb = S.settings.lastBackup;
-  if (own < 3 || (lb && daysBetween(lb, t) < 21)) return '';
+  if (own < (lb ? 3 : 1) || (lb && daysBetween(lb, t) < 21)) return '';
   if (S.settings.backupSnooze && daysBetween(S.settings.backupSnooze, t) < 7) return '';
   return `<div class="banner" style="--k:var(--upper)"><span><b>${lb ? `Last backup ${daysBetween(lb, t)} days ago` : 'Back up your workouts'}</b><small>Your ${own} workouts live only on this phone. A backup file keeps them safe if it's lost.</small></span>
     <span class="bcol"><button class="mini" data-act="backup-now">Back up now</button><button class="mini" data-act="backup-later">Later</button></span></div>`;
@@ -178,6 +184,13 @@ function deloadCard(t) {
 }
 
 export const actions = {
+  // Back to Welcome to pick a plan (the sample brought the example split). Workouts logged while trying are real and stay.
+  async 'sample-end'() {
+    await removeSeedData();
+    await saveSettings({ onboarded: false });
+    go('setup');
+    toast('Sample data removed. Your turn.', 'up');
+  },
   async 'log-day'(el) {
     const { logPast } = await import('./history.js');
     await logPast(el.dataset.date, dayForDate(el.dataset.date));

@@ -392,3 +392,8 @@ export const helpTip = k => (TIPS[k] ? `<button class="tipq" data-act="tip" data
 export function langPicker(cur, langs) {
   return `<label class="rrow langrow"><span data-raw lang="mul">Language · Bahasa · 语言 · 語言 · 言語</span><select data-input="set-lang" aria-label="Language">${langs.map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
 }
+
+/** iPhone or iPad (iPadOS reports itself as a Mac with touch). */
+export const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+/** Opened as the installed app rather than in a browser tab. */
+export const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
