@@ -51,10 +51,13 @@ export function render(route) {
   }
   const doneToday = isToday && doneHere.some(s => s.name === day.name);
 
+  // Full daily targets once someone has set or logged one; until then one line, not a row of 0/140 g nobody asked for.
+  // Rest days too: that's when protein, steps and sleep still count.
+  const dailyBlock = () => (!isToday ? '' : S.settings.targets || Object.keys(S.daily).length ? dailyCard(date) : `<section class="box dailycard"><div class="cap"><b>Daily targets</b><a class="linkbtn" href="#/daily">Set targets</a></div></section>`);
   if (!day.slots.length) {
     h += `<div class="hero" style="--c:var(--rest)"><div><h2>Rest</h2><p>${esc(day.sub || 'Rest day')}</p></div>
       <div class="meta"><span>Swim, incline walk or easy cycling, 20–40 min if you feel like it. Keep hard cardio away from leg days.</span></div></div>
-      <div class="row2"><a class="btn ghost" href="#/cardio">Log cardio</a><button class="btn ghost" data-act="pick-day">Train anyway</button></div>`;
+      <div class="row2"><a class="btn ghost" href="#/cardio">Log cardio</a><button class="btn ghost" data-act="pick-day">Train anyway</button></div>${dailyBlock()}`;
     return { title: isToday ? 'Today' : fmtDate(date, { dow: true }), sub: sub(t, gym), right: bwBtn(lastBw), html: h, color: 'rest' };
   }
 
@@ -89,8 +92,7 @@ export function render(route) {
   } else if (!isToday) {
     h += `<p class="fine">Preview for ${fmtDate(date, { dow: true })}. Suggestions assume your current readiness.</p>`;
   }
-  // Full daily targets once someone has set or logged one; until then one line, not a row of 0/140 g nobody asked for.
-  if (isToday) h += S.settings.targets || Object.keys(S.daily).length ? dailyCard(date) : `<section class="box dailycard"><div class="cap"><b>Daily targets</b><a class="linkbtn" href="#/daily">Set targets</a></div></section>`;
+  h += dailyBlock();
 
   h += `<p class="lbl">${doneToday ? 'Next time · tap for why' : 'Suggested · tap for why'}${S.settings.sample ? '<span> · sample numbers</span>' : ''}</p><ul class="box sug">`;
   const groups = groupLabels(day.slots);

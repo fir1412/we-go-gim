@@ -2297,7 +2297,7 @@ export default {
 "From {0} sample workouts": "サンプル {0} 回分から",
 "Say how the workout felt": "トレーニングの感想を記録する",
 "There is no app lock: anyone who can open this phone can open the app.": "アプリ専用のロックはありません。このスマホを開ける人は誰でもアプリを開けます。",
-"No account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "アカウント・登録は不要。記録はこのスマホの中だけ：アプリがアップロードすることはなく、バックアップはあなたが送った先にだけ届きます。",
+"Free: no ads, no account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "無料・広告なし・アカウント登録不要。記録はこのスマホの中だけ：アプリがアップロードすることはなく、バックアップはあなたが送った先にだけ届きます。",
 "It is a free, open-source hobby project by one developer, with no ads, no account and nothing to sell. The code is public on GitHub, so anyone can check that the app never uploads your workouts.": "個人開発者による無料のオープンソースの趣味プロジェクトです。広告もアカウントもなく、売るものもありません。コードは GitHub で公開されているので、アプリが記録をアップロードしないことを誰でも確認できます。",
 "Pain flagged · hold or go lighter. If it keeps up, see a doctor or physio.": "痛みあり · 重量は据え置きか軽めに。続くようなら医師か理学療法士に相談を。",
 "Pick a starting weight": "開始重量を選びましょう",
@@ -2402,6 +2402,20 @@ export default {
 "Every website this page has contacted since it opened, as your browser recorded it:": "このページが開いてから接続したすべてのサイト（ブラウザの記録）：",
 "Only the app's own website. Nothing else.": "アプリ自身のサイトだけです。ほかにはありません。",
 "Try this: turn on airplane mode, then log a set. It still works.": "試してみてください：機内モードにしてからセットを記録しても、そのまま使えます。",
-"The app is open source: anyone can read the code on GitHub.": "このアプリはオープンソースです。誰でも GitHub でコードを読めます。"
+"The app is open source: anyone can read the code on GitHub.": "このアプリはオープンソースです。誰でも GitHub でコードを読めます。",
+"Suggest a better word": "より良い訳語を提案する",
+"Which words read wrong, and what would you say instead?": "おかしな言葉と、あなたならどう言うかを教えてください。",
+"target {0} grams": "目標 {0} グラム",
+"target {0} litres": "目標 {0} リットル",
+"target {0}": "目標 {0}",
+"target {0} hours": "目標 {0} 時間",
+"target {0} calories": "目標 {0} キロカロリー",
+"avg {0}": "平均 {0}",
+"hit {0} of {1} days": "{1}日中{0}日達成",
+"Sleep <{0} hours": "睡眠 {0}時間未満",
+"Sleep {0}–{1} hours": "睡眠 {0}〜{1}時間",
+"Sleep {0}+ hours": "睡眠 {0}時間以上",
+"Feel {0}/{1}": "体感 {0}/{1}",
+"Peak HR {0}": "最高心拍数 {0}"
 }
 };

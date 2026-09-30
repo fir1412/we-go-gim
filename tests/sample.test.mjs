@@ -95,3 +95,28 @@ test('one lift can show lb while the app is in kg, and back', async () => {
   assert.equal(clean.exercises[0].disp, undefined);
   assert.equal(clean.exercises[1].disp, 'lb');
 });
+
+test('the sample fills every screen, and Start for real takes its daily log back but keeps your own days', async () => {
+  const data = sampleData(today, PROGRAM, exById);
+  assert.ok(data.sessions.every(s => s.readiness?.sleep), 'sleep on every sample workout');
+  assert.ok(data.sessions.some(s => s.hr >= 150 && /leg/i.test(s.name)), 'heart rate on leg days');
+  assert.equal(data.sessions.flatMap(s => s.entries).filter(e => e.pain).length, 1, 'one pain flag');
+  const days = Object.keys(data.daily);
+  assert.equal(days.length, 14);
+  assert.ok(days.every(d => d < today && data.daily[d].seed && data.daily[d].protein > 0), 'past days only, all marked');
+  // Only pain two workouts running goes lighter, so the one flag leaves Today's targets alone.
+  const squatDays = data.sessions.filter(s => s.entries.some(e => e.exId === 'squat'));
+  assert.ok(!squatDays.slice(-2).some(s => s.entries.some(e => e.pain)));
+
+  S.sessions = []; S.daily = {};
+  const mine = days[0], logged = days[1];
+  await state.saveDaily(mine, { protein: 99 });
+  await state.addSeedData(data);
+  assert.equal(S.daily[mine].protein, 99, 'a day you logged is never covered');
+  assert.ok(!S.daily[mine].seed);
+  await state.saveDaily(logged, { water: 1 });
+  assert.deepEqual(S.daily[logged], { water: 1 }, 'logging on a sample day makes it yours, without the made-up numbers');
+  assert.equal(state.sanitizeBackup({ sessions: [], daily: { [days[2]]: data.daily[days[2]] } }).daily[days[2]].seed, true, 'a backup keeps the mark');
+  await state.removeSeedData();
+  assert.deepEqual(Object.keys(S.daily).sort(), [mine, logged].sort());
+});

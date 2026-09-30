@@ -2,6 +2,7 @@
 // version, device type and current screen) is sent; nothing from their workout data.
 import { S, saveSettings } from './state.js';
 import { esc, openSheet, closeSheet, toast } from './ui.js';
+import { getLang } from './i18n.js';
 
 const FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSf4dXE3MAv2QBqA2vImim-I5mPMAOYKynjETzDyXT19wXh9hw/formResponse';
 const F = { type: 'entry.1924204516', message: 'entry.1654840080', contact: 'entry.299429769', info: 'entry.796536086' };
@@ -13,7 +14,7 @@ function appInfo(version) {
   const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : 'Other';
   const br = /EdgA?\//.test(ua) ? 'Edge' : /SamsungBrowser/.test(ua) ? 'Samsung' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : 'Other';
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'installed' : 'browser';
-  return `we go gim ${version} · ${os} · ${br} · ${installed} · #/${location.hash.replace(/^#\/?/, '').split('/')[0] || 'today'}`;
+  return `we go gim ${version} · ${os} · ${br} · ${installed} · ${getLang()} · #/${location.hash.replace(/^#\/?/, '').split('/')[0] || 'today'}`;
 }
 
 async function post(item) {
@@ -33,13 +34,13 @@ export async function flushFeedback() {
 }
 window.addEventListener('online', () => { flushFeedback().catch(() => {}); });
 
-export function openFeedback(version, preset = 'Idea') {
+export function openFeedback(version, preset = 'Idea', hint = 'What happened, or what would make the app better?') {
   let type = preset;
   const info = appInfo(version);
   const sheet = openSheet(`<h2 class="sh-title">Send feedback</h2>
     <p class="sh-body">Found a bug or have an idea? It goes straight to the developer.</p>
     <div class="seg fb-type" role="group" aria-label="Feedback type">${TYPES.map(t => `<button data-fb="${t}" aria-pressed="${t === type}">${t}</button>`).join('')}</div>
-    <label class="field"><span>Message</span><textarea class="inp" id="fb-msg" rows="5" maxlength="4000" placeholder="What happened, or what would make the app better?" autofocus></textarea></label>
+    <label class="field"><span>Message</span><textarea class="inp" id="fb-msg" rows="5" maxlength="4000" placeholder="${esc(hint)}" autofocus></textarea></label>
     <label class="field"><span>Contact (optional)</span><input class="inp" id="fb-contact" maxlength="200" placeholder="Email or handle, if you'd like a reply" autocomplete="email"></label>
     <p class="fine">Also sent: <b>${esc(info)}</b>. Nothing from your workouts or body data is included. Replies aren't possible without contact details. <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></p>
     <div class="row2"><button class="btn ghost" data-fb-x="cancel">Cancel</button><button class="btn" data-fb-x="send">Send</button></div>`, { label: 'Send feedback' });

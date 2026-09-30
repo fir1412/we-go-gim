@@ -2297,7 +2297,7 @@ export default {
 "From {0} sample workouts": "來自 {0} 次範例訓練",
 "Say how the workout felt": "說說這次訓練感覺如何",
 "There is no app lock: anyone who can open this phone can open the app.": "應用程式沒有單獨的鎖：能打開這支手機的人都能打開這個應用程式。",
-"No account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "無需帳號，無需註冊。訓練紀錄只保存在這支手機上：應用程式從不上傳，備份只會去你自己傳送的地方。",
+"Free: no ads, no account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "免費：無廣告，無需帳號，無需註冊。訓練紀錄只保存在這支手機上：應用程式從不上傳，備份只會去你自己傳送的地方。",
 "It is a free, open-source hobby project by one developer, with no ads, no account and nothing to sell. The code is public on GitHub, so anyone can check that the app never uploads your workouts.": "這是一位開發者的免費開源業餘專案，沒有廣告，不用帳號，也沒有東西要賣。程式碼公開在 GitHub 上，任何人都可以查證應用程式從不上傳你的訓練紀錄。",
 "Pain flagged · hold or go lighter. If it keeps up, see a doctor or physio.": "已標記疼痛 · 維持或減輕重量。如果持續，請看醫生或物理治療師。",
 "Pick a starting weight": "選一個起始重量",
@@ -2402,6 +2402,20 @@ export default {
 "Every website this page has contacted since it opened, as your browser recorded it:": "本頁面開啟以來聯絡過的每個網站（由你的瀏覽器記錄）：",
 "Only the app's own website. Nothing else.": "只有應用程式自己的網站，沒有別的。",
 "Try this: turn on airplane mode, then log a set. It still works.": "試試看：開啟飛航模式，然後記錄一組。仍然可以使用。",
-"The app is open source: anyone can read the code on GitHub.": "本應用程式是開源的：任何人都可以在 GitHub 上查看程式碼。"
+"The app is open source: anyone can read the code on GitHub.": "本應用程式是開源的：任何人都可以在 GitHub 上查看程式碼。",
+"Suggest a better word": "建議更好的譯法",
+"Which words read wrong, and what would you say instead?": "哪些詞讀起來不對？你會怎麼說？",
+"target {0} grams": "目標 {0} 克",
+"target {0} litres": "目標 {0} 升",
+"target {0}": "目標 {0}",
+"target {0} hours": "目標 {0} 小時",
+"target {0} calories": "目標 {0} 千卡",
+"avg {0}": "平均 {0}",
+"hit {0} of {1} days": "{1} 天中達標 {0} 天",
+"Sleep <{0} hours": "睡眠 <{0} 小時",
+"Sleep {0}–{1} hours": "睡眠 {0}–{1} 小時",
+"Sleep {0}+ hours": "睡眠 {0}+ 小時",
+"Feel {0}/{1}": "感覺 {0}/{1}",
+"Peak HR {0}": "最高心率 {0}"
 }
 };

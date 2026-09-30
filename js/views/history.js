@@ -145,7 +145,7 @@ function detail(id) {
   if (s.feel) meta.push(`Feel ${s.feel}/5`);
   if (s.hr) meta.push(`Peak HR ${s.hr}`);
   if (s.deload) meta.push(T('deload'));
-  if (meta.length || s.note) h += `<div class="box pad"><p class="meta-l">${esc(meta.join(' · '))}</p>${s.note ? `<p class="enote" data-raw>${esc(s.note)}</p>` : ''}</div>`;
+  if (meta.length || s.note) h += `<div class="box pad"><p class="meta-l">${meta.map(m => `<span>${esc(m)}</span>`).join(' · ')}</p>${s.note ? `<p class="enote" data-raw>${esc(s.note)}</p>` : ''}</div>`;
   const sx = xpBySession(muscleXP(S.sessions, S.exById))[s.id];
   if (sx && !ed) h += `<a class="box xpstrip" href="#/levels"><b>+${sx.total} XP</b>${Object.entries(sx.muscles).sort((a, b) => b[1] - a[1]).map(([m, g]) => `<span>${esc(m)} +${g}</span>`).join('')}</a>`;
   if (s.cardio?.length) h += `<div class="box pad"><p class="lbl">Cardio</p>${s.cardio.map(c => `<p>${esc(c.type)} · ${num(c.min, 0)} min${c.km ? ` · ${num(c.km)} km` : ''} · ${esc(c.intensity)}</p>`).join('')}</div>`;
