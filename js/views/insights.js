@@ -1,5 +1,5 @@
 import { S, todayIso, dayForDate, suggestionCtx, saveBody, deleteBody, saveCardio, deleteCardio, saveSettings, uid, refresh, saveMeasure, deleteMeasure, savePhoto, deletePhoto, loadPhoto } from '../state.js';
-import {
+import { unitsFor,
   muscleTrends, exposures, trend, topLoad, score, isKg, suggest, deloadCheck, weekStart, addDays,
   daysBetween, weeklyRate, personalBests, compareExposure, fmtLoad, unitLong, unitShort, workSets, MUSCLES, estimateDay, toDisp, getUnits, LB_KG,
   hasEstMax, trendRange,
@@ -20,7 +20,7 @@ const bwKg = v => +(v / bwF()).toFixed(3);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 /** "? × 8" for experts, "Find weight × 8" in plain wording. */
 const targetText = (ex, sg) => {
-  const u = unitShort(ex.unit);
+  const u = unitShort(ex);
   return sg.w == null ? `${expertWording() ? '?' : 'Find weight'} × ${sg.reps.join('·')}` : `${fmtLoad(ex, sg.w)}${u ? ' ' + u : ''} × ${sg.reps.join('·')}`;
 };
 /** Enough history to judge gaps: 6+ logged sessions, or two weeks since the first one. Before that, gap warnings are noise. */
@@ -86,7 +86,7 @@ function planCard(t) {
   }
   const mins = Math.round(estimateDay(next.day, S.exById, S.sessions) / 60);
   const sum = [n.load && `${n.load} to load up`, n.reps && `${n.reps} to add a rep`, n.cal && `${n.cal} to ${expertWording() ? 'calibrate' : 'find a weight for'}`].filter(Boolean).join(' · ');
-  let h = `<section class="box nextplan" style="${kstyle(next.day.color)}"><header><div class="grow"><small>Next session · ${esc(when)}</small><b>${esc(next.day.name)}</b></div><span class="fine">~${mins} min</span>${next.date === t ? `<a class="mini go" href="#/today">Go</a>` : ''}</header>`;
+  let h = `<section class="box nextplan" style="${kstyle(next.day.color)}"><header><div class="grow"><small>Next session · ${esc(when)}${S.settings.sample ? '<span> · sample numbers</span>' : ''}</small><b>${esc(next.day.name)}</b></div><span class="fine">~${mins} min</span>${next.date === t ? `<a class="mini go" href="#/today">Go</a>` : ''}</header>`;
   if (sum) h += `<p class="fine">${esc(sum)}</p>`;
   h += `<ul class="plist">${rows.join('')}</ul>`;
   if (n.cal) h += `<p class="fine">${expertWording() ? 'Calibrate: pick a load for mid-range reps with 2 in reserve. It becomes the baseline.' : 'Find your weight: pick one you can lift for the middle of the rep range with about 2 reps to spare. Next time builds on it.'} ${helpTip('calibrate')}</p>`;
@@ -167,7 +167,7 @@ function overview() {
     else c.flat++;
   }
   let h = progressNav('insights');
-  if (!S.sessions.some(s => !s.seed)) h += `<div class="box pad emptyact"><b>Your progress shows up here</b><p class="fine">After two workouts you'll see which lifts are going up, which have stalled, and sets per muscle each week. Until then, here's what your next session asks for.</p><div class="row2"><a class="btn" href="#/today">Go to today's workout</a><a class="btn ghost" href="#/import">Import old logs</a></div></div>`;
+  if (!S.sessions.length) h += `<div class="box pad emptyact"><b>Your progress shows up here</b><p class="fine">After two workouts you'll see which lifts are going up, which have stalled, and sets per muscle each week. Until then, here's what your next session asks for.</p><div class="row2"><a class="btn" href="#/today">Go to today's workout</a><a class="btn ghost" href="#/import">Import old logs</a></div></div>`;
   h += planCard(t);
   const tally = `<div class="tally"><div style="--k:var(--up)"><b>${c.up}</b><span>progressing</span></div><div style="--k:var(--flat)"><b>${c.flat}</b><span>flat or new</span></div><div style="--k:var(--down)"><b>${c.bad}</b><span>need attention</span></div></div>`;
 
@@ -217,7 +217,7 @@ function overview() {
     <a class="box stat" href="#/body"><span class="lbl">Body weight</span><b class="num">${last ? num(bwDisp(last.kg)) : '—'}<small> ${U()}</small></b><span class="fine">${rate == null ? 'Log a few weigh-ins' : `${rate > 0 ? '+' : ''}${num(rate * bwF(), 2)} ${U()}/week`}${+S.settings.goalKg ? ` · goal ${num(bwDisp(S.settings.goalKg))}` : ''}</span></a>
     <a class="box stat" href="#/cardio"><span class="lbl">Cardio this week</span><b class="num">${wk.reduce((a, x) => a + (+x.min || 0), 0)}<small> min</small></b><span class="fine">${wk.length} session${wk.length === 1 ? '' : 's'} · aim 2–3</span></a></div>`;
   h += `<a class="btn ghost" href="#/lifts">All exercises and records ${ICON.chev}</a>`;
-  return { title: 'Insights', sub: `From ${plural(S.sessions.length, 'logged session')}`, html: h, color: 'legs' };
+  return { title: 'Insights', sub: `From ${plural(S.sessions.length, S.settings.sample ? 'sample session' : 'logged session')}`, html: h, color: 'legs' };
 }
 
 /** Progress has two views: Insights and Levels. */
@@ -233,7 +233,7 @@ function lifts() {
   for (const { ex, exps, tr } of rows) {
     const [label, k] = STATUS[tr.status] || STATUS.none;
     const pb = personalBests(exps, ex);
-    const rec = hasEstMax(ex) && pb.best ? `Best ${T('estMax')} ${num(toDisp(pb.best.v))} ${unitShort(ex.unit)}` : `Top ${fmtLoad(ex, pb.heavy?.w ?? 0)}${isKg(ex.unit) && unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}`;
+    const rec = hasEstMax(ex) && pb.best ? `Best ${T('estMax')} ${num(toDisp(pb.best.v, ex))} ${unitShort(ex)}` : `Top ${fmtLoad(ex, pb.heavy?.w ?? 0)}${isKg(ex.unit) && unitShort(ex) ? ' ' + unitShort(ex) : ''}`;
     // With a trend, show the two numbers the status label is based on first, so they always agree.
     const d = !exps.length ? 'Never logged' : `${tr.n >= 2 ? trendRange(ex, tr) + ' · ' : ''}${rec} · ${plural(exps.length, 'session')}`;
     h += `<li data-name="${esc(searchText(ex))}"><a href="#/ex/${esc(ex.id)}"><span class="t">${esc(ex.name)} ${pill(label, k)}</span><span class="d">${esc(d)}</span>${tr.scores.length > 1 ? spark(tr.scores, k) : ''}</a></li>`;
@@ -260,28 +260,28 @@ function exDetail(id) {
   const kg = hasEstMax(ex); // machines and cables: no estimated max, their chart shows the top load
   const metric = kg ? exMetric : 'load';
 
-  let h = `<div class="rrow"><span>${pill(label, k)}${tr.n >= 2 ? ` <b class="num">${esc(trendRange(ex, tr))}</b>` : ''} ${tr.n >= 2 && isKg(ex.unit) ? '' : esc(unitLong(ex.unit))}${ex.perGym ? ' · compared per gym' : ''}</span><a class="linkbtn" href="#/exercise/${esc(ex.id)}">Edit exercise</a></div>`;
+  let h = `<div class="rrow"><span>${pill(label, k)}${tr.n >= 2 ? ` <b class="num">${esc(trendRange(ex, tr))}</b>` : ''} ${tr.n >= 2 && isKg(ex.unit) ? '' : esc(unitLong(ex))}${ex.perGym ? ' · compared per gym' : ''}</span><a class="linkbtn" href="#/exercise/${esc(ex.id)}">Edit exercise</a></div>`;
   if (ex.caution) h += `<div class="warn" style="--k:var(--down)"><b>Note.</b><span>${esc(ex.caution)}</span></div>`;
   if (ex.unitUnclear) h += `<div class="warn"><b>Unit unclear.</b><span>Old entries mix per-side and total load. Set the unit under Edit exercise.</span></div>`;
 
   h += nextTarget(ex);
   h += standards(ex, pb);
   h += `<div class="kpis">
-    <div class="kpi"><b>${kg && pb.best ? num(toDisp(pb.best.v)) : '—'}</b><span>best ${esc(T('estMax'))} ${helpTip('estMax')}${kg && pb.best ? ` · ${fmtDate(pb.best.date)}` : ''}</span></div>
+    <div class="kpi"><b>${kg && pb.best ? num(toDisp(pb.best.v, ex)) : '—'}</b><span>best ${esc(T('estMax'))} ${helpTip('estMax')}${kg && pb.best ? ` · ${fmtDate(pb.best.date)}` : ''}</span></div>
     <div class="kpi"><b>${pb.heavy ? esc(fmtLoad(ex, pb.heavy.w)) : '—'}</b><span>heaviest${pb.heavy ? ` × ${pb.heavy.r}` : ''}</span></div>
     <div class="kpi"><b>${exps.length}</b><span>sessions</span></div></div>`;
   // Records leave out a lone value far above every other workout (usually a typo or an import slip); the log keeps it.
-  for (const x of pb.ignored.slice(0, 3)) h += `<p class="fine">${esc(`Left out of records as a likely typo: ${fmtLoad(ex, x.w)}${isKg(ex.unit) && unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''} × ${x.r} on ${fmtDate(x.date)}.`)}</p>`;
+  for (const x of pb.ignored.slice(0, 3)) h += `<p class="fine">${esc(`Left out of records as a likely typo: ${fmtLoad(ex, x.w)}${isKg(ex.unit) && unitShort(ex) ? ' ' + unitShort(ex) : ''} × ${x.r} on ${fmtDate(x.date)}.`)}</p>`;
 
   if (exps.length) {
     const chron = [...exps].reverse();
     // Pull-ups and dips done with added weight lately chart the added weight; plain bodyweight lifts chart total reps.
     const bwAdded = ex.unit === 'bw' && !!tr.fromExp && (topLoad(tr.fromExp).w > 0 || topLoad(tr.toExp).w > 0);
     let series;
-    if (metric === 'e1rm') series = chron.map(e => ({ date: e.date, v: score(e, ex.unit) })).filter(p => p.v != null).map(p => ({ ...p, v: toDisp(p.v) }));
-    else if (metric === 'vol') series = chron.map(e => ({ date: e.date, v: e.sets.reduce((a, s) => a + (+s.w || 0) * (+s.r || 0) * (ex.unit === 'kg/DB' ? 2 : 1), 0) })).filter(p => p.v > 0).map(p => ({ ...p, v: Math.round(toDisp(p.v)) }));
-    else series = chron.map(e => ({ date: e.date, v: ex.unit === 'bw' && !bwAdded ? e.sets.reduce((a, s) => a + (+s.r || 0), 0) : ex.unit === 'L' ? topLoad(e).w : toDisp(topLoad(e).w) }));
-    const unitLbl = metric === 'load' && ex.unit === 'bw' ? (bwAdded ? U() : 'reps') : metric === 'load' && ex.unit === 'L' ? 'level' : U();
+    if (metric === 'e1rm') series = chron.map(e => ({ date: e.date, v: score(e, ex.unit) })).filter(p => p.v != null).map(p => ({ ...p, v: toDisp(p.v, ex) }));
+    else if (metric === 'vol') series = chron.map(e => ({ date: e.date, v: e.sets.reduce((a, s) => a + (+s.w || 0) * (+s.r || 0) * (ex.unit === 'kg/DB' ? 2 : 1), 0) })).filter(p => p.v > 0).map(p => ({ ...p, v: Math.round(toDisp(p.v, ex)) }));
+    else series = chron.map(e => ({ date: e.date, v: ex.unit === 'bw' && !bwAdded ? e.sets.reduce((a, s) => a + (+s.r || 0), 0) : ex.unit === 'L' ? topLoad(e).w : toDisp(topLoad(e).w, ex) }));
+    const unitLbl = metric === 'load' && ex.unit === 'bw' ? (bwAdded ? U() : 'reps') : metric === 'load' && ex.unit === 'L' ? 'level' : unitsFor(ex);
     h += `<div class="box chart">`;
     if (kg) h += `<div class="seg sm" role="group" aria-label="Chart metric">${[['e1rm', expertWording() ? 'e1RM' : 'Est. max'], ['load', 'Top load'], ['vol', expertWording() ? 'Volume' : 'Total lifted']].map(([v, l]) => `<button data-act="metric" data-v="${v}" aria-pressed="${metric === v}">${l}</button>`).join('')}</div>`;
     else h += `<div class="cap"><b>${ex.unit === 'bw' ? (bwAdded ? 'Top load' : 'Total reps') : ex.unit === 'L' ? 'Top level' : 'Top load'}</b></div>`;
@@ -296,10 +296,10 @@ function exDetail(id) {
       const sc = score(e, ex.unit);
       // vs the previous session at the same gym for machines/cables; across gyms the change isn't meaningful
       // (compareExposure skips a second entry of the same lift in the same workout)
-      let cmp = compareExposure(exps, i, ex.unit);
+      let cmp = compareExposure(exps, i, ex);
       if (cmp?.prevSessionId && ex.perGym && S.sessions.find(x => x.id === e.sessionId)?.gymId !== S.sessions.find(x => x.id === cmp.prevSessionId)?.gymId) cmp = null;
       const tag = cmp && cmp.dir !== 'first' ? `<small class="dl" style="--k:var(--${cmp.dir === 'up' ? 'up' : cmp.dir === 'same' ? 'mute' : cmp.kind === 'load' ? 'flat' : 'down'})">${cmp.pr ? '★ ' : ''}${esc(cmp.text)}</small>` : '';
-      h += `<tr><td><a href="#/session/${esc(e.sessionId)}">${fmtDate(e.date)}${e.approx ? '*' : ''}</a></td><td>${esc(groupSets(e.sets, ex))}${e.pain ? ' ' + pill('pain', 'down') : ''}${tag}</td>${kg ? `<td class="num">${sc ? num(toDisp(sc)) : '—'}</td>` : ''}${hasRir ? `<td>${esc(e.rir ?? '')}</td>` : ''}</tr>`;
+      h += `<tr><td><a href="#/session/${esc(e.sessionId)}">${fmtDate(e.date)}${e.approx ? '*' : ''}</a></td><td>${esc(groupSets(e.sets, ex))}${e.pain ? ' ' + pill('pain', 'down') : ''}${tag}</td>${kg ? `<td class="num">${sc ? num(toDisp(sc, ex)) : '—'}</td>` : ''}${hasRir ? `<td>${esc(e.rir ?? '')}</td>` : ''}</tr>`;
     });
     h += `</tbody></table></div>`;
     if (exps.some(e => e.approx)) h += `<p class="fine">* Date approximate (imported from the handoff summary).</p>`;
@@ -427,10 +427,10 @@ function standards(ex, pb) {
   const pos = Math.min(100, (r / (cuts[4] * 1.1)) * 100);
   const nextKg = lvl < 5 ? cuts[lvl] * bw : null;
   return `<div class="box pad std"><div class="rrow"><p class="lbl">How strong is that?</p><button class="linkbtn" data-act="std-sex" data-v="">Change</button></div>
-    <p><b>${lvl ? STD_NAMES[lvl - 1] : 'Starting out'}</b> · ${num(r, 2)}× body weight (${esc(T('estMax'))} ${num(toDisp(pb.best.v))} ${U()})</p>
+    <p><b>${lvl ? STD_NAMES[lvl - 1] : 'Starting out'}</b> · ${num(r, 2)}× body weight (${esc(T('estMax'))} ${num(toDisp(pb.best.v, ex))} ${unitsFor(ex)})</p>
     <div class="stdbar" aria-hidden="true">${cuts.map(c => `<i style="left:${(c / (cuts[4] * 1.1)) * 100}%"></i>`).join('')}<b style="left:${pos}%"></b></div>
     <div class="stdlbl" aria-hidden="true">${STD_NAMES.map(n => `<span>${n}</span>`).join('')}</div>
-    <p class="fine">${nextKg ? `${STD_NAMES[lvl]} starts around ${num(toDisp(nextKg))} ${U()} at your body weight. ` : ''}Rough guide for ${sex}, from common strength tables. Age, height and training history all matter.</p></div>`;
+    <p class="fine">${nextKg ? `${STD_NAMES[lvl]} starts around ${num(toDisp(nextKg, ex))} ${unitsFor(ex)} at your body weight. ` : ''}Rough guide for ${sex}, from common strength tables. Age, height and training history all matter.</p></div>`;
 }
 
 // ---- measurements and progress photos -------------------------------------------------------
@@ -458,6 +458,7 @@ function measure() {
     ? `<div class="photos">${[...S.photos].reverse().map(p => `<button class="ph" data-act="m-open" data-id="${esc(p.id)}" aria-label="Photo from ${fmtDate(p.date, { year: true })}"><img data-ph="${esc(p.id)}" alt=""><span>${fmtDate(p.date)}</span></button>`).join('')}</div>`
     : `<div class="box pad"><p class="fine">Photos from the same spot and light every few weeks show change the scale misses.</p></div>`;
   h += `<p class="fine">Photos stay on this phone only and are not in backup files. Tap a photo, then Save to phone, to keep a copy in your gallery.</p>`;
+  h += `<p class="fine">There is no app lock: anyone who can open this phone can open the app. To hide it, use your phone's app lock or secure folder.</p>`;
   return {
     title: 'Measurements', sub: 'Tape and photos', back: 'body', html: h, color: 'upper',
     after: root => { for (const img of root.querySelectorAll('img[data-ph]')) showPhoto(img, img.dataset.ph); },

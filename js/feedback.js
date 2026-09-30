@@ -41,7 +41,7 @@ export function openFeedback(version, preset = 'Idea') {
     <div class="seg fb-type" role="group" aria-label="Feedback type">${TYPES.map(t => `<button data-fb="${t}" aria-pressed="${t === type}">${t}</button>`).join('')}</div>
     <label class="field"><span>Message</span><textarea class="inp" id="fb-msg" rows="5" maxlength="4000" placeholder="What happened, or what would make the app better?" autofocus></textarea></label>
     <label class="field"><span>Contact (optional)</span><input class="inp" id="fb-contact" maxlength="200" placeholder="Email or handle, if you'd like a reply" autocomplete="email"></label>
-    <p class="fine">Also sent: <b>${esc(info)}</b>. Nothing from your workouts or body data is included. Replies aren't possible without contact details.</p>
+    <p class="fine">Also sent: <b>${esc(info)}</b>. Nothing from your workouts or body data is included. Replies aren't possible without contact details. <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></p>
     <div class="row2"><button class="btn ghost" data-fb-x="cancel">Cancel</button><button class="btn" data-fb-x="send">Send</button></div>`, { label: 'Send feedback' });
   sheet.addEventListener('click', async e => {
     const t = e.target.closest('[data-fb]');

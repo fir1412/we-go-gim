@@ -1,4 +1,4 @@
-// Medical mode: every muscle in 3D. Drag turns the body any way (all axes), pinch or scroll zooms, two fingers
+// 3D muscle map: every muscle in 3D. Drag turns the body any way (all axes), pinch or scroll zooms, two fingers
 // pan. Tap a muscle for its name and the exercises that train it; tap an exercise to light up what it works.
 // three.js (vendored in js/vendor/three) and the model load only when this screen is opened.
 import { S, saveSettings } from '../state.js';
@@ -41,7 +41,7 @@ export function render(route) {
     <section class="box pad atlas-info" id="atlas-info" aria-live="polite"></section>
     <p class="fine">3D model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas. License CC BY-SA 4.0. The female build is illustrative. For learning, not for diagnosis.</p>
   </div>`;
-  return { title: 'Medical mode', sub: 'Every muscle in 3D', html: h, color: 'push', back: 'levels', after: mount };
+  return { title: '3D muscle map', sub: 'Every muscle in 3D', html: h, color: 'push', back: 'levels', after: mount };
 }
 
 // ---- data ----------------------------------------------------------------------------------------------

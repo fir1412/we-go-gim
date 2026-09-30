@@ -1,6 +1,6 @@
 // App state held in memory, persisted through db.js.
 import * as db from './db.js';
-import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, seedSessions, SEED_BODY, MUSCLE_UPDATES } from './seed.js';
+import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, MUSCLE_UPDATES } from './seed.js';
 import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec, cleanText, MAX_KG, MAX_REPS, validIso, dedupeDays, addDays } from './engine.js';
 import { cleanLearn } from './learn.js';
 
@@ -49,8 +49,6 @@ export async function load() {
     settings = structuredClone(DEFAULT_SETTINGS);
     await db.putMany('exercises', structuredClone(EXERCISES));
     await db.setKv('program', structuredClone(PROGRAM));
-    await db.putMany('sessions', seedSessions(settings.gymId));
-    await db.putMany('body', structuredClone(SEED_BODY));
     await db.setKv('settings', settings);
   }
   S.settings = { ...structuredClone(DEFAULT_SETTINGS), ...settings, equip: { ...DEFAULT_SETTINGS.equip, ...(settings.equip || {}) } };
@@ -146,6 +144,10 @@ export function isPoor() {
 export function suggestionCtx(date = todayIso()) {
   return { sessions: S.sessions, gymId: S.settings.gymId, poor: isPoor(), deload: deloadActive(date), equip: S.settings.equip, date };
 }
+/** Sessions without the made-up sample ones: the same array when there is no sample, so history caches keep working. */
+export const realSessions = () => (S.sessions.some(s => s.seed) ? S.sessions.filter(s => !s.seed) : S.sessions);
+/** For a workout someone will actually lift: made-up sample history never sets the weights on the bar. */
+const liftCtx = date => ({ ...suggestionCtx(date), sessions: realSessions() });
 
 // ---- workout draft -----------------------------------------------------------
 function entryFromSlot(slot, ctx) {
@@ -172,7 +174,7 @@ export function trimmedCounts(day, counts, minutes = null) {
 
 /** opts.minutes: short-session limit (20/30/45); trims sets and accessories to fit. */
 export async function startWorkout(day, date = todayIso(), { minutes = null } = {}) {
-  const ctx = suggestionCtx(date);
+  const ctx = liftCtx(date);
   const slots = day.slots.filter(s => S.exById[s.exId]);
   let entries = slots.map(s => entryFromSlot(s, ctx));
   let trimmed = false;
@@ -207,7 +209,7 @@ export async function startWorkout(day, date = todayIso(), { minutes = null } = 
 }
 
 export async function startFromSession(sess) {
-  const ctx = suggestionCtx();
+  const ctx = liftCtx();
   S.draft = {
     id: uid('s'), date: todayIso(), dow: dowOf(todayIso()), name: sess.name, color: sess.color || 'upper', gymId: S.settings.gymId,
     start: Date.now(), readiness: readinessNow(), deload: ctx.deload,
@@ -223,7 +225,7 @@ export async function startFromSession(sess) {
 
 export function newEntry(exId, slot = null) {
   const s = { sets: 3, lo: 8, hi: 12, group: '', ...(slot || {}), exId };
-  return entryFromSlot(s, suggestionCtx(S.draft?.date));
+  return entryFromSlot(s, liftCtx(S.draft?.date));
 }
 
 export async function saveDraft() {
@@ -356,7 +358,7 @@ export function sanitizeBackup(data) {
   if (Array.isArray(data.exercises)) out.exercises = data.exercises.map(e => ({
     ...e, id: str(e.id, 80), name: str(e.name, 80), equip: oneOf(e.equip, ['db', 'barbell', 'smith', 'machine', 'cable', 'bw'], 'machine'),
     inc: numOr(e.inc, 2.5), rest: numOr(e.rest, 90), muscles: Array.isArray(e.muscles) ? e.muscles.map(m => str(m, 30)) : [],
-    caution: optStr(e.caution, 300), perGym: bool(e.perGym), unitUnclear: bool(e.unitUnclear),
+    caution: optStr(e.caution, 300), perGym: bool(e.perGym), unitUnclear: bool(e.unitUnclear), disp: oneOf(e.disp, ['kg', 'lb'], undefined),
   }));
   if (Array.isArray(data.body)) out.body = data.body.filter(b => b && validIso(b.date)).map(b => ({ id: str(b.id, 80), date: iso(b.date), kg: numOr(b.kg), ...(b.note ? { note: str(b.note, 300) } : {}), ...(b.seed ? { seed: true } : {}) }));
   if (Array.isArray(data.cardio)) out.cardio = data.cardio.filter(c => c && validIso(c.date)).map(c => ({ ...cardio(c), id: str(c.id, 80), date: iso(c.date), note: str(c.note, 300), ...(c.sessionId ? { sessionId: str(c.sessionId, 80) } : {}) }));
@@ -507,13 +509,25 @@ export async function resetAll() {
   refresh();
 }
 
+/** Sample workouts and weigh-ins (see sample.js). Ids are fixed per date, so a second tap overwrites instead of doubling. */
+export async function addSeedData({ sessions, body }) {
+  await db.putMany('sessions', sessions);
+  await db.putMany('body', body);
+  const ids = new Set([...sessions, ...body].map(x => x.id));
+  S.sessions = [...S.sessions.filter(s => !ids.has(s.id)), ...sessions].sort(byDateDesc);
+  S.body = [...S.body.filter(b => !ids.has(b.id)), ...body].sort((a, b) => a.date.localeCompare(b.date));
+  invalidateCaches();
+  await saveSettings({ sample: true });
+}
+
 export async function removeSeedData() {
   const ids = S.sessions.filter(s => s.seed).map(s => s.id);
   for (const id of ids) await db.del('sessions', id);
   S.sessions = S.sessions.filter(s => !s.seed);
   for (const b of S.body.filter(b => b.seed)) await db.del('body', b.id);
   S.body = S.body.filter(b => !b.seed);
-  refresh();
+  invalidateCaches();
+  await saveSettings({ sample: false });
 }
 
 // ---- measurements and progress photos ---------------------------------------------------------

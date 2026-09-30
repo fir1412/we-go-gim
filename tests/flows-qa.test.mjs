@@ -54,3 +54,11 @@ test('a workout that fails to save (storage full) stays open instead of vanishin
   try { await assert.rejects(state.commitDraft()); } finally { localStorage.setItem = set; }
   assert.equal(S.draft?.id, 'w1');
 });
+
+test('reps left (RIR) tapped in a workout is kept in the saved session', async () => {
+  S.sessions = []; S.cardio = [];
+  S.draft = { ...draft(), cardio: [], entries: [{ exId: 'bench', slot: null, sets: [{ w: 20, r: 8, done: true }], rir: '2', pain: false, note: '' }] };
+  const saved = await state.commitDraft();
+  assert.equal(saved.entries[0].rir, '2');
+  assert.equal(S.sessions.find(s => s.id === 'w1').entries[0].rir, '2');
+});

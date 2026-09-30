@@ -20,8 +20,8 @@ const RULES = [
   [/\b(\d{1,4})·(?=\d)/g, '$1, '],
   // numbers with short units
   [/~\s?(\d)/g, 'about $1'],
-  [/\b(\d+(?:\.\d+)?)(\+?)\s?min\b/g, '$1$2 minutes'],
-  [/\b(\d+(?:\.\d+)?)(\+?)\s?h\b/g, '$1$2 hours'],
+  [/\b(\d+(?:\.\d+)?)(\+?)\s?min\b/g, (m, n, p) => `${n}${p} ${n === '1' && !p ? 'minute' : 'minutes'}`],
+  [/\b(\d+(?:\.\d+)?)(\+?)\s?h\b/g, (m, n, p) => `${n}${p} ${n === '1' && !p ? 'hour' : 'hours'}`],
   [/\b(\d+) ex\b/g, (m, n) => (n === '1' ? '1 exercise' : `${n} exercises`)],
   [/\+(\d+)s\b/g, '+$1 seconds'], [/\((?:s|sec)\)/g, '(seconds)'],
   [/\b(\d+) wk\b/g, (m, n) => (n === '1' ? '1 week' : `${n} weeks`)],

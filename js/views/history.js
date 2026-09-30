@@ -1,5 +1,5 @@
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
-import { weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score, MAX_KG, MAX_REPS } from '../engine.js';
+import { unitsFor, weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score, MAX_KG, MAX_REPS } from '../engine.js';
 import { esc, num, fmtDate, fmtMonth, dowLetter, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 import { syncRawNames } from '../i18n.js';
@@ -18,6 +18,7 @@ export function render(route) {
   const t = todayIso();
   const isImp = s => s.seed || s.imported;
   const nImp = S.sessions.filter(isImp).length;
+  const impWord = S.sessions.some(s => s.imported) ? 'imported' : 'sample';
   const on = {};
   for (const s of S.sessions) (on[s.date] ||= []).push(s);
   // Every month from the first logged session to now, so any month can be browsed.
@@ -31,13 +32,15 @@ export function render(route) {
 
   // stats
   const ws = weekStart(t);
-  const thisWeek = S.sessions.filter(s => s.date >= ws && s.date <= t && !s.seed).length;
+  // In sample mode the numbers count the sample, so they match the calendar under them.
+  const tallied = s => !s.seed || S.settings.sample;
+  const thisWeek = S.sessions.filter(s => s.date >= ws && s.date <= t && tallied(s)).length;
   const planned = S.program.days.filter(d => d.slots.length).length;
-  const last30 = S.sessions.filter(s => s.date > addDays(t, -30) && s.date <= t).length;
+  const last30 = S.sessions.filter(s => s.date > addDays(t, -30) && s.date <= t && tallied(s)).length;
   let streak = 0;
   for (let w = 0; w < 52; w++) {
     const a = addDays(ws, -7 * (w + 1)), b = addDays(a, 6);
-    if (S.sessions.some(s => s.date >= a && s.date <= b)) streak++; else break;
+    if (S.sessions.some(s => tallied(s) && s.date >= a && s.date <= b)) streak++; else break;
   }
 
   let h = `<div class="kpis"><div class="kpi"><b>${thisWeek}<small>/${planned}</small></b><span>this week</span></div><div class="kpi"><b>${last30}</b><span>last 30 days</span></div><div class="kpi"><b>${streak}</b><span>week streak</span></div></div>
@@ -65,7 +68,7 @@ export function render(route) {
     ${vm !== nowM ? `<button class="linkbtn center" data-act="hist-month-now">Back to this month</button>` : ''}</div>`;
 
   h += recap(vm, inMonth);
-  h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} imported` : 'Show imported'}</button>` : ''}</div>`;
+  h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} ${impWord}` : `Show ${impWord}`}</button>` : ''}</div>`;
   if (!list.length) h += inMonth.length ? `<div class="empty"><b>Only imported sessions in ${monthName(vm)}.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>`
     : S.sessions.length ? `<div class="empty"><b>No sessions in ${monthName(vm)}.</b><p>Use the arrows or the month list above to see other months.</p></div>`
     : `<div class="empty"><b>No sessions yet.</b><p>Finish a workout and it lands here, with a calendar and a monthly recap.</p><div class="row2"><a class="btn" href="#/today">Start today's workout</a><a class="btn ghost" href="#/import">Import old logs</a></div></div>`;
@@ -81,12 +84,12 @@ export function render(route) {
     const doneEx = s.entries.filter(e => workSets(e).length).length;
     const lead = s.entries.find(e => workSets(e).length);
     const ex = lead && S.exById[lead.exId];
-    const line = ex ? `${ex.name} ${fmtLoad(ex, Math.max(...workSets(lead).map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex.unit)} × ${workSets(lead).map(x => x.r ?? '?').join('·')}` : 'No sets';
+    const line = ex ? `${ex.name} ${fmtLoad(ex, Math.max(...workSets(lead).map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex)} × ${workSets(lead).map(x => x.r ?? '?').join('·')}` : 'No sets';
     const pain = s.entries.some(e => e.pain);
     const mins = s.start && s.end && s.end > s.start ? Math.round((s.end - s.start) / 60000) : s.minutes ?? null;
     const gx = xp[s.id]?.total || 0;
     h += `<li><a href="#/session/${esc(s.id)}"><div class="dt"><b>${+s.date.slice(8)}</b><span>${dowName(dowOf(s.date))}</span></div>
-      <div class="mid"><div class="w">${esc(s.name)} ${isImp(s) ? pill(s.approx ? 'imported · date approx' : 'imported', 'mute') : ''}${pain ? ' ' + pill('pain', 'down') : ''}</div><div class="s"><b>${n} set${n === 1 ? '' : 's'} · ${doneEx} ex${mins ? ` · ${mins} min` : ''}</b> · ${esc(line)}</div></div>
+      <div class="mid"><div class="w">${esc(s.name)} ${isImp(s) ? pill(s.seed ? 'sample' : s.approx ? 'imported · date approx' : 'imported', 'mute') : ''}${pain ? ' ' + pill('pain', 'down') : ''}</div><div class="s"><b>${n} set${n === 1 ? '' : 's'} · ${doneEx} ex${mins ? ` · ${mins} min` : ''}</b> · ${esc(line)}</div></div>
       <span class="hxp" style="${kstyle(s.color)}">${gx ? `+${gx}<small>XP</small>` : ''}</span></a></li>`;
   }
   if (month) h += `</ul>`;
@@ -146,7 +149,7 @@ function detail(id) {
   const sx = xpBySession(muscleXP(S.sessions, S.exById))[s.id];
   if (sx && !ed) h += `<a class="box xpstrip" href="#/levels"><b>+${sx.total} XP</b>${Object.entries(sx.muscles).sort((a, b) => b[1] - a[1]).map(([m, g]) => `<span>${esc(m)} +${g}</span>`).join('')}</a>`;
   if (s.cardio?.length) h += `<div class="box pad"><p class="lbl">Cardio</p>${s.cardio.map(c => `<p>${esc(c.type)} · ${num(c.min, 0)} min${c.km ? ` · ${num(c.km)} km` : ''} · ${esc(c.intensity)}</p>`).join('')}</div>`;
-  if (s.seed) h += `<p class="fine">Imported from the handoff summary. It holds only the lifts that summary named${s.approx ? ', and the date is approximate' : ''}.</p>`;
+  if (s.seed) h += `<p class="fine">Sample workout, made up to show how the app works. It doesn't earn badges or missions, and goes when you tap Start for real.</p>`;
   else if (s.imported) h += `<p class="fine">Imported from your old logs${s.approx ? '. The date is approximate' : ''}. It counts toward suggestions, progress and levels like any other session.</p>`;
 
   s.entries.forEach((e, ei) => {
@@ -157,13 +160,13 @@ function detail(id) {
     if (ex && !ed && workSets(e).length) {
       const exps = exposures(S.sessions, ex, { gymId: s.gymId || null });
       const i = exps.findIndex(x => x.sessionId === s.id);
-      if (i >= 0) cmp = compareExposure(exps, i, ex.unit);
+      if (i >= 0) cmp = compareExposure(exps, i, ex);
     }
     const badges = [cmp?.pr ? pill('★ PR', 'arms') : '', cmp && cmp.dir !== 'first' ? pill(cmp.text, cmp.dir === 'up' ? 'up' : cmp.dir === 'same' ? 'mute' : cmp.kind === 'load' ? 'flat' : 'down') : cmp ? pill('first log', 'upper') : '', e.pain ? pill('pain', 'down') : ''].join(' ');
-    h += `<article class="box exc hx"><header><div><h2>${ex ? `<a href="#/ex/${esc(ex.id)}">${esc(name)}</a>` : esc(name)}</h2><p>${ex ? esc(unitShort(ex.unit) || (ex.unit === 'L' ? 'level' : 'bodyweight')) : ''}${e.rir ? ` · ${esc(T('rir'))} ${esc(e.rir)}` : ''}${cmp?.prevDate ? ` · vs ${fmtDate(cmp.prevDate)}` : ''}</p></div><div class="badges">${badges}</div></header>`;
+    h += `<article class="box exc hx"><header><div><h2>${ex ? `<a href="#/ex/${esc(ex.id)}">${esc(name)}</a>` : esc(name)}</h2><p>${ex ? esc(unitShort(ex) || (ex.unit === 'L' ? 'level' : 'bodyweight')) : ''}${e.rir ? ` · ${esc(T('rir'))} ${esc(e.rir)}` : ''}${cmp?.prevDate ? ` · vs ${fmtDate(cmp.prevDate)}` : ''}</p></div><div class="badges">${badges}</div></header>`;
     if (ed) {
       h += `<div class="sets">${e.sets.map((x, si) => `<div class="set edit ${x.done ? 'done' : ''}"><span class="i">${x.warm ? 'W' : ++n}</span>
-        <input class="inp" id="ew-${ei}-${si}" type="text" inputmode="decimal" autocomplete="off" step="any" value="${esc(ex && ex.unit !== 'L' ? toDisp(x.w) ?? '' : x.w ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name}, set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight in ${getUnits()}` : `weight in ${getUnits()}`}`)}">
+        <input class="inp" id="ew-${ei}-${si}" type="text" inputmode="decimal" autocomplete="off" step="any" value="${esc(ex && ex.unit !== 'L' ? toDisp(x.w, ex) ?? '' : x.w ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name}, set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight in ${getUnits()}` : `weight in ${unitsFor(ex)}`}`)}">
         <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${esc(x.r ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="${esc(`${name}, set ${si + 1}: reps`)}">
         <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="${esc(`${name}, set ${si + 1} done`)}">${ICON.check}</button></div>`).join('')}</div>`;
     } else {
@@ -242,10 +245,10 @@ export const actions = {
     // Same limits as the live workout: no negatives, and a typo like 9999 is refused, not saved.
     const f = el.dataset.f, lvl = ex?.unit === 'L';
     let v = el.value === '' || !Number.isFinite(+el.value) ? null : Math.max(0, +el.value);
-    const max = f === 'r' ? MAX_REPS : lvl ? 100 : +toDisp(MAX_KG);
+    const max = f === 'r' ? MAX_REPS : lvl ? 100 : +toDisp(MAX_KG, ex);
     if (v != null && v > max) { v = null; el.value = ''; toast(f === 'r' ? 'That many reps looks like a typo. Please check it.' : 'That weight looks like a typo. Please check it.', 'flat'); }
     if (v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
-    set[f] = v == null ? null : f === 'w' && !lvl ? fromDisp(v) : f === 'r' ? Math.round(v) : v;
+    set[f] = v == null ? null : f === 'w' && !lvl ? fromDisp(v, ex) : f === 'r' ? Math.round(v) : v;
   },
   'edit-done'(el) {
     const s = S.sessions.find(x => x.id === editing);

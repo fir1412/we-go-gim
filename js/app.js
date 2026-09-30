@@ -146,6 +146,8 @@ function renderRoute() {
     b.setAttribute('aria-current', on ? 'page' : 'false');
     b.classList.toggle('live', b.dataset.tab === 'workout' && !!S.draft);
   }
+  // A brand-new user on Welcome picks how to start before the empty tabs appear.
+  $('#tabs').hidden = parseRoute().name === 'setup' && !S.settings.onboarded;
   for (const b of document.querySelectorAll('#app .iconbtn[aria-label]:not([title]), #app .tipq:not([title])')) b.title = b.getAttribute('aria-label');
   out.after?.(sc);
   wake();
@@ -244,7 +246,7 @@ export function startTimer(sec, label) {
 function offerNotice() {
   if (S.settings.restNotify || S.settings.restNotifyAsked || !('Notification' in window) || Notification.permission === 'denied' || S.draft?.past) return;
   saveSettings({ restNotifyAsked: true });
-  setTimeout(() => toast('Phone going in your pocket? Get a buzz when rest is over.', 'upper', { action: { label: 'Turn on', fn: async () => {
+  setTimeout(() => toast('Buzz when rest is over?', 'upper', { action: { label: 'Turn on', fn: async () => {
     const p = await Notification.requestPermission().catch(() => 'denied');
     if (p === 'granted') { await saveSettings({ restNotify: true }); restNotice(); toast('Rest alerts on. Change it in More → Settings.', 'up'); }
     else toast('Notifications are blocked for this app in your phone settings.', 'flat');
@@ -348,8 +350,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.6';
+export const APP_VERSION = '1.9.7';
 const WHATS_NEW = {
+  '1.9.7': ['Not sure yet? Look around with sample data from the welcome screen: eight made-up weeks to explore, removed with one tap on “Start for real”', 'Change a lift to kg, lb or machine levels mid-workout from its ⋮ menu (weights are always kept in kg)', 'Pain on a lift two workouts running now goes lighter and says to get it checked', 'Clearer privacy and terms pages, with a summary in every language and a contact email'],
   '1.9.6': ['Opens faster: only Today loads at start, and the other screens load in the background right after'],
   '1.9.5': ['Back goes up the app instead of retracing every screen: a few presses reach Today, and one more closes the app', 'Safer saves: a restore that fails half-way can still be undone, and an update never reloads before your last set is written', 'Easier to see and use: clearer edges on weight, reps and tick boxes, focus stays put when you tap +/−, and Undo waits while you reach for it', 'Opens faster, and the “Start workout” home-screen shortcut works again'],
   '1.9.4': ['Exercise details no longer repeat the unit after the progress range (“88.7 kg each”, not “kg each kg per dumbbell”)'],
@@ -361,7 +364,7 @@ const WHATS_NEW = {
   '1.8.3': ['Learn the app: 10 short missions that show what each feature does. Skip any time and find them under More', 'Pounds work everywhere: Equipment, the exercise editor, and + and − step to the dumbbells you own', 'Set your EZ bar weight in Equipment', 'Imports keep gym and heart rate, and say why lines were left out'],
   '1.8.2': ['Exercise search finds what you mean as you type: words in any order, “pullup” or “pull-up”, best matches first', 'New users always start at the welcome screen, and a new exercise made from your programme goes straight back to it', 'Turn speed slider for the 3D muscle view', 'Many fixes from testing: safer imports and edits, long names wrap, no double saves'],
   '1.8.1': ['Prefer a plain log? Streaks, quests and badges can now be turned off in Settings'],
-  '1.8.0': ['Medical mode: every muscle in 3D. Tap a muscle to see the exercises that train it', 'Day streaks, daily quests and badges. Rest days never break your streak', 'Reminders on training days through your phone calendar', '90 more exercises, a more detailed body map, and Traditional Chinese (繁體中文)', 'Import notes and spreadsheets written in Malay, Chinese or Japanese'],
+  '1.8.0': ['3D muscle map: every muscle. Tap a muscle to see the exercises that train it', 'Day streaks, daily quests and badges. Rest days never break your streak', 'Reminders on training days through your phone calendar', '90 more exercises, a more detailed body map, and Traditional Chinese (繁體中文)', 'Import notes and spreadsheets written in Malay, Chinese or Japanese'],
   '1.7.0': ['New languages: Bahasa Melayu, 中文 and 日本語. Pick one in Settings or on the welcome screen', 'Easier English: short forms are written out in full (like “3 sets of 8 reps” and “minutes”), and muscles have everyday names', 'Safer: spreadsheets exported from the app can’t run hidden formulas, and typing mistakes like 6000 kg are caught'],
   '1.6.2': ['Security fixes: backup files are checked field by field, the PDF reader is verified before it runs, and very long pasted lines no longer slow the app down'],
   '1.6.1': ['New app icon: a tuxedo kitten with its dumbbells'],

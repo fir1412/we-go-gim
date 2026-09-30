@@ -583,8 +583,10 @@ a.prbox { display: block; }
 .about .links a { color: var(--ink); font-weight: 700; }
 
 /* == Lead: setup wizard == */
-.wz-hero { text-align: center; display: grid; justify-items: center; gap: 6px; padding: 8px 0 4px; }
-.wz-hero img { border-radius: 18px; }
+.wz-hero { text-align: center; display: grid; justify-items: center; gap: 4px; padding: 0 0 2px; }
+.wz-hero img { border-radius: 12px; }
+.wz-consent a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.wz-hero .wz-trust { color: var(--ink); font-weight: 600; }
 .wz-hero h2, .wz-q { font-family: var(--display); font-size: 1.875rem; line-height: 1.05; margin: 0; text-wrap: balance; }
 .wz-hero p { margin: 0; color: var(--mute); max-width: 34ch; }
 .wz-choices .li { padding-block: 14px; }
@@ -745,16 +747,24 @@ summary { min-height: 44px; display: flex; align-items: center; }
 /* Bottom nav: icons grow a little with text size; when six labels can't fit, the labels
    go visually hidden (still read by screen readers) instead of overlapping. */
 .tabs { container-type: inline-size; container-name: tabs; }
+.tabs[hidden] { display: none; }
 .tabs a { overflow: hidden; }
 .tabs a svg { width: 1.45rem; height: 1.45rem; }
 .tabs a span { max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 @container tabs (max-width: 21rem) {
   .tabs a { padding: .55rem 0; }
+  .tabs a span { font-size: .62rem; }
+}
+@container tabs (max-width: 15rem) {
   .tabs a span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 /* Week strip: chips keep their full day name at large text; the strip scrolls sideways instead of cutting to "F…". */
 .days { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(max-content, 1fr); overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .days::-webkit-scrollbar { display: none; }
+/* Large and extra large text: smaller day names so the whole week fits without a hidden sideways scroll. */
+html[data-text="xl"] .days span { font-size: .6rem; letter-spacing: 0; }
+html[data-text="large"] .days span { font-size: .66rem; letter-spacing: 0; }
+html:is([data-text="large"], [data-text="xl"]) .days a { padding-inline: 1px; }
 .days a { padding-inline: 4px; }
 .days span { overflow: visible; text-overflow: clip; }
 /* Header, sheet titles and timer stay on screen at 200% text */
@@ -832,7 +842,7 @@ button.newmeta u { text-underline-offset: 2px; }
 
 /* Toast with an Undo button: taps reach it */
 #toast.act { pointer-events: auto; display: flex; align-items: center; gap: 10px; }
-.tundo { background: none; border: 0; color: var(--bg); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; padding: 6px 4px; min-height: 36px; }
+.tundo { flex: none; white-space: nowrap; background: none; border: 0; color: var(--bg); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; padding: 6px 4px; min-height: 36px; }
 
 /* First-workout hints */
 .coach { padding: 12px 14px; border-left: 4px solid var(--c, var(--push)); display: grid; gap: 4px; }

@@ -1,6 +1,6 @@
-import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings } from '../state.js';
+import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings, realSessions } from '../state.js';
 import { guessMuscles } from '../io.js';
-import { fmtLoad, unitShort, unitLong, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, kgFromDisp, getUnits, score, round, MAX_KG, MAX_REPS, stepLoad, barKgFor, draftClock, timerStale, moveEntry } from '../engine.js';
+import { fmtLoad, unitShort, unitLong, unitsFor, LB_KG, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, kgFromDisp, getUnits, score, round, MAX_KG, MAX_REPS, stepLoad, barKgFor, draftClock, timerStale, moveEntry } from '../engine.js';
 import { esc, fmtDate, fmtTime, chip, chipText, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer, canInstall } from '../app.js';
 import { groupLabels } from './today.js';
@@ -66,7 +66,7 @@ function folded(e) {
 
 /** Loads shown and typed in the display unit (kg or lb); cable levels are never converted. */
 const conv = ex => ex.unit !== 'L';
-const shown = (ex, w) => (w == null || w === '' ? '' : conv(ex) ? toDisp(w) : w);
+const shown = (ex, w) => (w == null || w === '' ? '' : conv(ex) ? toDisp(w, ex) : w);
 const rirWords = r => (expertWording() ? `${r} RIR` : `${r} reps left`);
 
 /** "25 kg ea × 9·9·9" style text for the work sets done, grouped by load. */
@@ -76,7 +76,7 @@ function setsText(ex, sets) {
     const last = runs[runs.length - 1];
     if (last && +last.w === +s.w) last.r.push(s.r ?? '?'); else runs.push({ w: s.w, r: [s.r ?? '?'] });
   }
-  const u = unitShort(ex.unit);
+  const u = unitShort(ex);
   return runs.map(x => `${fmtLoad(ex, x.w)}${u ? ' ' + u : ''} × ${x.r.join('·')}`).join(', ');
 }
 
@@ -149,16 +149,16 @@ function card(e, ei, grp, focusSi = -1) {
       <span class="ok">${ICON.check}</span><span class="grow"><b>${g}${esc(ex.name)}</b><small>${esc(ws.length ? setsText(ex, ws) : 'No work sets')}${e.rir != null ? ` · ${esc(rirWords(e.rir))}` : ''}</small></span>${e.pain ? pill('pain', 'down') : ''}${ICON.chev}</button></article>`;
   }
   const slot = e.slot;
-  const exps = exposures(S.sessions, ex, { gymId: S.settings.gymId, before: S.draft.date });
+  const exps = exposures(realSessions(), ex, { gymId: S.settings.gymId, before: S.draft.date });
   const last = exps[0];
-  const lastTxt = last ? `last ${setsText(ex, last.sets)} · ${fmtDate(last.date)}` : `first time · ${unitLong(ex.unit)}`;
+  const lastTxt = last ? `last ${setsText(ex, last.sets)} · ${fmtDate(last.date)}` : `first time · ${unitLong(ex)}`;
   let n = 0;
   const rows = e.sets.map((s, si) => {
     const label = s.warm ? 'W' : ++n;
     const bw = ex.unit === 'bw';
     const who = `${esc(ex.name)}, ${s.warm ? 'warm-up set' : 'set ' + label}`;
     return `<div class="set ${s.done ? 'done' : ''} ${s.warm ? 'warm' : ''} ${si === focusSi ? 'next' : ''}"><span class="i" aria-hidden="true">${label}</span>
-      <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="-1" aria-label="${who}: less weight">−</button><input id="w-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="w" type="text" inputmode="decimal" autocomplete="off" step="any" value="${esc(bw && !+s.w ? '' : shown(ex, s.w))}" placeholder="${bw ? esc(T('bw')) : ex.unit === 'L' ? 'lvl' : getUnits()}" aria-label="${who}: ${bw ? `added weight in ${getUnits()}` : ex.unit === 'L' ? 'level' : `weight in ${getUnits()}`}"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="1" aria-label="${who}: more weight">+</button></div>
+      <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="-1" aria-label="${who}: less weight">−</button><input id="w-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="w" type="text" inputmode="decimal" autocomplete="off" step="any" value="${esc(bw && !+s.w ? '' : shown(ex, s.w))}" placeholder="${bw ? esc(T('bw')) : ex.unit === 'L' ? 'lvl' : unitsFor(ex)}" aria-label="${who}: ${bw ? `added weight in ${getUnits()}` : ex.unit === 'L' ? 'level' : `weight in ${unitsFor(ex)}`}"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="w" data-d="1" aria-label="${who}: more weight">+</button></div>
       <div class="step"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="r" data-d="-1" aria-label="${who}: one rep fewer">−</button><input id="r-${e.uid}-${si}" data-input="set" data-e="${ei}" data-s="${si}" data-f="r" type="number" inputmode="numeric" value="${esc(s.r ?? '')}" placeholder="reps" aria-label="${who}: reps"><button data-act="bump" data-e="${ei}" data-s="${si}" data-f="r" data-d="1" aria-label="${who}: one rep more">+</button></div>
       <button class="check" data-act="done" data-e="${ei}" data-s="${si}" aria-label="${who} done" aria-pressed="${!!s.done}">${ICON.check}</button></div>`;
   }).join('');
@@ -189,15 +189,14 @@ function helper(e, ex) {
   if (ex.equip === 'barbell' || ex.equip === 'smith') {
     const bar = barFor(ex);
     if (bar == null) return ''; // EZ or trap bar: its weight varies, so no bar warning or plate maths
-    const p = platesPerSide(w, bar, eq.plates);
-    const U = getUnits(), wt = `${num(toDisp(w))} ${U}`;
+    const U = unitsFor(ex), p = platesPerSide(w, bar, eq.plates, U), wt = `${num(toDisp(w, ex))} ${U}`;
     // In lb, a 20 kg bar is the 45 lb bar the plate maths uses (not 44 lb).
-    const barTxt = U === 'lb' ? String(Math.round(toDisp(bar) / 5) * 5) : num(toDisp(bar));
-    if (!p.ok) return `<p class="helper">${w < bar ? `Below the ${barTxt} ${U} bar.` : `Can't make ${wt} exactly with your plates (${num(toDisp(p.rem), 2)} ${U}/side short).`}</p>`;
+    const barTxt = U === 'lb' ? String(Math.round(toDisp(bar, ex) / 5) * 5) : num(toDisp(bar, ex));
+    if (!p.ok) return `<p class="helper">${w < bar ? `Below the ${barTxt} ${U} bar.` : `Can't make ${wt} exactly with your plates (${num(toDisp(p.rem, ex), 2)} ${U}/side short).`}</p>`;
     return `<p class="helper">${wt}: <b>${p.plates.length ? p.plates.join(' + ') + ' ' + (p.unit || 'kg') : 'empty bar'}</b>${p.plates.length ? ' per side' : ''} on the ${barTxt} ${U} bar</p>`;
   }
-  if (ex.unit === 'kg/DB' && eq.dumbbells?.length && !eq.dumbbells.some(d => toDisp(d) === toDisp(w))) {
-    return `<p class="helper">No ${num(toDisp(w))} ${getUnits()} dumbbell in your list. Nearest: <b>${num(toDisp(nearestDumbbell(w, eq.dumbbells)))} ${getUnits()}</b></p>`;
+  if (ex.unit === 'kg/DB' && eq.dumbbells?.length && !eq.dumbbells.some(d => toDisp(d, ex) === toDisp(w, ex))) {
+    return `<p class="helper">No ${num(toDisp(w, ex))} ${unitsFor(ex)} dumbbell in your list. Nearest: <b>${num(toDisp(nearestDumbbell(w, eq.dumbbells), ex))} ${unitsFor(ex)}</b></p>`;
   }
   return '';
 }
@@ -208,7 +207,10 @@ const canWarm = (e, ex) => (ex.equip === 'barbell' || ex.equip === 'smith') && !
 // ---- first workouts: short hints that follow what you're doing ------------------------------
 function coach(done, total) {
   if (S.settings.coachDone || S.draft.past || S.sessions.filter(s => !s.seed && !s.imported).length >= 2) return '';
-  const msg = !done
+  const blank = S.draft.entries.some(e => e.sets.some(s => !s.done && !s.warm && s.w == null));
+  const msg = !done && blank
+    ? ['Pick a starting weight', 'Tap Light, Medium or Heavy on each new lift, or type your own. Then do the set and tap the tick.']
+    : !done
     ? ['Your first sets are filled in', 'Do the set, then tap the tick. If you did a different weight or reps, change the numbers with − and + first. Tap the coloured tag for why this target.']
     : done < total
       ? ['Nice, keep going', 'The rest timer runs along the bottom: +30s for more rest, Skip when you are ready. The next set is highlighted. To skip an exercise, swipe its card left.']
@@ -233,12 +235,13 @@ export function startGuess(ex, f = 1) {
     return eq.dumbbells?.length ? nearestDumbbell(base * k, eq.dumbbells) : round(base * k, 2);
   }
   const base = BASE[ex.id] ?? (ex.equip === 'barbell' || ex.equip === 'smith' ? 30 : legs ? 40 : 25);
-  if (ex.equip === 'barbell' || ex.equip === 'smith') return Math.max(barFor(ex) || 0, round(base * k, 2.5));
-  return Math.max(5, round(base * k, 5));
+  const lb = unitsFor(ex) === 'lb';
+  if (ex.equip === 'barbell' || ex.equip === 'smith') return Math.max(barFor(ex) || 0, round(base * k, lb ? 5 * LB_KG : 2.5));
+  return Math.max(5, round(base * k, lb ? 10 * LB_KG : 5));
 }
 function startPick(e, ex, ei) {
   if (e.sg?.t !== 'cal' || ex.unit === 'bw' || e.sets.some(s => s.done || (!s.warm && +s.w > 0))) return '';
-  return `<div class="startw"><p><b>New lift.</b> How heavy do you usually go on this, or is it new to you?</p><div class="seg" role="group" aria-label="Starting weight for ${esc(ex.name)}">${[[0.6, 'Light / new'], [1, 'Medium'], [1.5, 'Heavy']].map(([v, l]) => `<button data-act="start-w" data-e="${ei}" data-v="${v}">${l}</button>`).join('')}</div><p class="fine">A starting weight is filled in for you. Or type your own below.</p></div>`;
+  return `<div class="startw"><p><b>New lift.</b> How heavy do you usually go on this, or is it new to you?</p><div class="seg" role="group" aria-label="Starting weight for ${esc(ex.name)}">${[[0.6, 'Light / new'], [1, 'Medium'], [1.5, 'Heavy']].map(([v, l]) => `<button data-act="start-w" data-e="${ei}" data-v="${v}">${l}</button>`).join('')}</div><p class="fine">Tap one and a starting weight is filled in, or type your own below.</p></div>`;
 }
 
 // ---- supersets from the workout --------------------------------------------------------------------
@@ -246,7 +249,7 @@ function pairItem(ei) {
   const e = S.draft.entries[ei], nx = S.draft.entries[ei + 1];
   if (e.slot?.group && S.draft.entries.filter(x => x.slot?.group === e.slot.group).length > 1) return `<button class="li" data-act="unpair" data-e="${ei}"><span><b>Unpair</b><small>Rest after each exercise again</small></span></button>`;
   if (!nx) return '';
-  return `<button class="li" data-act="pair" data-e="${ei}"><span><b>Pair with ${esc(S.exById[nx.exId]?.name || 'the next exercise')}</b><small>${esc(T('superset'))}: do them back to back, rest after both</small></span></button>`;
+  return `<button class="li" data-act="pair" data-e="${ei}"><span><b>Pair with ${esc(S.exById[nx.exId]?.name || 'the next exercise')}</b><small>Back to back, rest after both</small></span></button>`;
 }
 
 // ---- cardio inside a workout ---------------------------------------------------------------------------
@@ -271,7 +274,7 @@ function earlyWins(d) {
   for (const e of d.entries) {
     const ex = S.exById[e.exId], ws = workSets(e);
     if (!ex || !ws.length) continue;
-    const last = exposures(S.sessions, ex, { gymId: d.gymId, before: d.date })[0];
+    const last = exposures(realSessions(), ex, { gymId: d.gymId, before: d.date })[0];
     if (!last) continue;
     const now = score({ sets: ws }, ex.unit), then = score(last, ex.unit);
     const repsNow = ws.reduce((a, s) => a + (+s.r || 0), 0), repsThen = last.sets.reduce((a, s) => a + (+s.r || 0), 0);
@@ -298,7 +301,7 @@ function summary(d) {
   // Next-time targets come from the same engine as the Today screen, with this workout counted as the latest log.
   const asSess = { id: d.id, date: d.date, gymId: d.gymId, end: Date.now(), entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sets: e.sets, rir: e.rir, pain: e.pain })) };
   const nextDate = addDays(d.date, 7);
-  const ctx = { sessions: [asSess, ...S.sessions], gymId: d.gymId, poor: false, deload: deloadActive(nextDate), equip: S.settings.equip, date: nextDate };
+  const ctx = { sessions: [asSess, ...realSessions()], gymId: d.gymId, poor: false, deload: deloadActive(nextDate), equip: S.settings.equip, date: nextDate };
   const rows = d.entries.map(e => {
     const ex = S.exById[e.exId];
     if (!ex) return '';
@@ -306,7 +309,7 @@ function summary(d) {
     done += ws.length; tot += counted(e).length;
     if (ws.length && isKg(ex.unit)) anyKg = true;
     reps += ws.reduce((a, s) => a + (+s.r || 0), 0);
-    const prevExps = exposures(S.sessions, ex, { gymId: S.settings.gymId, before: d.date });
+    const prevExps = exposures(realSessions(), ex, { gymId: S.settings.gymId, before: d.date });
     const last = prevExps[0];
     vol += volume(ex, ws);
     if (last && ws.length && isKg(ex.unit) && last.sets.every(s => s.r != null)) {
@@ -318,12 +321,12 @@ function summary(d) {
       const pb = personalBests(prevExps, ex);
       const bestNow = Math.max(0, ...ws.map(s => e1rm(+s.w, +s.r) || 0));
       const heavyNow = Math.max(...ws.map(s => +s.w || 0));
-      if (pb.best && bestNow > pb.best.v + 1e-6) prs.push(`${ex.name}: best ${expertWording() ? 'e1RM' : 'estimated 1-rep max'}, ${num(toDisp(bestNow))} ${getUnits()}`);
-      else if (pb.heavy && heavyNow > pb.heavy.w && ex.unit !== 'bw') prs.push(`${ex.name}: heaviest load, ${fmtLoad(ex, heavyNow)}${ex.unit === 'L' ? '' : ' ' + unitShort(ex.unit)}`);
+      if (pb.best && bestNow > pb.best.v + 1e-6) prs.push(`${ex.name}: best ${expertWording() ? 'e1RM' : 'estimated 1-rep max'}, ${num(toDisp(bestNow, ex))} ${unitsFor(ex)}`);
+      else if (pb.heavy && heavyNow > pb.heavy.w && ex.unit !== 'bw') prs.push(`${ex.name}: heaviest load, ${fmtLoad(ex, heavyNow)}${ex.unit === 'L' ? '' : ' ' + unitShort(ex)}`);
     }
     const nx = nextFor(e, e.slot, ex);
     if (!ws.length || !e.slot) return `<div class="nt"><span>${esc(ex.name)}${e.pain ? ' ' + pill('pain', 'down') : ''}</span><b class="t-${nx.t}">${esc(nx.text)}</b></div>`;
-    const sg = suggest(e.slot, ex, ctx), u = sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex.unit);
+    const sg = suggest(e.slot, ex, ctx), u = sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex);
     return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? (ex.unit === 'bw' ? esc(T('bw')) : expertWording() ? '?' : 'Find weight') : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
   }).join('');
   // A short or partial workout isn't compared with a full one: no red percentage for showing up.
@@ -352,13 +355,13 @@ function summary(d) {
   if (!d.past && canInstall() && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Keep it one tap away</b></p><p class="fine">Install the app: an icon on your home screen, full screen, works offline.</p><button class="btn ghost" data-act="install">Install the app</button></div>`;
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
-  const before = muscleXP(S.sessions, S.exById, d.date);
-  const after = muscleXP([...S.sessions, { id: d.id, date: d.date, name: d.name, end: Date.now(), entries: d.entries }], S.exById, d.date);
+  const before = muscleXP(realSessions(), S.exById, d.date);
+  const after = muscleXP([...realSessions(), { id: d.id, date: d.date, name: d.name, end: Date.now(), entries: d.entries }], S.exById, d.date);
   const gains = Object.entries(after.muscles).map(([m, r]) => ({ m, g: r.xp - (before.muscles[m]?.xp || 0), up: levelFor(r.xp).level > levelFor(before.muscles[m]?.xp || 0).level, L: levelFor(r.xp).level })).filter(x => x.g > 0).sort((a, b) => b.g - a.g);
   if (gains.length) h += `<a class="box prbox" href="#/levels"><p class="lbl">${expertWording() ? 'XP' : 'XP (experience points)'} earned · +${gains.reduce((a, x) => a + x.g, 0)}</p><div class="xpgain">${gains.map(x => pill(`${x.up ? '▲ ' : ''}${x.m} +${x.g}${x.up ? ` · level ${x.L}` : ''}`, x.up ? 'push' : 'up')).join('')}</div></a>`;
   h += `<div class="box pad0"><p class="lbl in">Next time</p>${rows}</div>
     <div class="box ready"><div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([val, l]) => `<button data-act="feel" data-v="${val}" aria-pressed="${d.feel === val}" title="${l}" aria-label="${val}: ${l}">${val}</button>`).join('')}</div></div></div>
-    <p class="fine">*${anyKg ? `${esc(T('volume'))} is weight × reps added up and counts both dumbbells. ` : ''}"vs last time" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.</p>
+    <p class="fine">*${anyKg ? `${esc(T('volume'))} is weight × reps added up and counts both dumbbells. ` : ''}${d.entries.some(e => S.exById[e.exId] && isKg(S.exById[e.exId].unit) && unitsFor(S.exById[e.exId]) !== getUnits()) ? `Lifts shown in another unit are converted to ${getUnits()} here. ` : ''}"vs last time" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.</p>
     <button class="btn" data-act="save" style="--c:var(--up)">Save workout</button>
     <button class="btn ghost" data-act="back-to-workout">Back to workout</button>`;
   return { title: 'Summary', sub: fmtDate(d.date, { dow: true }), color: 'up', html: h };
@@ -412,7 +415,7 @@ export const actions = {
   rir(el) { const e = E(el); e.rir = e.rir === el.dataset.v ? null : el.dataset.v; commit(); },
   pain(el) {
     const e = E(el); e.pain = !e.pain;
-    if (e.pain) toast('Pain flagged. Next time this lift holds its load.', 'down');
+    if (e.pain) toast('Pain flagged. Next time this lift holds its load. Sharp, spreading or worsening pain: stop this lift and see a doctor or physio.', 'down');
     commit();
   },
   'add-set'(el) {
@@ -424,7 +427,9 @@ export const actions = {
   menu(el) {
     const ei = +el.dataset.e, e = S.draft.entries[ei], ex = S.exById[e.exId];
     const hasWarm = e.sets.some(s => s.warm);
-    openSheet(`<h2 class="sh-title">${esc(ex.name)}</h2><div class="list">
+    const cur = ex.unit === 'L' ? 'L' : unitsFor(ex);
+    const units = ex.unit === 'bw' ? [] : [['kg', 'kg'], ['lb', 'lb'], ...(['machine', 'cable'].includes(ex.equip) ? [['L', 'level']] : [])];
+    openSheet(`<h2 class="sh-title">${esc(ex.name)}</h2>${units.length ? `<div class="rrow unitrow"><span>Weights on this lift</span><div class="seg sm" role="group" aria-label="Weights on this lift">${units.map(([v, l]) => `<button data-act="ex-units" data-e="${ei}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>` : ''}<div class="list">
       <button class="li" data-act="warm" data-e="${ei}"><span><b>${hasWarm ? 'Remove warm-up sets' : 'Add warm-up sets'}</b>${hasWarm ? '' : '<small>Ramp up to your first working set</small>'}</span></button>
       <button class="li" data-act="swap" data-e="${ei}"><span><b>Swap exercise</b><small>Machine taken? Keeps the set count and rep range</small></span></button>
       ${pairItem(ei)}
@@ -436,6 +441,23 @@ export const actions = {
       <button class="li" data-act="move" data-e="${ei}" data-d="1" ${moveEntry(S.draft.entries, ei, 1) ? '' : 'disabled'}><span><b>Move down</b></span></button>
       ${allTicked(e) ? '' : `<button class="li" data-act="skip" data-e="${ei}"><span><b>Skip exercise</b><small>Or swipe the card left</small></span></button>`}
       <button class="li danger" data-act="remove" data-e="${ei}"><span><b>Remove from workout</b></span></button></div>`, { label: ex.name });
+  },
+  // kg and lb are the same stored load shown another way; levels are a different number, so that switch asks first
+  // (logged workouts are read the new way) and clears the weights still to lift.
+  async 'ex-units'(el) {
+    const e = E(el), ex = S.exById[e.exId], v = el.dataset.v;
+    if (v === (ex.unit === 'L' ? 'L' : unitsFor(ex))) return closeSheet();
+    const levels = v === 'L' || ex.unit === 'L';
+    const n = levels ? S.sessions.filter(s => !s.seed && s.entries.some(x => x.exId === ex.id)).length : 0;
+    const ticked = levels && e.sets.some(s => s.done && s.w != null);
+    if (ticked && !(await confirmSheet({ title: 'Switch between weight and levels?', body: 'Sets you ticked on this lift are cleared, because a weight is not a level.', ok: 'Switch' }))) return;
+    if (n && !(await confirmSheet({ title: 'Switch between weight and levels?', body: `This lift is in ${n} logged workout${n === 1 ? '' : 's'}. Their numbers stay the same but are read the new way, so charts and levels can jump.`, ok: 'Switch' }))) return;
+    const next = v === 'L' ? { ...ex, unit: 'L', inc: 1 } : { ...ex, disp: v, ...(ex.unit === 'L' ? { unit: 'kg', inc: ex.equip === 'machine' ? 5 : 2.5 } : {}) };
+    await saveExercise(next);
+    if (levels) for (const s of e.sets) { s.w = null; s.done = false; }
+    relabelRest();   // the rest bar's "Next: …" shows this lift's unit
+    closeSheet(); commit();
+    toast(v === 'L' ? 'This lift now logs machine levels' : v === 'lb' ? 'This lift now shows lb' : 'This lift now shows kg', 'up');
   },
   warm(el) {
     const e = E(el), ex = S.exById[e.exId];
@@ -542,7 +564,7 @@ export const actions = {
     const w = startGuess(ex, +el.dataset.v);
     for (const s of e.sets) if (!s.done && !s.warm) s.w = w;
     commit();
-    toast(`Starting at ${fmtLoad(ex, w)}${unitShort(ex.unit) ? ' ' + unitShort(ex.unit) : ''}. Adjust with − and + if it feels off.`, 'up');
+    toast(`Starting at ${fmtLoad(ex, w)}${unitShort(ex) ? ' ' + unitShort(ex) : ''}. Adjust with − and + if it feels off.`, 'up');
   },
   'coach-ok': () => saveSettings({ coachDone: true }),
   'add-cardio'() { cardioSheet(); },
@@ -734,7 +756,7 @@ function applySet(el, live) {
   const raw = el.value.replace(',', '.');
   let v = raw === '' || !Number.isFinite(+raw) ? null : Math.max(0, +raw);
   // A typo like 6000 instead of 60: cap it and say so, so charts and levels don't blow up.
-  const max = f === 'r' ? MAX_REPS : S.exById[e.exId]?.unit === 'L' ? 100 : +toDisp(MAX_KG);
+  const max = f === 'r' ? MAX_REPS : S.exById[e.exId]?.unit === 'L' ? 100 : +toDisp(MAX_KG, S.exById[e.exId]);
   if (v != null && v > max) {
     if (live) return;
     v = null; el.value = ''; toast(f === 'r' ? 'That many reps looks like a typo. Please check it.' : 'That weight looks like a typo. Please check it.', 'flat');
@@ -742,9 +764,9 @@ function applySet(el, live) {
   if (!live && v != null && String(v) !== el.value) el.value = f === 'r' ? Math.round(v) : v;
   if (f === 'w') {
     const ex = S.exById[e.exId];
-    let kg = v == null ? null : conv(ex) ? kgFromDisp(v) : v;
+    let kg = v == null ? null : conv(ex) ? kgFromDisp(v, ex) : v;
     // 22 lb typed is the 10 kg dumbbell on the rack: store the rack weight, not 9.98 kg.
-    const rackDb = kg != null && ex.unit === 'kg/DB' ? (S.settings.equip?.dumbbells || []).find(d => toDisp(d) === toDisp(kg)) : null;
+    const rackDb = kg != null && ex.unit === 'kg/DB' ? (S.settings.equip?.dumbbells || []).find(d => toDisp(d, ex) === toDisp(kg, ex)) : null;
     if (rackDb != null) kg = rackDb;
     const old = s.w; s.w = kg; carry(e, si, old, kg);
     paintLater(e, ex, si);
@@ -794,7 +816,7 @@ function restLabel(e) {
   const nex = nx && S.exById[nx.e.exId];
   const ns = nx?.e.sets[nx.si];
   return !nx ? 'Last set done. Finish when ready.'
-    : `Next: ${nx.e === e ? (ns.warm ? 'warm-up' : `set ${nx.e.sets.slice(0, nx.si + 1).filter(x => !x.warm).length}`) : nex.name} · ${ns.w == null || ns.w === '' ? '?' : fmtLoad(nex, ns.w) + (unitShort(nex.unit) ? ' ' + unitShort(nex.unit) : '')} × ${ns.r ?? '?'}${platesShort(nex, ns.w)}`;
+    : `Next: ${nx.e === e ? (ns.warm ? 'warm-up' : `set ${nx.e.sets.slice(0, nx.si + 1).filter(x => !x.warm).length}`) : nex.name} · ${ns.w == null || ns.w === '' ? '?' : fmtLoad(nex, ns.w) + (unitShort(nex) ? ' ' + unitShort(nex) : '')} × ${ns.r ?? '?'}${platesShort(nex, ns.w)}`;
 }
 
 /** After a tick, bring the next set into view if it's off screen. */
@@ -828,7 +850,7 @@ function pickExercise(ei) {
   const sheet = openSheet(`<h2 class="sh-title">${cur ? `Swap ${esc(cur.name)}` : 'Add exercise'}</h2>
     <input class="inp" id="exsearch" type="search" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off">
     <p class="fine" id="exnone" hidden>No exercise matches. Create it below.</p>
-    <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(searchText(x))}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x.unit)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
+    <div class="list scroll" id="exlist">${list.filter(x => x.id !== cur?.id).map(x => `<button class="li" data-act="pick" data-id="${esc(x.id)}" data-e="${ei ?? ''}" data-name="${esc(searchText(x))}"><span><b>${esc(x.name)}</b><small>${esc((x.muscles || []).join(', '))} · ${unitLong(x)}</small></span>${inW.has(x.id) ? pill('in workout') : x.muscles?.[0] === m && m ? pill('same muscle', 'up') : ''}</button>`).join('')}</div>
     <button class="btn ghost" data-act="quick-new" data-e="${ei ?? ''}">${ICON.plus} <span id="qn-label">Create a new exercise</span></button>`, { label: 'Pick exercise' });
   sheet.querySelector('#exsearch').addEventListener('input', ev => {
     const raw = ev.target.value.trim(), q = raw.toLowerCase();

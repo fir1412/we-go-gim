@@ -15,6 +15,8 @@ const bar = p => `<div class="learnbar" role="progressbar" aria-label="Missions 
 export function learnCard() {
   const p = learnProgress(S.settings);
   if (p.all || S.settings.learnHidden || realWorkouts() >= 15) return '';
+  // Sample mode: missions don't count on made-up data, so a 0-of-10 bar would never move. Offer the tour only.
+  if (S.settings.sample) return `<div class="box pad learncard"><p class="lm"><i aria-hidden="true">👋</i><span><b>Take the quick tour</b><small>Five short tips on the main screens.</small></span></p><button class="btn" data-act="learn-go" data-id="tour">Show me</button></div>`;
   const m = MISSIONS.find(x => !p.done.includes(x.id));
   return `<div class="box pad learncard"><p class="lbl">Learn the app · ${p.n} of ${p.total}</p>${bar(p)}
     <p class="lm"><i aria-hidden="true">${m.icon}</i><span><b>${esc(m.title)}</b><small>${esc(m.about)}</small></span></p>
@@ -26,7 +28,8 @@ let busy = false;
 // Taps that can be refused (a tick without a weight) only count once they really worked.
 const worked = { set: () => !!S.draft?.entries.some(e => e.sets.some(x => x.done)) || S.sessions.some(s => !s.seed) };
 async function complete(m) {
-  if (busy || S.settings.learn?.[m.id] || (worked[m.id] && !worked[m.id]())) return;
+  // Nothing done on made-up data counts: missions wait for Start for real.
+  if (busy || S.settings.sample || S.settings.learn?.[m.id] || (worked[m.id] && !worked[m.id]())) return;
   busy = true;
   try {
     await saveSettings({ learn: { ...(S.settings.learn || {}), [m.id]: todayIso() } });

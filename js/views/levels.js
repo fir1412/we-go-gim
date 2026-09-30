@@ -84,7 +84,7 @@ export function render() {
   h += `<div class="rrow"><div class="seg" role="group" aria-label="Colour the map by">${[['level', 'Level'], ['week', 'This week']].map(([v, l]) => `<button data-act="mode" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
     <span class="legend">${mode === 'level' ? '<i class="lg" style="background:var(--legs)"></i>low <i class="lg" style="background:var(--push)"></i>high' : '<i class="lg" style="background:var(--up);opacity:.3"></i>little <i class="lg" style="background:var(--up)"></i>a lot'}</span></div>`;
   h += `<div class="box diagram">${diagram(data)}<div class="seg sm bodyseg" role="group" aria-label="Body shown">${[['male', 'Male'], ['female', 'Female']].map(([v, l]) => `<button data-act="body" data-v="${v}" aria-pressed="${bodyType() === v}">${l}</button>`).join('')}</div></div>
-    <a class="btn ghost atlas-open" href="#/atlas/g/${encodeURIComponent(sel)}">${ICON.levels}Medical mode: every muscle in 3D</a>`;
+    <a class="btn ghost atlas-open" href="#/atlas/g/${encodeURIComponent(sel)}">${ICON.levels}3D muscle map: see every muscle</a>`;
 
   // selected muscle card
   const cur = ranked.find(x => x.m === sel);
@@ -119,7 +119,7 @@ export function render() {
   const nImp = S.sessions.filter(s => s.imported).length;
   if (nImp) h += `<p class="fine">Includes ${nImp} imported session${nImp === 1 ? '' : 's'}: your past training counts, so levels start where your history left you.</p>`;
   h += `<p class="fine">Bars show progress inside the current level. Muscles not trained for 10+ days are marked, so nothing gets left behind. Each ${setWord()} earns ${XP_SET} XP for its main muscle and ${XP_HELPER} for helpers. Beating your best on a lift adds ${XP_PR} (machines and cables only against the same gym). Warm-ups and skipped sets earn nothing, so XP tracks real work, not app opens.</p>`;
-  return { title: 'Levels', sub: `${data.total.toLocaleString('en-GB')} XP earned`, html: h, color: 'push' };
+  return { title: 'Levels', sub: `${data.total.toLocaleString('en-GB')} XP earned${S.settings.sample ? ' · sample' : ''}`, html: h, color: 'push' };
 }
 
 /** Preview of what the next planned session is worth, and which muscles it could level up. */
