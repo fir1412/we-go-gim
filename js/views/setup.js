@@ -111,6 +111,7 @@ function start() {
       <button class="li" data-act="wz-own" style="--k:var(--upper)"><i class="sw"></i><span><b>I have my own split</b><small>Paste your plan as text (from a note, a coach or a chat).</small></span>${ICON.chev}</button>
       <button class="li" data-act="wz-example" style="--k:var(--pull)"><i class="sw"></i><span><b>Use the example split</b><small>5 days: push, pull, legs, upper, lower, for a full gym.</small></span>${ICON.chev}</button>
     </div></details>
+    <details class="box wz-more"><summary>Why is it free? Who makes it?</summary><p class="fine wz-why">It is a free, open-source hobby project by one developer, fir1412, with no ads, no account and nothing to sell. The code is public on GitHub, so anyone can check that the app never uploads your workouts. Contact: fir1412dev@gmail.com.</p></details>
     <button class="linkbtn center" data-act="wz-skip">Skip for now</button>
     <p class="fine center-t">Skipping starts you on Full body, 3 days: the easiest plan to begin with. Change or rebuild it any time under More.</p>
     <p class="fine center-t">General training guidance, not medical advice. Check with a doctor first if you have a condition or injury, or are pregnant. Nothing about your workouts leaves this phone unless you send it; details on the privacy page.</p>

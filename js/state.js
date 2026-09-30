@@ -316,12 +316,16 @@ export async function exportAll() {
   };
 }
 
+/** The most exercises in one session, and sets on one exercise, that are kept: imports and restores trim to it. */
+export const SESSION_CAP = 100;
+
 /** Throws a readable error if a backup's records are malformed. Nothing is written until this passes. */
 export function validateBackup(data) {
   if (!data || data.app !== 'setlist' || !Array.isArray(data.sessions)) throw new Error('This file is not a we go gim backup.');
   const bad = (what, i) => { throw new Error(`Backup rejected: ${what} #${i + 1} is malformed. Nothing was changed.`); };
   const iso = validIso; // a real calendar date from 1970 to 2100
-  if (data.sessions.length > 20000 || data.sessions.some(s => s?.entries?.length > 100 || s?.entries?.some?.(e => e?.sets?.length > 100))) throw new Error('Backup rejected: it is far larger than any real training log. Nothing was changed.');
+  // An oversized session (an old import could make one) is trimmed by sanitizeBackup, not a reason to refuse the whole backup.
+  if (data.sessions.length > 20000) throw new Error('Backup rejected: it is far larger than any real training log. Nothing was changed.');
   data.sessions.forEach((s, i) => { if (!s || typeof s.id !== 'string' || !iso(s.date) || !Array.isArray(s.entries) || s.entries.some(e => !e || typeof e.exId !== 'string' || !Array.isArray(e.sets))) bad('session', i); });
   (data.exercises || []).forEach((e, i) => { if (!e || typeof e.id !== 'string' || typeof e.name !== 'string' || !['kg', 'kg/DB', 'L', 'bw'].includes(e.unit)) bad('exercise', i); });
   (data.body || []).forEach((b, i) => { if (!b || typeof b.id !== 'string' || !iso(b.date) || !(+b.kg > 0)) bad('weigh-in', i); });
@@ -353,7 +357,7 @@ export function sanitizeBackup(data) {
     note: str(s.note, 2000), hr: numOr(s.hr), feel: numOr(s.feel), minutes: numOr(s.minutes, undefined), start: numOr(s.start), end: numOr(s.end),
     notes: Array.isArray(s.notes) ? s.notes.map(n => str(n, 500)) : undefined,
     cardio: Array.isArray(s.cardio) ? s.cardio.map(cardio) : undefined,
-    entries: s.entries.map(e => ({ ...e, exId: str(e.exId, 80), slot: slot(e.slot), sets: e.sets.map(x => set(x, assisted.has(e.exId))), rir: e.rir == null ? null : str(e.rir, 4), pain: bool(e.pain), note: str(e.note, 1000), sug: optStr(e.sug, 20) })),
+    entries: s.entries.slice(0, SESSION_CAP).map(e => ({ ...e, exId: str(e.exId, 80), slot: slot(e.slot), sets: e.sets.slice(0, SESSION_CAP).map(x => set(x, assisted.has(e.exId))), rir: e.rir == null ? null : str(e.rir, 4), pain: bool(e.pain), note: str(e.note, 1000), sug: optStr(e.sug, 20) })),
   }));
   if (Array.isArray(data.exercises)) out.exercises = data.exercises.map(e => ({
     ...e, id: str(e.id, 80), name: str(e.name, 80), equip: oneOf(e.equip, ['db', 'barbell', 'smith', 'machine', 'cable', 'bw'], 'machine'),

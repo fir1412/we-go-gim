@@ -1,4 +1,4 @@
-import { S, load, saveSettings, saveProgram, withUniqueDays, MAX_TEMPLATES, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses } from '../state.js';
+import { S, load, saveSettings, saveProgram, withUniqueDays, MAX_TEMPLATES, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses, SESSION_CAP } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, isKg, unitsFor, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, MAX_KG, MAX_REPS, cleanText } from '../engine.js';
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker, isIOS, standalone } from '../ui.js';
@@ -68,7 +68,6 @@ function home() {
     ${row('data', ICON.save, 'Backup and export', backupSub, 'upper')}
     ${row('settings', ICON.gear, 'Settings', 'Theme, kg or lb, wording, rest timer, goal', 'rest')}
     ${canInstall() ? `<button class="li mrow" data-act="install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Install the app</b><small>Home-screen icon, full screen, works offline</small></span>${ICON.chev}</button>` : ''}
-    ${isIOS() && !standalone() ? `<button class="li mrow" data-act="ios-install" style="--k:var(--up)"><i class="mic">${ICON.phone}</i><span><b>Add to Home Screen</b><small>Install on iPhone: full screen, works offline</small></span>${ICON.chev}</button>` : ''}
     ${row('learn', ICON.levels, 'Learn the app', `What each feature does · ${learnProgress(S.settings).n} of ${learnProgress(S.settings).total} missions`, 'push')}
     ${row('help', ICON.help, 'Help', 'How do I…? Answers to common questions', 'legs')}
     <button class="li mrow" data-act="feedback" style="--k:var(--push)"><i class="mic">${ICON.chat || ICON.more}</i><span><b>Send feedback</b><small>Report a bug or suggest an idea</small></span>${ICON.chev}</button>
@@ -429,7 +428,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
       // Cable levels and kilos logged under one name are kept apart: "L9" and "30 kg" can't share an exercise.
       const key = (nameKey(e.exName) || e.exName.toLowerCase()) + (e.unit === 'L' ? ' ·L' : '');
       let g = byKey.get(key);
-      if (!g) { g = { key, names: {}, sess: 0, sets: 0, units: {}, last: null }; byKey.set(key, g); groups.push(g); }
+      if (!g) { g = { key, names: Object.create(null), sess: 0, sets: 0, units: {}, last: null }; byKey.set(key, g); groups.push(g); }
       g.names[e.exName] = (g.names[e.exName] || 0) + 1;
       g.sets += e.sets.length;
       const u = e.unit === '' ? '?' : e.unit || 'kg'; // '' = a CSV without a unit column: could be either
@@ -465,7 +464,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
     }
   }
   groups.sort((a, b) => b.sets - a.sets);
-  const gOf = {};
+  const gOf = Object.create(null); // keyed by names from the file: "constructor" or "__proto__" are plain keys
   groups.forEach((g, i) => { for (const n of g.variants) gOf[n + (g.unit === 'L' ? '|L' : '')] = i; });
   // The level-based twin of a lift logged in kilos too gets its own name.
   for (const g of groups) if (g.unit === 'L' && byKey.has(g.key.replace(/ ·L$/, ''))) g.label += ' (levels)';
@@ -734,7 +733,7 @@ export const actions = {
   async 'mus-keep'(el) { const x = S.exById[el.dataset.id]; if (x) await saveExercise({ ...x, musclesKept: true }); },
   async 'mus-fix-all'() { for (const { x, g } of muscleRechecks()) await saveExercise({ ...x, muscles: g, musclesKept: true }); toast('Muscles updated', 'up'); },
   'setup-hide': () => saveSettings({ hideSetup: true }),
-  async install() { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
+  install() { promptInstall(); },
   'sheet-close': () => closeSheet(),
   // programme
   'p-open'(el) { const d = +el.dataset.dow; openDays.has(d) ? openDays.delete(d) : openDays.add(d); refresh(); },
@@ -1229,7 +1228,8 @@ export const actions = {
     const sessions = sel.map(s => ({
       // A heart rate and gym from the log are kept (the gym when one here has that name).
       id: uid('imp'), date: s.date, name: s.name, color: s.color || 'upper', gymId: S.settings.gymId, hr: null, ...importExtras(s, S.settings.gyms),
-      entries: s.entries.filter(e => gid.has(imp.gOf[gk(e)])).map(e => ({ exId: gid.get(imp.gOf[gk(e)]), sets: e.sets.map(x => ({ w: x.w, r: x.r, done: x.done !== false, ...(x.warm ? { warm: true } : {}) })), rir: e.rir ?? null, pain: !!e.pain, note: e.note || '' })),
+      // Trimmed to what a restore keeps, so a backup of this brings back exactly what's shown.
+      entries: s.entries.filter(e => gid.has(imp.gOf[gk(e)])).slice(0, SESSION_CAP).map(e => ({ exId: gid.get(imp.gOf[gk(e)]), sets: e.sets.slice(0, SESSION_CAP).map(x => ({ w: x.w, r: x.r, done: x.done !== false, ...(x.warm ? { warm: true } : {}) })), rir: e.rir ?? null, pain: !!e.pain, note: e.note || '' })),
       readiness: null, feel: null, note: [...(s.dateWas ? [`Date written as ${s.dateWas} in the log.`] : []), ...s.notes].join(' · '), imported: true,
     })).filter(s => s.entries.length);
     const dates = new Set(sessions.map(s => s.date));
@@ -1248,13 +1248,6 @@ export const actions = {
   theme: el => saveSettings({ theme: el.dataset.v }),
   tour: () => showTour(),
   feedback: () => openFeedback(APP_VERSION),
-  'ios-install'() {
-    openSheet(`<h2 class="sh-title">Install on iPhone</h2>
-      <ol class="steps"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
-      <p class="fine">It then opens full screen from the kitten icon, works offline and updates itself. Your data stays on this phone.</p>
-      <p class="fine">Safari can clear data from sites you haven't opened for 7 days, and workouts logged in a Safari tab don't move to the Home Screen app. Install first, then log.</p>
-      <button class="btn" data-act="close-sheet">Got it</button>`, { label: 'Install on iPhone' });
-  },
   'close-sheet': () => closeSheet(),
   async 'check-update'() {
     if (!navigator.onLine) return toast("You're offline. Connect and try again.", 'flat');

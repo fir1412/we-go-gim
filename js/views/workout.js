@@ -1,4 +1,4 @@
-import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings, realSessions } from '../state.js';
+import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings, realSessions, SESSION_CAP } from '../state.js';
 import { guessMuscles } from '../io.js';
 import { fmtLoad, unitShort, unitLong, unitsFor, LB_KG, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, kgFromDisp, getUnits, score, round, MAX_KG, MAX_REPS, stepLoad, barKgFor, draftClock, timerStale, moveEntry } from '../engine.js';
 import { esc, fmtDate, fmtTime, chip, chipText, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
@@ -420,6 +420,7 @@ export const actions = {
   },
   'add-set'(el) {
     const e = E(el);
+    if (e.sets.length >= SESSION_CAP) return toast(`${SESSION_CAP} sets is the most one exercise keeps`, 'flat');
     const l = [...e.sets].reverse().find(s => !s.warm) || e.sets[e.sets.length - 1];
     e.sets.push({ w: l ? l.w : null, r: l ? l.r : null, done: false });
     commit();

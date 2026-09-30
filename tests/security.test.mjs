@@ -117,8 +117,18 @@ test('a restored backup never brings feedback to send from this phone', () => {
 });
 
 test('a backup far larger than any real log is rejected before anything is written', () => {
-  const sets = Array.from({ length: 101 }, () => ({ w: 1, r: 1 }));
-  assert.throws(() => validateBackup({ ...crafted, sessions: [{ ...crafted.sessions[0], entries: [{ exId: 'bench', sets }] }] }), /far larger/);
+  const s = crafted.sessions[0];
+  assert.throws(() => validateBackup({ ...crafted, sessions: Array.from({ length: 20001 }, (_, i) => ({ ...s, id: 's' + i })) }), /far larger/);
+});
+
+// Tally a214b81 / 245c74f: an old import could make a session this big, and its backup must still restore.
+test('an oversized session is trimmed to 100 exercises and 100 sets, not refused', () => {
+  const sets = Array.from({ length: 120 }, () => ({ w: 1, r: 1 }));
+  const data = { ...crafted, sessions: [{ ...crafted.sessions[0], entries: Array.from({ length: 120 }, () => ({ exId: 'bench', sets })) }] };
+  assert.doesNotThrow(() => validateBackup(data));
+  const e = sanitizeBackup(data).sessions[0].entries;
+  assert.equal(e.length, 100);
+  assert.equal(e[0].sets.length, 100);
 });
 
 test('a pasted log with thousands of dated sessions skips the slow date-typo check', () => {

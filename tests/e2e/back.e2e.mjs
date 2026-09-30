@@ -68,6 +68,27 @@ test('on Today, a sheet closed with its own button leaves one back press to clos
   assert.equal(await back(), 'left the app');
 });
 
+test('a sheet swiped down closes; a short pull springs back', { skip }, async () => {
+  await fresh();
+  await tab('more'); await tab('today');
+  // A real finger drag from just inside the sheet's top edge.
+  const swipe = async (px, steps = 10) => {
+    const top = await b.run(async () => {
+      const ui = await import('/js/ui.js');
+      if (!ui.sheetOpen()) ui.openSheet('<p>line</p>'.repeat(14)); // tall: a pull must pass 100px, or be a flick
+      await new Promise(r => setTimeout(r, 400)); // past the opening slide
+      return document.querySelector('.scrim .sheet').getBoundingClientRect().top;
+    });
+    await b.drag(195, top + 12, 0, px, steps);
+    return b.run(async () => (await import('/js/ui.js')).sheetOpen());
+  };
+  assert.equal(await swipe(20), true, 'a short pull leaves it open');
+  assert.equal(await swipe(60, 12), true, 'so does a slow 60px pull');
+  assert.equal(await swipe(200), false, 'a long swipe closes it');
+  assert.equal(await swipe(60, 2), false, "a quick short flick closes it too");
+  assert.equal(await back(), 'left the app', 'and leaves no extra back press');
+});
+
 test('opening the app straight onto a screen that loads later shows it, and back still works', { skip }, async () => {
   await fresh();
   // Past the welcome screen (a new phone always opens there), then a real page load straight onto Settings.
