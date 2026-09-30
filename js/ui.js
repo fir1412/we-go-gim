@@ -415,7 +415,7 @@ export const helpTip = k => (TIPS[k] ? `<button class="tipq" data-act="tip" data
 
 /** Language picker: each language in its own script, so anyone can find theirs. Changing it reloads the app. */
 export function langPicker(cur, langs) {
-  return `<label class="rrow langrow"><span data-raw lang="mul">Language · Bahasa · 语言 · 語言 · 言語</span><select data-input="set-lang" aria-label="Language">${langs.map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
+  return `<label class="rrow langrow"><span data-raw lang="mul">Language · Bahasa · 语言 · 語言 · 言語</span><select data-input="set-lang" aria-label="Language">${langs.map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></label>${cur === 'en' ? '' : '<button class="linkbtn" data-act="lang-suggest">Suggest a better word</button>'}`;
 }
 
 /** iPhone or iPad (iPadOS reports itself as a Mac with touch). */

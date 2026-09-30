@@ -2297,7 +2297,7 @@ export default {
 "From {0} sample workouts": "来自 {0} 次示例训练",
 "Say how the workout felt": "说说这次训练感觉如何",
 "There is no app lock: anyone who can open this phone can open the app.": "应用没有单独的锁：能打开这部手机的人都能打开这个应用。",
-"No account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "无需账号，无需注册。训练记录只保存在这部手机上：应用从不上传，备份只会去你自己发送的地方。",
+"Free: no ads, no account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "免费：无广告，无需账号，无需注册。训练记录只保存在这部手机上：应用从不上传，备份只会去你自己发送的地方。",
 "It is a free, open-source hobby project by one developer, with no ads, no account and nothing to sell. The code is public on GitHub, so anyone can check that the app never uploads your workouts.": "这是一位开发者的免费开源业余项目，没有广告，不用账号，也没有东西要卖。代码公开在 GitHub 上，任何人都可以查证应用从不上传你的训练记录。",
 "Pain flagged · hold or go lighter. If it keeps up, see a doctor or physio.": "已标记疼痛 · 保持或减轻重量。如果持续，请看医生或物理治疗师。",
 "Pick a starting weight": "选一个起始重量",
@@ -2402,6 +2402,20 @@ export default {
 "Every website this page has contacted since it opened, as your browser recorded it:": "本页面打开以来联系过的每个网站（由你的浏览器记录）：",
 "Only the app's own website. Nothing else.": "只有应用自己的网站，没有别的。",
 "Try this: turn on airplane mode, then log a set. It still works.": "试试看：打开飞行模式，然后记录一组。仍然可以使用。",
-"The app is open source: anyone can read the code on GitHub.": "本应用是开源的：任何人都可以在 GitHub 上查看代码。"
+"The app is open source: anyone can read the code on GitHub.": "本应用是开源的：任何人都可以在 GitHub 上查看代码。",
+"Suggest a better word": "建议更好的译法",
+"Which words read wrong, and what would you say instead?": "哪些词读起来不对？你会怎么说？",
+"target {0} grams": "目标 {0} 克",
+"target {0} litres": "目标 {0} 升",
+"target {0}": "目标 {0}",
+"target {0} hours": "目标 {0} 小时",
+"target {0} calories": "目标 {0} 千卡",
+"avg {0}": "平均 {0}",
+"hit {0} of {1} days": "{1} 天中达标 {0} 天",
+"Sleep <{0} hours": "睡眠 <{0} 小时",
+"Sleep {0}–{1} hours": "睡眠 {0}–{1} 小时",
+"Sleep {0}+ hours": "睡眠 {0}+ 小时",
+"Feel {0}/{1}": "感觉 {0}/{1}",
+"Peak HR {0}": "最高心率 {0}"
 }
 };

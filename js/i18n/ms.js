@@ -2297,7 +2297,7 @@ export default {
 "From {0} sample workouts": "Daripada {0} sesi contoh",
 "Say how the workout felt": "Nyatakan bagaimana rasa senaman",
 "There is no app lock: anyone who can open this phone can open the app.": "Tiada kunci aplikasi: sesiapa yang boleh membuka telefon ini boleh membuka aplikasi ini.",
-"No account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "Tiada akaun, tiada pendaftaran. Senaman anda kekal dalam telefon ini: aplikasi tidak pernah memuat naiknya, dan sandaran hanya pergi ke tempat yang anda hantar.",
+"Free: no ads, no account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.": "Percuma: tiada iklan, tiada akaun, tiada pendaftaran. Senaman anda kekal dalam telefon ini: aplikasi tidak pernah memuat naiknya, dan sandaran hanya pergi ke tempat yang anda hantar.",
 "It is a free, open-source hobby project by one developer, with no ads, no account and nothing to sell. The code is public on GitHub, so anyone can check that the app never uploads your workouts.": "Ia projek hobi sumber terbuka yang percuma oleh seorang pembangun, tanpa iklan, tanpa akaun dan tiada apa untuk dijual. Kodnya terbuka di GitHub, jadi sesiapa boleh semak bahawa aplikasi tidak pernah memuat naik senaman anda.",
 "Pain flagged · hold or go lighter. If it keeps up, see a doctor or physio.": "Sakit ditanda · kekalkan atau kurangkan beban. Jika berterusan, jumpa doktor atau fisioterapis.",
 "Pick a starting weight": "Pilih beban permulaan",
@@ -2402,6 +2402,20 @@ export default {
 "Every website this page has contacted since it opened, as your browser recorded it:": "Setiap laman web yang dihubungi halaman ini sejak dibuka, seperti yang direkodkan oleh pelayar anda:",
 "Only the app's own website. Nothing else.": "Hanya laman web aplikasi ini sendiri. Tiada yang lain.",
 "Try this: turn on airplane mode, then log a set. It still works.": "Cuba ini: hidupkan mod pesawat, kemudian catat satu set. Ia masih berfungsi.",
-"The app is open source: anyone can read the code on GitHub.": "Aplikasi ini sumber terbuka: sesiapa sahaja boleh membaca kodnya di GitHub."
+"The app is open source: anyone can read the code on GitHub.": "Aplikasi ini sumber terbuka: sesiapa sahaja boleh membaca kodnya di GitHub.",
+"Suggest a better word": "Cadangkan perkataan yang lebih baik",
+"Which words read wrong, and what would you say instead?": "Perkataan mana yang janggal, dan apa yang anda akan guna?",
+"target {0} grams": "sasaran {0} gram",
+"target {0} litres": "sasaran {0} liter",
+"target {0}": "sasaran {0}",
+"target {0} hours": "sasaran {0} jam",
+"target {0} calories": "sasaran {0} kalori",
+"avg {0}": "purata {0}",
+"hit {0} of {1} days": "capai {0} daripada {1} hari",
+"Sleep <{0} hours": "Tidur <{0} jam",
+"Sleep {0}–{1} hours": "Tidur {0}–{1} jam",
+"Sleep {0}+ hours": "Tidur {0}+ jam",
+"Feel {0}/{1}": "Rasa {0}/{1}",
+"Peak HR {0}": "Denyutan tertinggi {0}"
 }
 };

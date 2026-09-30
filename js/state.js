@@ -373,6 +373,7 @@ export function sanitizeBackup(data) {
       if (!iso(d) || !v || typeof v !== 'object') continue;
       const clean = {};
       for (const k of DAILY_FIELDS) if (numOr(v[k]) != null) clean[k] = numOr(v[k]);
+      if (v.seed) clean.seed = true;
       out.daily[d] = clean;
     }
   }
@@ -498,7 +499,8 @@ export async function importAll(data, { merge = false } = {}) {
     const ids = new Set(S.measures.map(m => m.id)), dates = new Set(S.measures.map(m => m.date));
     const add = measures.filter(m => !ids.has(m.id) && !dates.has(m.date) && dates.add(m.date));
     if (add.length) await db.setKv('measures', [...S.measures, ...add]);
-    for (const [d, v] of daily) await db.setKv('daily:' + d, { ...v, ...(S.daily[d] || {}) });
+    // A sample day on this phone gives way to a real one from the file.
+    for (const [d, v] of daily) await db.setKv('daily:' + d, S.daily[d]?.seed ? v : { ...v, ...(S.daily[d] || {}) });
   } else {
     // Replace (and Undo, which is one) leaves nothing of the old data behind: daily logs and measurements too.
     for (const k of await db.kvKeys('daily:')) await db.del('kv', k);
@@ -518,13 +520,19 @@ export async function resetAll() {
   refresh();
 }
 
-/** Sample workouts and weigh-ins (see sample.js). Ids are fixed per date, so a second tap overwrites instead of doubling. */
-export async function addSeedData({ sessions, body }) {
+/** Sample workouts, weigh-ins and daily logs (see sample.js). Ids are fixed per date, so a second tap overwrites instead of doubling. */
+export async function addSeedData({ sessions, body, daily = {} }) {
   await db.putMany('sessions', sessions);
   await db.putMany('body', body);
   const ids = new Set([...sessions, ...body].map(x => x.id));
   S.sessions = [...S.sessions.filter(s => !ids.has(s.id)), ...sessions].sort(byDateDesc);
   S.body = [...S.body.filter(b => !ids.has(b.id)), ...body].sort((a, b) => a.date.localeCompare(b.date));
+  // A day the user logged themselves is never covered by a sample one.
+  for (const [d, v] of Object.entries(daily)) {
+    if (S.daily[d] && !S.daily[d].seed) continue;
+    S.daily[d] = v;
+    await db.setKv('daily:' + d, v);
+  }
   invalidateCaches();
   await saveSettings({ sample: true });
 }
@@ -535,6 +543,7 @@ export async function removeSeedData() {
   S.sessions = S.sessions.filter(s => !s.seed);
   for (const b of S.body.filter(b => b.seed)) await db.del('body', b.id);
   S.body = S.body.filter(b => !b.seed);
+  for (const [d, v] of Object.entries(S.daily)) if (v.seed) { await db.del('kv', 'daily:' + d); delete S.daily[d]; }
   invalidateCaches();
   await saveSettings({ sample: false });
 }
@@ -581,7 +590,8 @@ export function dailyTargets() {
   };
 }
 export async function saveDaily(date, patch) {
-  const cur = S.daily[date] || {};
+  // Logging on a sample day makes it the user's own: the made-up numbers go, so "Start for real" keeps it.
+  const cur = S.daily[date]?.seed ? {} : S.daily[date] || {};
   const next = { ...cur, ...patch };
   for (const k of DAILY_FIELDS) if (next[k] == null || !(next[k] >= 0)) delete next[k];
   S.daily[date] = next;

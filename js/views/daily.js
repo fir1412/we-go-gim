@@ -43,7 +43,7 @@ export function render() {
     const past = bars.slice(0, 6).filter(b => b.v);
     const avg = past.length ? past.reduce((a, b) => a + b.v, 0) / past.length : 0;
     const hits = bars.filter(b => b.v >= tg[k]).length;
-    h += `<div class="box chart"><div class="cap"><b>${label}</b><span>target ${withUnit(k, tg[k])}${avg ? ` · avg ${fmt(k, avg)}` : ''} · hit ${hits} of 7 days</span></div>${barChart(bars, { unit, height: 100, label: `${label}, last 7 days` })}</div>`;
+    h += `<div class="box chart"><div class="cap"><b>${label}</b><span><span>target ${withUnit(k, tg[k])}</span>${avg ? ` · <span>avg ${fmt(k, avg)}</span>` : ''} · <span>hit ${hits} of 7 days</span></span></div>${barChart(bars, { unit, height: 100, label: `${label}, last 7 days` })}</div>`;
   }
   if (!charts) h += `<div class="box pad"><p class="fine">Tap a target above to log it. Your last 7 days show up here.</p></div>`;
   h += `<button class="btn ghost" data-act="daily-targets">Change targets</button>
