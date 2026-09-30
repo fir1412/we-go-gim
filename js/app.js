@@ -350,8 +350,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.7';
+export const APP_VERSION = '1.9.8';
 const WHATS_NEW = {
+  '1.9.8': ['Tap 3+ reps left on the last set and the weight goes up faster: straight away, or a double step at the top of the range'],
   '1.9.7': ['Not sure yet? Look around with sample data from the welcome screen: eight made-up weeks to explore, removed with one tap on “Start for real”', 'Change a lift to kg, lb or machine levels mid-workout from its ⋮ menu (weights are always kept in kg)', 'Pain on a lift two workouts running now goes lighter and says to get it checked', 'Clearer privacy and terms pages, with a summary in every language and a contact email'],
   '1.9.6': ['Opens faster: only Today loads at start, and the other screens load in the background right after'],
   '1.9.5': ['Back goes up the app instead of retracing every screen: a few presses reach Today, and one more closes the app', 'Safer saves: a restore that fails half-way can still be undone, and an update never reloads before your last set is written', 'Easier to see and use: clearer edges on weight, reps and tick boxes, focus stays put when you tap +/−, and Undo waits while you reach for it', 'Opens faster, and the “Start workout” home-screen shortcut works again'],

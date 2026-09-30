@@ -569,7 +569,7 @@ export default {
 "EZ bar must be between {0} and {1} kg, or blank": "Bar EZ mesti antara {0} hingga {1} kg, atau kosong",
 "EZ bar must be between {0} and {1} lb, or blank": "Bar EZ mesti antara {0} hingga {1} lb, atau kosong",
 "Each exercise keeps its load and adds a rep per set until every set reaches the top of its range, then adds the smallest step. New exercises or machines ask you to": "Setiap senaman mengekalkan beratnya dan menambah satu ulangan setiap set sehingga setiap set mencapai had atas julatnya, kemudian menambah langkah terkecil. Senaman atau mesin baharu meminta anda",
-"Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same.": "Setiap senaman mengekalkan beratnya dan menambah satu ulangan setiap set sehingga setiap set mencapai had atas julatnya, kemudian menambah langkah terkecil. Tidur tidak cukup atau sakit mengekalkan berat yang sama.",
+"Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same. Tap 3+ reps left on the last set and it goes up faster: weight straight away, or a double step at the top of the range.": "Setiap senaman mengekalkan beratnya dan menambah satu ulangan setiap set sehingga setiap set mencapai had atas julatnya, kemudian menambah langkah terkecil. Tidur tidak cukup atau sakit mengekalkan berat yang sama. Ketik baki 3+ ulangan pada set terakhir dan ia naik lebih cepat: beban terus ditambah, atau dua langkah sekali gus di hujung julat.",
 "Each mission shows one feature. Use it once and it ticks itself off. Finish them all for the 🧭 Explorer badge.": "Setiap misi menunjukkan satu ciri. Gunakannya sekali dan ia akan ditanda sendiri. Selesaikan semuanya untuk lencana 🧭 Penjelajah.",
 "Each muscle twice a week with lots of volume. Needs good sleep and {0} days a week. Full gym.": "Setiap otot dua kali seminggu dengan banyak set. Perlukan tidur yang cukup dan {0} hari seminggu. Gim lengkap.",
 "Earlier data restored": "Data lama dipulihkan",
@@ -2336,6 +2336,19 @@ export default {
 "Sets you ticked on this lift are cleared, because a weight is not a level.": "Set yang anda tanda untuk senaman ini akan dikosongkan, kerana beban bukan tahap.",
 "Back to back, rest after both": "Berturut-turut, rehat selepas kedua-duanya",
 "Lifts shown in another unit are converted to kg here.": "Senaman yang ditunjukkan dalam unit lain ditukar ke kg di sini.",
-"Lifts shown in another unit are converted to lb here.": "Senaman yang ditunjukkan dalam unit lain ditukar ke lb di sini."
+"Lifts shown in another unit are converted to lb here.": "Senaman yang ditunjukkan dalam unit lain ditukar ke lb di sini.",
+"{0}+ reps left last time, so the weight is light for you.": "Tinggal {0}+ ulangan kali lepas, jadi beban ini ringan untuk anda.",
+"Every set reached {0} with {1}+ reps left.": "Setiap set mencapai {0} dengan baki {1}+ ulangan.",
+"{0}+ reps left": "baki {0}+ ulangan",
+"Add {0} kg now and keep the same reps.": "Tambah {0} kg sekarang dan kekalkan ulangan yang sama.",
+"Add {0} kg, a double step, and let reps drop back toward {1}.": "Tambah {0} kg, dua langkah sekali gus, dan biarkan ulangan turun ke sekitar {1}.",
+"Add {0} lb now and keep the same reps.": "Tambah {0} lb sekarang dan kekalkan ulangan yang sama.",
+"Add {0} lb, a double step, and let reps drop back toward {1}.": "Tambah {0} lb, dua langkah sekali gus, dan biarkan ulangan turun ke sekitar {1}.",
+"Add {0} level now and keep the same reps.": "Tambah {0} pin sekarang dan kekalkan ulangan yang sama.",
+"Add {0} level, a double step, and let reps drop back toward {1}.": "Tambah {0} pin, dua langkah sekali gus, dan biarkan ulangan turun ke sekitar {1}.",
+"Add {0} kg per dumbbell now and keep the same reps.": "Tambah {0} kg setiap dumbbell sekarang dan kekalkan ulangan yang sama.",
+"Add {0} kg per dumbbell, a double step, and let reps drop back toward {1}.": "Tambah {0} kg setiap dumbbell, dua langkah sekali gus, dan biarkan ulangan turun ke sekitar {1}.",
+"Add {0} lb per dumbbell now and keep the same reps.": "Tambah {0} lb setiap dumbbell sekarang dan kekalkan ulangan yang sama.",
+"Add {0} lb per dumbbell, a double step, and let reps drop back toward {1}.": "Tambah {0} lb setiap dumbbell, dua langkah sekali gus, dan biarkan ulangan turun ke sekitar {1}."
 }
 };

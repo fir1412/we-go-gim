@@ -569,7 +569,7 @@ export default {
 "EZ bar must be between {0} and {1} kg, or blank": "EZバーは{0}〜{1}kgにするか、空欄にしてください",
 "EZ bar must be between {0} and {1} lb, or blank": "EZバーは{0}〜{1}ポンドにするか、空欄にしてください",
 "Each exercise keeps its load and adds a rep per set until every set reaches the top of its range, then adds the smallest step. New exercises or machines ask you to": "各種目は重さを変えずに、全セットが範囲の上限に届くまで1セットごとに1回ずつ増やし、そのあと最小の刻みで重さを上げます。新しい種目やマシンでは、まず",
-"Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same.": "各種目は重さを変えずに、全セットが範囲の上限に届くまで1セットごとに1回ずつ増やし、そのあと最小の刻みで重さを上げます。睡眠不足や痛みがあるときは重さを変えません。",
+"Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same. Tap 3+ reps left on the last set and it goes up faster: weight straight away, or a double step at the top of the range.": "各種目は重さを変えずに、全セットが範囲の上限に届くまで1セットごとに1回ずつ増やし、そのあと最小の刻みで重さを上げます。睡眠不足や痛みがあるときは重さを変えません。 最後のセットで「余力 3+ 回」をタップすると、より早く上がります。すぐに重量を上げるか、回数の上限に達していれば2段階上げます。",
 "Each mission shows one feature. Use it once and it ticks itself off. Finish them all for the 🧭 Explorer badge.": "各ミッションで機能を1つ紹介します。一度使うと自動でチェックが付きます。すべて完了すると 🧭 エクスプローラーバッジがもらえます。",
 "Each muscle twice a week with lots of volume. Needs good sleep and {0} days a week. Full gym.": "各筋肉を週2回、たっぷりのボリュームで。十分な睡眠と週 {0} 日が必要です。設備の整ったジム向け。",
 "Earlier data restored": "以前のデータを復元しました",
@@ -2336,6 +2336,19 @@ export default {
 "Sets you ticked on this lift are cleared, because a weight is not a level.": "重量とレベルは別物なので、この種目でチェックしたセットは消去されます。",
 "Back to back, rest after both": "続けて行い、両方の後に休憩",
 "Lifts shown in another unit are converted to kg here.": "別の単位で表示している種目は、ここでは kg に換算しています。",
-"Lifts shown in another unit are converted to lb here.": "別の単位で表示している種目は、ここでは lb に換算しています。"
+"Lifts shown in another unit are converted to lb here.": "別の単位で表示している種目は、ここでは lb に換算しています。",
+"{0}+ reps left last time, so the weight is light for you.": "前回は {0}+ 回の余力があったので、この重量はあなたには軽めです。",
+"Every set reached {0} with {1}+ reps left.": "すべてのセットで {0} 回に届き、さらに {1}+ 回の余力がありました。",
+"{0}+ reps left": "余力 {0}+ 回",
+"Add {0} kg now and keep the same reps.": "今回 {0} kg 増やし、回数はそのままにします。",
+"Add {0} kg, a double step, and let reps drop back toward {1}.": "{0} kg 増やし（2段階）、回数は {1} 回前後に戻します。",
+"Add {0} lb now and keep the same reps.": "今回 {0} lb 増やし、回数はそのままにします。",
+"Add {0} lb, a double step, and let reps drop back toward {1}.": "{0} lb 増やし（2段階）、回数は {1} 回前後に戻します。",
+"Add {0} level now and keep the same reps.": "今回 {0} レベル 増やし、回数はそのままにします。",
+"Add {0} level, a double step, and let reps drop back toward {1}.": "{0} レベル 増やし（2段階）、回数は {1} 回前後に戻します。",
+"Add {0} kg per dumbbell now and keep the same reps.": "今回 {0} kg（ダンベル1個あたり） 増やし、回数はそのままにします。",
+"Add {0} kg per dumbbell, a double step, and let reps drop back toward {1}.": "{0} kg（ダンベル1個あたり） 増やし（2段階）、回数は {1} 回前後に戻します。",
+"Add {0} lb per dumbbell now and keep the same reps.": "今回 {0} lb（ダンベル1個あたり） 増やし、回数はそのままにします。",
+"Add {0} lb per dumbbell, a double step, and let reps drop back toward {1}.": "{0} lb（ダンベル1個あたり） 増やし（2段階）、回数は {1} 回前後に戻します。"
 }
 };
