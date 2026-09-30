@@ -3,6 +3,7 @@ import * as db from './db.js';
 import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, MUSCLE_UPDATES } from './seed.js';
 import { suggest, dowOf, warmup, estimateDay, invalidateCaches, trimToFit, planSec, cleanText, MAX_KG, MAX_REPS, validIso, dedupeDays, addDays } from './engine.js';
 import { cleanLearn } from './learn.js';
+import { PALETTES, okMine } from './palette.js';
 
 export const S = {
   backend: null,
@@ -401,6 +402,10 @@ export function sanitizeBackup(data) {
     if ('dayStart' in s) s.dayStart = Math.max(0, Math.min(6, numOr(s.dayStart, 0)));
     if ('remindAt' in s && !/^\d{2}:\d{2}$/.test(s.remindAt)) delete s.remindAt;
     if ('lang' in s && !['en', 'ms', 'zh', 'zh-Hant', 'ja'].includes(s.lang)) delete s.lang;
+    // App colours: a preset's name or "mine"; your own colours only as #RRGGBB (they go into a stylesheet).
+    if ('appPalette' in s && !(s.appPalette === 'mine' || Object.hasOwn(PALETTES, s.appPalette))) delete s.appPalette;
+    if ('myPalette' in s && !okMine(s.myPalette)) delete s.myPalette;
+    else if ('myPalette' in s) s.myPalette = { dark: [...s.myPalette.dark], light: [...s.myPalette.light] };
     // Saved plans (More → Programme → My templates): a name and a week, like the programme itself.
     if ('templates' in s) s.templates = (Array.isArray(s.templates) ? s.templates : []).filter(t => t && typeof t === 'object' && Array.isArray(t.program?.days)).slice(0, MAX_TEMPLATES)
       .map(t => ({ id: str(t.id, 40) || uid('t'), name: str(t.name, 40) || 'My plan', saved: iso(t.saved) || undefined, program: { days: prog(t.program).days } }));

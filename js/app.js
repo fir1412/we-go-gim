@@ -7,6 +7,7 @@ import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i1
 import * as today from './views/today.js';
 import * as daily from './views/daily.js';
 import * as learnView from './views/learn.js';
+import { applyPalette, applySavedPalette } from './palette.js';
 import './fx.js'; // motion and touch feedback (self-starting)
 
 const TABS = [
@@ -344,14 +345,16 @@ export function applyTheme() {
   const t = S.settings.theme;
   if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
+  applyPalette(S.settings);
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg || '#0F1117');
 }
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.10';
+export const APP_VERSION = '1.9.11';
 const WHATS_NEW = {
+  '1.9.11': ['App colours: pick a palette in More → Settings (Graphite, Midnight, Forest, Ember, Grape) or set your own background and card colours. Text stays readable on whatever you pick'],
   '1.9.10': ['Install works in every browser: Safari, Firefox and Samsung Internet get their own steps, and links opened inside WhatsApp or Instagram say to open a real browser first', 'A backup with a very long imported workout now restores (trimmed to 100 exercises and 100 sets) instead of being refused'],
   '1.9.9': ['Swipe a pulled-up card down to close it'],
   '1.9.8': ['Tap 3+ reps left on the last set and the weight goes up faster: straight away, or a double step at the top of the range'],
@@ -572,6 +575,7 @@ export async function promptInstall() {
 
 // ---- boot -----------------------------------------------------------------------------
 async function boot() {
+  applySavedPalette(); // your colours from the first paint, before the database opens
   // Never run inside another site's frame (clickjacking): GitHub Pages can't send frame-ancestors, so stop here.
   if (window.top !== window.self) {
     $('#screen').innerHTML = `<div class="empty"><b>we go gim can't run inside another page.</b><p><a href="${esc(location.href)}" target="_top" rel="noopener">Open it on its own</a></p></div>`;

@@ -2372,6 +2372,17 @@ export default {
 "In the menu bar, choose File": "在菜单栏中选择“文件”",
 "Add to Dock": "添加到程序坞",
 "Or open the browser menu and choose Install": "或打开浏览器菜单，选择“安装”",
-"You can install the app any time from More": "你随时可以在“更多”中安装应用"
+"You can install the app any time from More": "你随时可以在“更多”中安装应用",
+"Colours": "颜色",
+"Default": "默认",
+"Graphite": "石墨",
+"Forest": "森林",
+"Ember": "余烬",
+"Grape": "葡萄",
+"Mine": "我的",
+"Background": "背景",
+"Cards": "卡片",
+"These are for the dark theme. Switch the theme to Light to set its colours too. Text stays readable on whatever you pick.": "这些用于深色主题。把主题切换为浅色，也可以设置它的颜色。无论选什么颜色，文字都保持清晰易读。",
+"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "这些用于浅色主题。把主题切换为深色，也可以设置它的颜色。无论选什么颜色，文字都保持清晰易读。"
 }
 };

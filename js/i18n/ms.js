@@ -2372,6 +2372,17 @@ export default {
 "In the menu bar, choose File": "Di bar menu, pilih Fail",
 "Add to Dock": "Tambah ke Dock",
 "Or open the browser menu and choose Install": "Atau buka menu pelayar dan pilih Pasang",
-"You can install the app any time from More": "Anda boleh memasang aplikasi ini bila-bila masa dari Lagi"
+"You can install the app any time from More": "Anda boleh memasang aplikasi ini bila-bila masa dari Lagi",
+"Colours": "Warna",
+"Default": "Asal",
+"Graphite": "Grafit",
+"Forest": "Hutan",
+"Ember": "Bara",
+"Grape": "Anggur",
+"Mine": "Saya",
+"Background": "Latar belakang",
+"Cards": "Kad",
+"These are for the dark theme. Switch the theme to Light to set its colours too. Text stays readable on whatever you pick.": "Ini untuk tema gelap. Tukar tema kepada Cerah untuk menetapkan warnanya juga. Teks kekal mudah dibaca pada apa jua warna yang anda pilih.",
+"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "Ini untuk tema cerah. Tukar tema kepada Gelap untuk menetapkan warnanya juga. Teks kekal mudah dibaca pada apa jua warna yang anda pilih."
 }
 };

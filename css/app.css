@@ -82,6 +82,13 @@ body { display: block; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .rrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rrow > span, .rrow > label { font-size: 0.7812rem; color: var(--mute); }
+.pals { display: flex; flex-wrap: wrap; gap: 4px; }
+.palsw { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px; min-height: 44px; padding: 4px; background: none; border: 0; color: var(--mute); font: inherit; font-size: 0.75rem; cursor: pointer; }
+.palsw i { position: relative; display: block; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; border: 2px solid var(--line-ctl); }
+.palsw i b { position: absolute; top: 0; right: 0; width: 50%; height: 100%; }
+.palsw[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
+.palsw[aria-pressed="true"] i { border-color: var(--ink); box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--c); }
+.rrow input[type="color"] { width: 56px; height: 40px; padding: 2px; border: 1px solid var(--line-ctl); border-radius: 10px; background: var(--card); cursor: pointer; }
 
 .btn { width: 100%; border: 0; border-radius: 14px; padding: 13px; font-weight: 700; font-size: 0.9375rem; background: var(--c); color: var(--on); display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; text-align: center; }
 .btn svg { width: 18px; height: 18px; }
