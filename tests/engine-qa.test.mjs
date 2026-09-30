@@ -332,3 +332,16 @@ test('10 a bodyweight deload drops the added weight', () => {
   assert.equal(g.t, 'deload');
   assert.equal(g.w, 0);
 });
+
+test('3+ reps left on the last set moves the weight up faster; 1-2 left keeps the usual pace', () => {
+  const ex = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
+  const slot = { exId: 'squat', sets: 3, lo: 6, hi: 10 };
+  const log = (reps, rir, pain = false) => [{ id: 'a', date: '2026-09-27', gymId: 'g1', entries: [{ exId: 'squat', sets: reps.map(r => ({ w: 60, r, done: true })), rir, pain }] }];
+  const sg = (reps, rir, extra = {}) => E.suggest(slot, ex.squat, { sessions: log(reps, rir), date: '2026-09-30', gymId: 'g1', ...extra });
+  assert.deepEqual([sg([8, 8, 8], '2').w, sg([8, 8, 8], '2').reps], [60, [9, 9, 9]], 'mid-range: a rep at a time');
+  assert.deepEqual([sg([8, 8, 8], '3+').w, sg([8, 8, 8], '3+').reps], [62.5, [8, 8, 8]], 'mid-range, easy: weight now, same reps');
+  assert.equal(sg([10, 10, 10], '2').w, 62.5, 'top: one step');
+  assert.equal(sg([10, 10, 10], '3+').w, 65, 'top, easy: two steps');
+  assert.equal(sg([5, 5, 5], '3+').w, 60, 'below the range: no jump');
+  assert.equal(sg([10, 10, 10], '3+', { poor: true }).w, 60, 'a poor night still holds');
+});

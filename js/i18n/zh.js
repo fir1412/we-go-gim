@@ -569,7 +569,7 @@ export default {
 "EZ bar must be between {0} and {1} kg, or blank": "曲杆必须在{0}到{1}公斤之间，或留空",
 "EZ bar must be between {0} and {1} lb, or blank": "曲杆必须在{0}到{1}磅之间，或留空",
 "Each exercise keeps its load and adds a rep per set until every set reaches the top of its range, then adds the smallest step. New exercises or machines ask you to": "每个动作保持重量，每组加一次，直到每组都达到范围上限，然后加最小的重量。新的动作或器械会让你先",
-"Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same.": "每个动作保持重量，每组加一次，直到每组都达到范围上限，然后加最小的重量。睡眠不足或疼痛时重量保持不变。",
+"Each exercise keeps its weight and adds a rep per set until every set hits the top of its range, then adds the smallest step. Poor sleep or pain holds the weight the same. Tap 3+ reps left on the last set and it goes up faster: weight straight away, or a double step at the top of the range.": "每个动作保持重量，每组加一次，直到每组都达到范围上限，然后加最小的重量。睡眠不足或疼痛时重量保持不变。 在最后一组点“还剩 3+ 次”，进度会更快：直接加重，或者在次数上限时一次加两级。",
 "Each mission shows one feature. Use it once and it ticks itself off. Finish them all for the 🧭 Explorer badge.": "每个任务介绍一个功能。用一次就会自动打勾。全部完成可获得 🧭 探索者徽章。",
 "Each muscle twice a week with lots of volume. Needs good sleep and {0} days a week. Full gym.": "每块肌肉每周练两次，训练量大。需要充足睡眠，每周 {0} 天。器械齐全的健身房。",
 "Earlier data restored": "之前的数据已恢复",
@@ -2336,6 +2336,19 @@ export default {
 "Sets you ticked on this lift are cleared, because a weight is not a level.": "这个动作已打勾的组会被清空，因为重量不等于档位。",
 "Back to back, rest after both": "连续做，两个都做完再休息",
 "Lifts shown in another unit are converted to kg here.": "用其他单位显示的动作在这里换算成 kg。",
-"Lifts shown in another unit are converted to lb here.": "用其他单位显示的动作在这里换算成 lb。"
+"Lifts shown in another unit are converted to lb here.": "用其他单位显示的动作在这里换算成 lb。",
+"{0}+ reps left last time, so the weight is light for you.": "上次还剩 {0}+ 次，说明这个重量对你偏轻。",
+"Every set reached {0} with {1}+ reps left.": "每组都做到 {0} 次，而且还剩 {1}+ 次。",
+"{0}+ reps left": "还剩 {0}+ 次",
+"Add {0} kg now and keep the same reps.": "现在加 {0} kg，次数保持不变。",
+"Add {0} kg, a double step, and let reps drop back toward {1}.": "加 {0} kg（两级），次数回落到 {1} 左右。",
+"Add {0} lb now and keep the same reps.": "现在加 {0} lb，次数保持不变。",
+"Add {0} lb, a double step, and let reps drop back toward {1}.": "加 {0} lb（两级），次数回落到 {1} 左右。",
+"Add {0} level now and keep the same reps.": "现在加 {0} 档，次数保持不变。",
+"Add {0} level, a double step, and let reps drop back toward {1}.": "加 {0} 档（两级），次数回落到 {1} 左右。",
+"Add {0} kg per dumbbell now and keep the same reps.": "现在加 {0} 每只哑铃 kg，次数保持不变。",
+"Add {0} kg per dumbbell, a double step, and let reps drop back toward {1}.": "加 {0} 每只哑铃 kg（两级），次数回落到 {1} 左右。",
+"Add {0} lb per dumbbell now and keep the same reps.": "现在加 {0} 每只哑铃 lb，次数保持不变。",
+"Add {0} lb per dumbbell, a double step, and let reps drop back toward {1}.": "加 {0} 每只哑铃 lb（两级），次数回落到 {1} 左右。"
 }
 };

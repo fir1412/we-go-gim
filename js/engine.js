@@ -447,6 +447,20 @@ export function suggest(slot, ex, ctx) {
     const next0 = prev.map(x => clamp(x, lo, hi));
     return { t: 'reps', w, reps: next0, rir: '1-2', why: `Last time the final set went to failure (0 reps left) and reps fell short of ${lo}–${hi}. Same load; aim to get every set into the range with a rep or two to spare.${caution}` };
   }
+  // 3+ reps left on the last set: the weight is light for them, so it goes up faster (checked after pain, poor
+  // readiness and a deload, which all hold or lower the load first).
+  const easy = String(last.rir) === '3+';
+  const lbDb = lbMode(ex) && ex.unit === 'kg/DB' && ctx.equip?.dumbbells?.length;
+  const up = x => (!lbMode(ex) ? snapLoad(x + (ex.inc || 1), ex, ctx.equip)
+    : lbDb ? snapLoad(lbToKg(lbOf(x) + incStepDisp(ex, ctx.equip)), ex, ctx.equip)
+    : lbNext(x, incStepDisp(ex, ctx.equip)));
+  const per = ex.unit === 'L' ? ' level' : ex.unit === 'kg/DB' ? ` ${unitsFor(ex)} per dumbbell` : ' ' + unitsFor(ex);
+  const shownStep = nw => (ex.unit === 'L' ? +(nw - w).toFixed(2) : lbMode(ex) ? +(toDisp(nw, ex) - toDisp(w, ex)).toFixed(2) : stepDisp(+(nw - w).toFixed(2), ex));
+  // Inside the range but not at the top yet: one step up now, same reps, instead of a rep at a time.
+  if (easy && ex.unit !== 'bw' && lastReps.length >= n && lastReps.slice(0, n).every(x => x >= lo) && !lastReps.slice(0, n).every(x => x >= hi)) {
+    const nw = up(w);
+    if (nw > w + EPS) return { t: 'load', w: nw, inc: +(nw - w).toFixed(3), reps: held, rir: '1-3', why: `3+ reps left last time, so the weight is light for you. Add ${shownStep(nw)}${per} now and keep the same reps.${caution}` };
+  }
   // Only add load when every planned set actually reached the top (a single logged set doesn't count for three).
   if (lastReps.length >= n && lastReps.slice(0, n).every(x => x >= hi)) {
     if (ex.unit === 'bw') {
@@ -457,18 +471,17 @@ export function suggest(slot, ex, ctx) {
       return { t: 'load', w: w + 2.5, inc: 2.5, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi}. Add ${stepDisp(2.5)} ${UNITS} with a belt (or slow the tempo); reps drop back toward ${lo}.` };
     }
     // lb: the step is taken in lb and the new load lands on the lb grid (or the next dumbbell in the list).
-    const lbDb = lbMode(ex) && ex.unit === 'kg/DB' && ctx.equip?.dumbbells?.length;
-    const nw = !lbMode(ex) ? snapLoad(w + (ex.inc || 1), ex, ctx.equip)
-      : lbDb ? snapLoad(lbToKg(lbOf(w) + incStepDisp(ex, ctx.equip)), ex, ctx.equip)
-      : lbNext(w, incStepDisp(ex, ctx.equip));
+    // With 3+ reps left, two steps (when a second step exists).
+    const one = up(w), two = easy ? up(one) : one, nw = two > one + EPS ? two : one;
     if (!(nw > w + EPS)) {
       return { t: 'reps', w, reps: fill(n, hi), rir: '1-2', why: `Every set reached ${hi}, but there's no heavier dumbbell in your equipment list. Add a set, slow the lowering to 3 seconds, or switch to a harder variation.` };
     }
     const step = +(nw - w).toFixed(lbMode(ex) ? 3 : 2);
     // The text states the change as it will show on screen.
-    const shown = ex.unit === 'L' ? step : lbMode(ex) ? +(toDisp(nw, ex) - toDisp(w, ex)).toFixed(2) : stepDisp(step, ex);
-    const per = ex.unit === 'L' ? ' level' : ex.unit === 'kg/DB' ? ` ${unitsFor(ex)} per dumbbell` : ' ' + unitsFor(ex);
-    return { t: 'load', w: nw, inc: step, reps: fill(n, lo), rir: '1-3', why: `Every set reached ${hi} last time. Add ${shown}${per} and let reps drop back toward ${lo}.${caution}` };
+    const shown = shownStep(nw);
+    return { t: 'load', w: nw, inc: step, reps: fill(n, lo), rir: '1-3', why: nw > one + EPS
+      ? `Every set reached ${hi} with 3+ reps left. Add ${shown}${per}, a double step, and let reps drop back toward ${lo}.${caution}`
+      : `Every set reached ${hi} last time. Add ${shown}${per} and let reps drop back toward ${lo}.${caution}` };
   }
   const next = prev.map(x => clamp(x + 1, lo, hi));
   const tr = trend(exps, ex.unit);
