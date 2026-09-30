@@ -428,7 +428,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
       // Cable levels and kilos logged under one name are kept apart: "L9" and "30 kg" can't share an exercise.
       const key = (nameKey(e.exName) || e.exName.toLowerCase()) + (e.unit === 'L' ? ' ·L' : '');
       let g = byKey.get(key);
-      if (!g) { g = { key, names: {}, sess: 0, sets: 0, units: {}, last: null }; byKey.set(key, g); groups.push(g); }
+      if (!g) { g = { key, names: Object.create(null), sess: 0, sets: 0, units: {}, last: null }; byKey.set(key, g); groups.push(g); }
       g.names[e.exName] = (g.names[e.exName] || 0) + 1;
       g.sets += e.sets.length;
       const u = e.unit === '' ? '?' : e.unit || 'kg'; // '' = a CSV without a unit column: could be either
@@ -464,7 +464,7 @@ function prepImport(r, source, raw = '', dropped = 0) {
     }
   }
   groups.sort((a, b) => b.sets - a.sets);
-  const gOf = {};
+  const gOf = Object.create(null); // keyed by names from the file: "constructor" or "__proto__" are plain keys
   groups.forEach((g, i) => { for (const n of g.variants) gOf[n + (g.unit === 'L' ? '|L' : '')] = i; });
   // The level-based twin of a lift logged in kilos too gets its own name.
   for (const g of groups) if (g.unit === 'L' && byKey.has(g.key.replace(/ ·L$/, ''))) g.label += ' (levels)';

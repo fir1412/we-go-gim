@@ -897,6 +897,7 @@ a.mini { text-decoration: none; display: inline-grid; place-items: center; color
 .wz-main small { font-weight: 500; opacity: .85; }
 .wz-more summary { padding: 14px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .wz-more .wz-choices { border-top: 1px solid var(--line); }
+.wz-why { margin: 0; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
 .tpl { display: grid; gap: 8px; }
 .tpl p { margin: 0; }
 .tdays { display: flex; flex-wrap: wrap; gap: 6px; }

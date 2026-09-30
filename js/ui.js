@@ -190,26 +190,27 @@ export function openSheet(html, { onClose, label = 'Dialog' } = {}) {
       else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
     }
   });
-  // Swipe down to close, when the sheet is scrolled to its top.
-  let x0 = null, y0 = null, dy = 0;
+  // Swipe down to close, when the sheet is scrolled to its top. Not from a field or slider: that's for typing or dragging it.
+  let x0 = null, y0 = null, dy = 0, t0 = 0;
   sheet.addEventListener('touchstart', e => {
-    const t = e.touches[0];
-    [x0, y0, dy] = e.touches.length === 1 && sheet.scrollTop <= 0 ? [t.clientX, t.clientY, 0] : [null, null, 0];
+    const t = e.touches[0], ok = e.touches.length === 1 && sheet.scrollTop <= 0 && !e.target.closest('input, select, textarea');
+    [x0, y0, dy, t0] = ok ? [t.clientX, t.clientY, 0, e.timeStamp] : [null, null, 0, 0];
     sheet.style.transition = '';
   }, { passive: true });
   sheet.addEventListener('touchmove', e => {
     if (y0 == null) return;
     const t = e.touches[0], d = t.clientY - y0;
-    // Scrolling up, or sideways (a chip row, a slider): not a swipe.
+    // Scrolling up, or sideways (a chip row): not a swipe.
     if (!dy && (d <= 0 || Math.abs(t.clientX - x0) > d)) { y0 = null; return; }
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     dy = Math.max(0, d);
     sheet.style.transform = `translateY(${dy}px)`;
   }, { passive: false });
-  const release = () => {
+  const release = e => {
     if (y0 == null) return;
     y0 = null;
-    if (dy > Math.min(100, sheet.offsetHeight / 4)) return closeSheet();
+    const flick = dy > 30 && dy / Math.max(1, e.timeStamp - t0) > 0.6; // px per ms
+    if (dy > Math.min(100, sheet.offsetHeight / 4) || flick) return closeSheet();
     sheet.style.transition = 'transform .2s ease';
     sheet.style.transform = '';
   };
