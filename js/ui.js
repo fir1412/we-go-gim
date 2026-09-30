@@ -190,7 +190,31 @@ export function openSheet(html, { onClose, label = 'Dialog' } = {}) {
       else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
     }
   });
-  // Android back button closes the sheet instead of leaving the screen.
+  // Swipe down to close, when the sheet is scrolled to its top.
+  let x0 = null, y0 = null, dy = 0;
+  sheet.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    [x0, y0, dy] = e.touches.length === 1 && sheet.scrollTop <= 0 ? [t.clientX, t.clientY, 0] : [null, null, 0];
+    sheet.style.transition = '';
+  }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    if (y0 == null) return;
+    const t = e.touches[0], d = t.clientY - y0;
+    // Scrolling up, or sideways (a chip row, a slider): not a swipe.
+    if (!dy && (d <= 0 || Math.abs(t.clientX - x0) > d)) { y0 = null; return; }
+    e.preventDefault();
+    dy = Math.max(0, d);
+    sheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: false });
+  const release = () => {
+    if (y0 == null) return;
+    y0 = null;
+    if (dy > Math.min(100, sheet.offsetHeight / 4)) return closeSheet();
+    sheet.style.transition = 'transform .2s ease';
+    sheet.style.transform = '';
+  };
+  sheet.addEventListener('touchend', release);
+  sheet.addEventListener('touchcancel', release);
   // Android back button closes the sheet; closing it from its own buttons drops the entry again (closeSheet).
   if (!history.state?.sheet) history.pushState({ sheet: true, i: (history.state?.i ?? 0) + 1 }, '');
   sheetClose = () => {
