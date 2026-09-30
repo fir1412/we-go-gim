@@ -65,6 +65,7 @@ body { display: block; }
 .chipbtn svg { width: 17px; height: 17px; color: var(--c); }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--mute); font-size: 0.75rem; display: inline-flex; align-items: center; gap: 3px; text-decoration: underline; text-underline-offset: 2px; }
 .linkbtn svg { width: 13px; height: 13px; }
+.wz-hero .linkbtn { min-height: 44px; margin-top: 2px; }
 .linkbtn.center { align-self: center; padding: 8px; }
 .linkbtn.danger, .li.danger b { color: var(--down); }
 .pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; background: color-mix(in srgb, var(--k, var(--mute)) 16%, transparent); color: color-mix(in srgb, var(--k, var(--mute)) 72%, var(--ink)); vertical-align: 1px; }

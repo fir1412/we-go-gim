@@ -215,6 +215,35 @@ document.addEventListener('input', ev => {
   try { t.setSelectionRange(c, c); } catch {}
 });
 
+// Most lost data is someone not knowing what deletes it: say where it lives, what clears it, and offer a backup.
+function dataKept() {
+  const li = s => `<li>${esc(s)}</li>`;
+  const sheet = openSheet(`<h2 class="sh-title">How your data is kept</h2><ul class="steps">
+    ${li('Only on this phone, in the storage of the browser the app runs in. It is not copied to a server or to your other devices, so no one can bring it back, not even the developer.')}
+    ${li('What is kept: your workouts, exercises, plan, body weight, measurements, progress photos and settings.')}
+    ${li("Deleted by: uninstalling the app, clearing the browser's data for it, cleaner apps, or a phone reset.")}
+    ${isIOS() && !standalone() ? li("On iPhone, keep the app on the Home Screen: Safari clears websites it hasn't seen for 7 days.") : ''}
+    ${li('Safe through: closing, restarting, updates and going offline.')}
+    ${li('New phone? Save a backup, then restore it there.')}</ul>
+    <div class="row2"><a class="btn" href="#/data">Back up now</a><button class="btn ghost" data-x="ok">Got it</button></div>`, { label: 'How your data is kept' });
+  sheet.addEventListener('click', e => { if (e.target.closest('[data-x], a[href^="#/"]')) closeSheet(); });
+}
+// What the browser itself recorded, so "never uploads your workouts" can be checked rather than trusted.
+function netCheck() {
+  const hosts = [...new Set(performance.getEntriesByType('navigation').concat(performance.getEntriesByType('resource')).map(e => { try { return new URL(e.name).host; } catch { return ''; } }).filter(Boolean))];
+  const what = h => (h === location.host ? "we go gim's own files (the app itself)"
+    : h === 'cdnjs.cloudflare.com' ? 'The PDF reader, fetched when you import a PDF. Your file is read on this phone.'
+    : /(^|\.)google\.com$/.test(h) ? 'Google Forms: feedback you chose to send'
+    : 'Not expected: please tell the developer');
+  const sheet = openSheet(`<h2 class="sh-title">Check it yourself</h2>
+    <p class="sh-body">Every website this page has contacted since it opened, as your browser recorded it:</p>
+    ${hosts.every(h => h === location.host) ? `<div class="warn netok" style="--k:var(--up)"><span>Only the app's own website. Nothing else.</span></div>` : ''}
+    <ul class="steps nethosts">${hosts.map(h => `<li><b>${esc(h)}</b><br><small>${esc(what(h))}</small></li>`).join('')}</ul>
+    <p class="fine">Try this: turn on airplane mode, then log a set. It still works.</p>
+    <p class="fine"><a href="https://github.com/fir1412/we-go-gim" target="_blank" rel="noopener">The app is open source: anyone can read the code on GitHub.</a></p>
+    <button class="btn" data-x="ok">Got it</button>`, { label: 'Check it yourself' });
+  sheet.addEventListener('click', e => { if (e.target.closest('[data-x], a[href^="#/"]')) closeSheet(); });
+}
 const GLOBAL = {
   tip: el => toast(TIP(el.dataset.k)),
   'timer-add': () => { if (S.draft?.timer) { S.draft.timer.end += 30000; saveDraft(); paintTimer(); restNotice(); } },
@@ -227,6 +256,8 @@ const GLOBAL = {
   },
   'cal-export': async () => (await loadView('more')).exportCalendar(),
   install: () => promptInstall(),
+  'data-kept': () => dataKept(),
+  'net-check': () => netCheck(),
   'reload-app': () => reloadSaved(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
@@ -352,8 +383,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.11';
+export const APP_VERSION = '1.9.12';
 const WHATS_NEW = {
+  '1.9.12': ['Check it yourself: see every website the app has contacted (from Welcome or Settings)', 'How your data is kept: where your workouts live, what can delete them, and a backup button (Settings)'],
   '1.9.11': ['App colours: pick a palette in More → Settings (Graphite, Midnight, Forest, Ember, Grape) or set your own background and card colours. Text stays readable on whatever you pick'],
   '1.9.10': ['Install works in every browser: Safari, Firefox and Samsung Internet get their own steps, and links opened inside WhatsApp or Instagram say to open a real browser first', 'A backup with a very long imported workout now restores (trimmed to 100 exercises and 100 sets) instead of being refused'],
   '1.9.9': ['Swipe a pulled-up card down to close it'],

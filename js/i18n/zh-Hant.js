@@ -2383,6 +2383,25 @@ export default {
 "Background": "背景",
 "Cards": "卡片",
 "These are for the dark theme. Switch the theme to Light to set its colours too. Text stays readable on whatever you pick.": "這些用於深色主題。把主題切換為淺色，也可以設定它的顏色。無論選什麼顏色，文字都保持清晰易讀。",
-"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "這些用於淺色主題。把主題切換為深色，也可以設定它的顏色。無論選什麼顏色，文字都保持清晰易讀。"
+"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "這些用於淺色主題。把主題切換為深色，也可以設定它的顏色。無論選什麼顏色，文字都保持清晰易讀。",
+"How your data is kept": "你的資料如何保存",
+"Where your workouts live, and what can delete them": "訓練紀錄存在哪裡，以及什麼會刪除它們",
+"Check it yourself": "自己檢查",
+"Every website this page has contacted since it opened": "本頁面開啟以來聯絡過的每個網站",
+"Every change, with its code": "每一次變更及其程式碼",
+"Only on this phone, in the storage of the browser the app runs in. It is not copied to a server or to your other devices, so no one can bring it back, not even the developer.": "只保存在這部手機上，在執行本應用程式的瀏覽器儲存空間中。它不會複製到伺服器或你的其他裝置，所以沒有人能找回，開發者也不能。",
+"What is kept: your workouts, exercises, plan, body weight, measurements, progress photos and settings.": "保存的內容：你的訓練、動作、計畫、體重、身體圍度、進度照片和設定。",
+"Deleted by: uninstalling the app, clearing the browser's data for it, cleaner apps, or a phone reset.": "會被這些刪除：解除安裝應用程式、清除瀏覽器中本應用程式的資料、清理類應用程式或重設手機。",
+"On iPhone, keep the app on the Home Screen: Safari clears websites it hasn't seen for 7 days.": "在 iPhone 上，請把應用程式放在主畫面：Safari 會清除 7 天未開啟的網站。",
+"Safe through: closing, restarting, updates and going offline.": "這些情況下是安全的：關閉、重新啟動、更新和離線。",
+"New phone? Save a backup, then restore it there.": "換新手機？先儲存備份，再在新手機上還原。",
+"we go gim's own files (the app itself)": "we go gim 自己的檔案（應用程式本身）",
+"The PDF reader, fetched when you import a PDF. Your file is read on this phone.": "PDF 閱讀器，在你匯入 PDF 時下載。你的檔案在這部手機上讀取。",
+"Google Forms: feedback you chose to send": "Google 表單：你選擇傳送的意見回饋",
+"Not expected: please tell the developer": "意料之外：請告訴開發者",
+"Every website this page has contacted since it opened, as your browser recorded it:": "本頁面開啟以來聯絡過的每個網站（由你的瀏覽器記錄）：",
+"Only the app's own website. Nothing else.": "只有應用程式自己的網站，沒有別的。",
+"Try this: turn on airplane mode, then log a set. It still works.": "試試看：開啟飛航模式，然後記錄一組。仍然可以使用。",
+"The app is open source: anyone can read the code on GitHub.": "本應用程式是開源的：任何人都可以在 GitHub 上查看程式碼。"
 }
 };

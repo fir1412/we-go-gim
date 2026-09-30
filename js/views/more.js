@@ -683,12 +683,17 @@ function settings() {
       <button class="btn ghost" data-act="st-save">Save</button></div>
     <div class="row2"><button class="btn ghost" data-act="check-update">Check for updates</button><a class="btn ghost" href="#/setup">Rebuild my split</a></div>
     <button class="btn ghost" data-act="tour">Replay the quick tour</button>
+    <div class="list box">
+      <button class="li mrow" data-act="data-kept" style="--k:var(--up)"><i class="mic">${ICON.save}</i><span><b>How your data is kept</b><small>Where your workouts live, and what can delete them</small></span>${ICON.chev}</button>
+      <button class="li mrow" data-act="net-check" style="--k:var(--upper)"><i class="mic">${ICON.check}</i><span><b>Check it yourself</b><small>Every website this page has contacted since it opened</small></span>${ICON.chev}</button>
+    </div>
     <section class="box pad about"><p class="lbl">About and legal</p>
       <p><b>Not medical advice.</b> Suggestions are general training guidance from your own logs. Stop and see a doctor for chest pain, fainting, unusual breathlessness, palpitations, numbness, or sharp or radiating pain.</p>
       <p><b>Privacy.</b> No accounts, analytics or trackers. Your workouts stay on this phone; nobody else can see them. Feedback you choose to send goes to the developer. The privacy page lists the few other times the app goes online.</p>
       <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
       <p>3D view: three.js (MIT). 3D muscle model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas, CC BY-SA 4.0. Details in anatomy/ATTRIBUTION.txt.</p>
       <p class="links"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of use</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a> · <a href="https://github.com/fir1412/we-go-gim/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Notices</a></p></section>
+    <p class="fine"><a href="https://github.com/fir1412/we-go-gim/commits/main" target="_blank" rel="noopener">Every change, with its code</a></p>
     <p class="fine">we go gim ${APP_VERSION}. Heart-rate and weight sync with Health Connect needs the Android app wrapper; for now, log them here.</p>`;
   return { title: 'Settings', sub: 'Make it yours', back: 'more', html: h, color: 'rest' };
 }
