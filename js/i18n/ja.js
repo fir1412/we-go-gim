@@ -2383,6 +2383,25 @@ export default {
 "Background": "背景",
 "Cards": "カード",
 "These are for the dark theme. Switch the theme to Light to set its colours too. Text stays readable on whatever you pick.": "ダークテーマ用の色です。テーマをライトに切り替えると、そちらの色も設定できます。どの色を選んでも文字は読みやすく保たれます。",
-"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "ライトテーマ用の色です。テーマをダークに切り替えると、そちらの色も設定できます。どの色を選んでも文字は読みやすく保たれます。"
+"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "ライトテーマ用の色です。テーマをダークに切り替えると、そちらの色も設定できます。どの色を選んでも文字は読みやすく保たれます。",
+"How your data is kept": "データの保存方法",
+"Where your workouts live, and what can delete them": "ワークアウトの保存場所と、削除される原因",
+"Check it yourself": "自分で確かめる",
+"Every website this page has contacted since it opened": "このページが開いてから接続したすべてのサイト",
+"Every change, with its code": "すべての変更とそのコード",
+"Only on this phone, in the storage of the browser the app runs in. It is not copied to a server or to your other devices, so no one can bring it back, not even the developer.": "このスマホの中だけ、アプリが動くブラウザのストレージに保存されます。サーバーや他の端末にはコピーされないため、開発者を含め誰も復元できません。",
+"What is kept: your workouts, exercises, plan, body weight, measurements, progress photos and settings.": "保存されるもの：ワークアウト、種目、プラン、体重、サイズ、進捗写真、設定。",
+"Deleted by: uninstalling the app, clearing the browser's data for it, cleaner apps, or a phone reset.": "削除される原因：アプリのアンインストール、ブラウザのデータ消去、クリーナーアプリ、スマホの初期化。",
+"On iPhone, keep the app on the Home Screen: Safari clears websites it hasn't seen for 7 days.": "iPhone ではアプリをホーム画面に置いてください。Safari は 7 日間開かれていないサイトのデータを消去します。",
+"Safe through: closing, restarting, updates and going offline.": "安全なとき：閉じる、再起動、アップデート、オフライン。",
+"New phone? Save a backup, then restore it there.": "機種変更の際は、バックアップを保存してから新しいスマホで復元してください。",
+"we go gim's own files (the app itself)": "we go gim 自身のファイル（アプリ本体）",
+"The PDF reader, fetched when you import a PDF. Your file is read on this phone.": "PDF リーダー。PDF を取り込むときに読み込まれます。ファイルはこのスマホの中で読み取られます。",
+"Google Forms: feedback you chose to send": "Google フォーム：送信を選んだフィードバック",
+"Not expected: please tell the developer": "想定外：開発者に知らせてください",
+"Every website this page has contacted since it opened, as your browser recorded it:": "このページが開いてから接続したすべてのサイト（ブラウザの記録）：",
+"Only the app's own website. Nothing else.": "アプリ自身のサイトだけです。ほかにはありません。",
+"Try this: turn on airplane mode, then log a set. It still works.": "試してみてください：機内モードにしてからセットを記録しても、そのまま使えます。",
+"The app is open source: anyone can read the code on GitHub.": "このアプリはオープンソースです。誰でも GitHub でコードを読めます。"
 }
 };

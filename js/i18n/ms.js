@@ -2383,6 +2383,25 @@ export default {
 "Background": "Latar belakang",
 "Cards": "Kad",
 "These are for the dark theme. Switch the theme to Light to set its colours too. Text stays readable on whatever you pick.": "Ini untuk tema gelap. Tukar tema kepada Cerah untuk menetapkan warnanya juga. Teks kekal mudah dibaca pada apa jua warna yang anda pilih.",
-"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "Ini untuk tema cerah. Tukar tema kepada Gelap untuk menetapkan warnanya juga. Teks kekal mudah dibaca pada apa jua warna yang anda pilih."
+"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "Ini untuk tema cerah. Tukar tema kepada Gelap untuk menetapkan warnanya juga. Teks kekal mudah dibaca pada apa jua warna yang anda pilih.",
+"How your data is kept": "Cara data anda disimpan",
+"Where your workouts live, and what can delete them": "Di mana senaman anda disimpan, dan apa yang boleh memadamnya",
+"Check it yourself": "Semak sendiri",
+"Every website this page has contacted since it opened": "Setiap laman web yang dihubungi halaman ini sejak dibuka",
+"Every change, with its code": "Setiap perubahan, dengan kodnya",
+"Only on this phone, in the storage of the browser the app runs in. It is not copied to a server or to your other devices, so no one can bring it back, not even the developer.": "Hanya pada telefon ini, dalam storan pelayar tempat aplikasi berjalan. Ia tidak disalin ke pelayan atau peranti anda yang lain, jadi tiada sesiapa boleh memulihkannya, termasuk pembangun.",
+"What is kept: your workouts, exercises, plan, body weight, measurements, progress photos and settings.": "Apa yang disimpan: senaman, latihan, pelan, berat badan, ukuran, foto kemajuan dan tetapan anda.",
+"Deleted by: uninstalling the app, clearing the browser's data for it, cleaner apps, or a phone reset.": "Dipadam oleh: nyahpasang aplikasi, mengosongkan data pelayar untuknya, aplikasi pembersih, atau set semula telefon.",
+"On iPhone, keep the app on the Home Screen: Safari clears websites it hasn't seen for 7 days.": "Di iPhone, simpan aplikasi di Skrin Utama: Safari mengosongkan laman web yang tidak dibuka selama 7 hari.",
+"Safe through: closing, restarting, updates and going offline.": "Selamat semasa: menutup, memulakan semula, kemas kini dan luar talian.",
+"New phone? Save a backup, then restore it there.": "Telefon baharu? Simpan sandaran, kemudian pulihkannya di sana.",
+"we go gim's own files (the app itself)": "Fail we go gim sendiri (aplikasi itu sendiri)",
+"The PDF reader, fetched when you import a PDF. Your file is read on this phone.": "Pembaca PDF, dimuat turun apabila anda mengimport PDF. Fail anda dibaca pada telefon ini.",
+"Google Forms: feedback you chose to send": "Google Forms: maklum balas yang anda pilih untuk hantar",
+"Not expected: please tell the developer": "Tidak dijangka: sila beritahu pembangun",
+"Every website this page has contacted since it opened, as your browser recorded it:": "Setiap laman web yang dihubungi halaman ini sejak dibuka, seperti yang direkodkan oleh pelayar anda:",
+"Only the app's own website. Nothing else.": "Hanya laman web aplikasi ini sendiri. Tiada yang lain.",
+"Try this: turn on airplane mode, then log a set. It still works.": "Cuba ini: hidupkan mod pesawat, kemudian catat satu set. Ia masih berfungsi.",
+"The app is open source: anyone can read the code on GitHub.": "Aplikasi ini sumber terbuka: sesiapa sahaja boleh membaca kodnya di GitHub."
 }
 };
