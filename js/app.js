@@ -1,6 +1,6 @@
 import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from './state.js';
 import { setUnits, setBwLabel } from './engine.js';
-import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, setOnBack, sheetSettling, selectorFor, toast, cvar, isHex, onFor, expertWording, setDateLang } from './ui.js';
+import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, setOnBack, sheetSettling, selectorFor, toast, cvar, isHex, onFor, expertWording, setDateLang, isIOS, standalone } from './ui.js';
 import { setPlain } from './plain.js';
 import * as db from './db.js';
 import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i18n.js';
@@ -225,7 +225,7 @@ const GLOBAL = {
     await reloadSaved();
   },
   'cal-export': async () => (await loadView('more')).exportCalendar(),
-  install: async () => { if (!(await promptInstall())) toast('Use the browser menu → Add to Home screen', 'flat'); },
+  install: () => promptInstall(),
   'reload-app': () => reloadSaved(),
   'timer-skip': () => { if (S.draft) { S.draft.timer = null; saveDraft(); paintTimer(); restNotice(); } },
 };
@@ -352,7 +352,7 @@ matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S
 // ---- first-run tour and "what's new" ------------------------------------------------------
 export const APP_VERSION = '1.9.10';
 const WHATS_NEW = {
-  '1.9.10': ['A backup with a very long imported workout now restores (trimmed to 100 exercises and 100 sets) instead of being refused'],
+  '1.9.10': ['Install works in every browser: Safari, Firefox and Samsung Internet get their own steps, and links opened inside WhatsApp or Instagram say to open a real browser first', 'A backup with a very long imported workout now restores (trimmed to 100 exercises and 100 sets) instead of being refused'],
   '1.9.9': ['Swipe a pulled-up card down to close it'],
   '1.9.8': ['Tap 3+ reps left on the last set and the weight goes up faster: straight away, or a double step at the top of the range'],
   '1.9.7': ['Not sure yet? Look around with sample data from the welcome screen: eight made-up weeks to explore, removed with one tap on “Start for real”', 'Change a lift to kg, lb or machine levels mid-workout from its ⋮ menu (weights are always kept in kg)', 'Pain on a lift two workouts running now goes lighter and says to get it checked', 'Clearer privacy and terms pages, with a summary in every language and a contact email'],
@@ -480,8 +480,9 @@ export function showTour(start = 0, { onDone } = {}) {
     if (t === 'next' && i === TOUR.length - 1) { show('today'); closeSheet(); learnView.learnTourDone(); return; }
     if (t === 'next') i++;
     else if (t === 'back') i--;
-    else if (t === 'install') { await promptInstall(); paint(); return; }
-    else { closeSheet(); return; }
+    // With the browser's own dialog the tour stays; otherwise the steps take its place, so the tour ends first.
+    else if (t === 'install') { if (installEvt) { await promptInstall(); paint(); } else { show('today'); closeSheet(); learnView.learnTourDone(); promptInstall(); } return; }
+    else { closeSheet(); if (canInstall()) toast('You can install the app any time from More', 'flat'); return; }
     paint();
   });
   paint();
@@ -534,9 +535,33 @@ export async function checkForUpdates() {
 let installEvt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (parseRoute().name === 'more') render(); });
 window.addEventListener('appinstalled', () => { installEvt = null; toast('Installed. Open we go gim from your home screen.', 'up'); });
-export const canInstall = () => !!installEvt;
+/** Offered in every browser until the app runs installed: one tap where the browser allows it, its own steps elsewhere. */
+export const canInstall = () => !!installEvt || !standalone();
+/** How to install in this browser, as [title, steps, note]. Only Chrome-family browsers can do it in one tap. */
+function installSteps() {
+  const ua = navigator.userAgent, samsung = /SamsungBrowser/.test(ua);
+  // A link opened inside WhatsApp, Instagram, Facebook…: their viewer can't add apps, a real browser can.
+  if (/FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|TikTok|Snapchat|; wv\)/.test(ua)) return ['Open we go gim in your browser first',
+    ['Tap ⋮ or ⋯ at the top', 'Open in Chrome or Safari', 'Then tap Install the app again'],
+    'Apps like WhatsApp, Instagram and Facebook open links in their own viewer, which cannot add apps to the home screen.'];
+  if (isIOS()) return ['Install on iPhone', ['Open this page in Safari', 'Tap Share (the square with an arrow)', 'Scroll down and tap Add to Home Screen, then Add'],
+    "Safari can clear data from sites you haven't opened for 7 days, and workouts logged in a Safari tab don't move to the Home Screen app. Install first, then log."];
+  if (/Android/.test(ua)) return ['Add we go gim to your home screen', [samsung ? 'Tap the menu ≡ at the bottom' : 'Tap the browser menu ⋮',
+    samsung ? 'Add page to → Home screen' : 'Tap Install or Add to Home screen', 'Open we go gim from there'], ''];
+  if (/Firefox\//.test(ua)) return ['Install we go gim on this computer', ['Firefox on a computer cannot install web apps. Open this page in Chrome or Edge', 'Click the install icon at the right of the address bar'], ''];
+  if (/Macintosh/.test(ua) && /Version\/[\d.]+ Safari/.test(ua)) return ['Install we go gim on this Mac', ['In the menu bar, choose File', 'Add to Dock'], ''];
+  return ['Install we go gim on this computer', ['Click the install icon at the right of the address bar', 'Or open the browser menu and choose Install'], ''];
+}
+function installSheet() {
+  const [title, steps, note] = installSteps();
+  const el = openSheet(`<h2 class="sh-title">${esc(title)}</h2><ol class="steps">${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    <p class="fine">It then opens full screen from the kitten icon, works offline and updates itself. Your data stays on this phone.</p>
+    ${note ? `<p class="fine">${esc(note)}</p>` : ''}<button class="btn" data-x="ok">Got it</button>`, { label: title });
+  el.addEventListener('click', e => { if (e.target.closest('[data-x]')) closeSheet(); });
+}
+/** True when the browser's own install dialog was shown and accepted. Without one, shows this browser's steps. */
 export async function promptInstall() {
-  if (!installEvt) return false;
+  if (!installEvt) { installSheet(); return false; }
   const e = installEvt;
   installEvt = null;
   e.prompt();

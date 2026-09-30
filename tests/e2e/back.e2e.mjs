@@ -71,17 +71,17 @@ test('on Today, a sheet closed with its own button leaves one back press to clos
 test('a sheet swiped down closes; a short pull springs back', { skip }, async () => {
   await fresh();
   await tab('more'); await tab('today');
-  const swipe = px => b.run(async d => {
-    const ui = await import('/js/ui.js');
-    if (!ui.sheetOpen()) ui.openSheet('<p>hi</p>');
-    const sh = document.querySelector('.scrim .sheet');
-    const at = y => [new Touch({ identifier: 1, target: sh, clientX: 100, clientY: y })];
-    sh.dispatchEvent(new TouchEvent('touchstart', { touches: at(300), bubbles: true }));
-    sh.dispatchEvent(new TouchEvent('touchmove', { touches: at(300 + d), bubbles: true, cancelable: true }));
-    sh.dispatchEvent(new TouchEvent('touchend', { touches: [], bubbles: true }));
-    await new Promise(r => setTimeout(r, 200));
-    return ui.sheetOpen();
-  }, px);
+  // A real finger drag from just inside the sheet's top edge.
+  const swipe = async px => {
+    const top = await b.run(async () => {
+      const ui = await import('/js/ui.js');
+      if (!ui.sheetOpen()) ui.openSheet('<p>hi</p><p>there</p><p>more</p>');
+      await new Promise(r => setTimeout(r, 400)); // past the opening slide
+      return document.querySelector('.scrim .sheet').getBoundingClientRect().top;
+    });
+    await b.drag(195, top + 12, 0, px);
+    return b.run(async () => (await import('/js/ui.js')).sheetOpen());
+  };
   assert.equal(await swipe(20), true, 'a short pull leaves it open');
   assert.equal(await swipe(200), false, 'a long swipe closes it');
   assert.equal(await back(), 'left the app', 'and leaves no extra back press');
