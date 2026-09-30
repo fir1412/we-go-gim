@@ -9,6 +9,7 @@ import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, r
 import { searchText, CARDIO_WORDS } from '../seed.js';
 import { filterList } from '../search.js';
 import { learnProgress } from '../learn.js';
+import { PALETTES, okMine, paletteFor, fitSurface } from '../palette.js';
 import { go, showTour, APP_VERSION, canInstall, promptInstall, checkForUpdates } from '../app.js';
 import { openFeedback } from '../feedback.js';
 import { parseSplitText, weeklyVolume, moveDay, blankWeek, WEEK_ORDER } from '../split.js';
@@ -631,6 +632,18 @@ function impPicker(gi) {
 }
 
 // ---- settings --------------------------------------------------------------------------------------------
+const themeNow = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+/** App colours: the presets, then your own. Each swatch shows the background and cards of the theme on screen. */
+function paletteRow(st) {
+  const mode = themeNow(), mine = st.appPalette === 'mine' && okMine(st.myPalette);
+  const cur = mine ? 'mine' : Object.hasOwn(PALETTES, st.appPalette) ? st.appPalette : 'default';
+  const sw = (id, name, s) => `<button class="palsw" data-act="st-palette" data-v="${id}" aria-pressed="${cur === id}"><i aria-hidden="true" style="background:${s[0]}"><b style="background:${s[1]}"></b></i><span>${name}</span></button>`;
+  const own = okMine(st.myPalette) ? paletteFor({ appPalette: 'mine', myPalette: st.myPalette }) : paletteFor(st);
+  const pick = (i, label) => `<label class="rrow"><span>${label}</span><input type="color" data-input="st-mine" data-i="${i}" value="${st.myPalette[mode][i].toLowerCase()}"></label>`;
+  return `<div class="stack"><span class="lbl">Colours</span><div class="pals" role="group" aria-label="Colours">
+    ${Object.entries(PALETTES).map(([id, p]) => sw(id, p.name, p[mode])).join('')}${sw('mine', 'Mine', own[mode])}</div>
+    ${mine ? `${pick(0, 'Background')}${pick(1, 'Cards')}<p class="fine">${mode === 'dark' ? 'These are for the dark theme. Switch the theme to Light to set its colours too.' : 'These are for the light theme. Switch the theme to Dark to set its colours too.'} Text stays readable on whatever you pick.</p>` : ''}</div>`;
+}
 function settings() {
   const st = S.settings;
   const tg = (f, title, sub) => `<label class="toggle"><input type="checkbox" id="st-${f}" data-input="st-toggle" data-f="${f}" ${st[f] ? 'checked' : ''}><span><b>${title}</b><small>${sub}</small></span></label>`;
@@ -640,6 +653,7 @@ function settings() {
   const en = getLang() === 'en';
   const h = `<div class="box pad stack">${langPicker(getLang(), LANGS)}
       ${seg('Theme', 'theme', st.theme, [['system', 'Auto'], ['dark', 'Dark'], ['light', 'Light']])}
+      ${paletteRow(st)}
       ${seg('Weights', 'st-units', st.units === 'lb' ? 'lb' : 'kg', [['kg', 'kg'], ['lb', 'lb']])}
       ${seg('Text size', 'st-text', st.textSize || 'normal', [['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']])}
       ${en ? seg('Words', 'st-wording', wording, [['plain', 'Plain'], ['expert', 'Gym terms']]) : ''}
@@ -1246,6 +1260,19 @@ export const actions = {
   },
   // settings
   theme: el => saveSettings({ theme: el.dataset.v }),
+  'st-palette'(el) {
+    const v = el.dataset.v;
+    if (v !== 'mine' || okMine(S.settings.myPalette)) return saveSettings({ appPalette: v });
+    // "Mine" starts as a copy of the colours on screen.
+    const p = paletteFor(S.settings);
+    return saveSettings({ appPalette: 'mine', myPalette: { dark: p.dark.slice(0, 2), light: p.light.slice(0, 2) } });
+  },
+  'st-mine'(el) {
+    if (!isHex(el.value) || !okMine(S.settings.myPalette)) return;
+    const mode = themeNow(), p = { dark: [...S.settings.myPalette.dark], light: [...S.settings.myPalette.light] };
+    p[mode][+el.dataset.i] = fitSurface(el.value.toUpperCase(), mode);
+    return saveSettings({ myPalette: p });
+  },
   tour: () => showTour(),
   feedback: () => openFeedback(APP_VERSION),
   'close-sheet': () => closeSheet(),

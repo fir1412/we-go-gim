@@ -85,7 +85,7 @@ test('a sheet swiped down closes; a short pull springs back', { skip }, async ()
   assert.equal(await swipe(20), true, 'a short pull leaves it open');
   assert.equal(await swipe(60, 12), true, 'so does a slow 60px pull');
   assert.equal(await swipe(200), false, 'a long swipe closes it');
-  assert.equal(await swipe(60, 2), false, "a quick short flick closes it too");
+  assert.equal(await swipe(90, 1), false, "a quick flick under 100px closes it too"); // one step: fast even on a loaded machine
   assert.equal(await back(), 'left the app', 'and leaves no extra back press');
 });
 

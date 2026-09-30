@@ -2372,6 +2372,17 @@ export default {
 "In the menu bar, choose File": "メニューバーで「ファイル」を選ぶ",
 "Add to Dock": "Dock に追加",
 "Or open the browser menu and choose Install": "またはブラウザのメニューから「インストール」を選ぶ",
-"You can install the app any time from More": "アプリはいつでも「その他」からインストールできます"
+"You can install the app any time from More": "アプリはいつでも「その他」からインストールできます",
+"Colours": "カラー",
+"Default": "デフォルト",
+"Graphite": "グラファイト",
+"Forest": "フォレスト",
+"Ember": "エンバー",
+"Grape": "グレープ",
+"Mine": "マイカラー",
+"Background": "背景",
+"Cards": "カード",
+"These are for the dark theme. Switch the theme to Light to set its colours too. Text stays readable on whatever you pick.": "ダークテーマ用の色です。テーマをライトに切り替えると、そちらの色も設定できます。どの色を選んでも文字は読みやすく保たれます。",
+"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "ライトテーマ用の色です。テーマをダークに切り替えると、そちらの色も設定できます。どの色を選んでも文字は読みやすく保たれます。"
 }
 };

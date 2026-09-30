@@ -2372,6 +2372,17 @@ export default {
 "In the menu bar, choose File": "在選單列中選擇「檔案」",
 "Add to Dock": "加入 Dock",
 "Or open the browser menu and choose Install": "或開啟瀏覽器選單，選擇「安裝」",
-"You can install the app any time from More": "你隨時可以在「更多」中安裝應用程式"
+"You can install the app any time from More": "你隨時可以在「更多」中安裝應用程式",
+"Colours": "顏色",
+"Default": "預設",
+"Graphite": "石墨",
+"Forest": "森林",
+"Ember": "餘燼",
+"Grape": "葡萄",
+"Mine": "我的",
+"Background": "背景",
+"Cards": "卡片",
+"These are for the dark theme. Switch the theme to Light to set its colours too. Text stays readable on whatever you pick.": "這些用於深色主題。把主題切換為淺色，也可以設定它的顏色。無論選什麼顏色，文字都保持清晰易讀。",
+"These are for the light theme. Switch the theme to Dark to set its colours too. Text stays readable on whatever you pick.": "這些用於淺色主題。把主題切換為深色，也可以設定它的顏色。無論選什麼顏色，文字都保持清晰易讀。"
 }
 };
