@@ -884,6 +884,7 @@ export default {
 "Keep adding reps before adding load.": "重さを上げる前に、まず回数を増やしましょう。",
 "Keep at least one rest day": "休みの日を少なくとも1日残してください",
 "Keep at least one set, or remove the exercise": "セットを少なくとも1つ残すか、種目を削除してください",
+"{0} sets is the most one exercise keeps": "1つの種目に残せるのは {0} セットまでです",
 "Keep hard cardio away from leg days.": "きつい有酸素運動は脚の日から離しましょう。",
 "Keep it one tap away": "ワンタップで開けるように",
 "Keep my current programme": "今のプランのままにする",

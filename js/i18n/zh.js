@@ -884,6 +884,7 @@ export default {
 "Keep adding reps before adding load.": "先继续加次数，再加重量。",
 "Keep at least one rest day": "至少保留一个休息日",
 "Keep at least one set, or remove the exercise": "至少保留一组，或者删除这个动作",
+"{0} sets is the most one exercise keeps": "一个动作最多保留 {0} 组",
 "Keep hard cardio away from leg days.": "高强度有氧不要安排在练腿日附近。",
 "Keep it one tap away": "一点就能打开",
 "Keep my current programme": "保留我现在的计划",

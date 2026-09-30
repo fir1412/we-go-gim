@@ -884,6 +884,7 @@ export default {
 "Keep adding reps before adding load.": "Terus tambah ulangan sebelum tambah beban.",
 "Keep at least one rest day": "Kekalkan sekurang-kurangnya satu hari rehat",
 "Keep at least one set, or remove the exercise": "Kekalkan sekurang-kurangnya satu set, atau buang senaman ini",
+"{0} sets is the most one exercise keeps": "{0} set ialah had untuk satu senaman",
 "Keep hard cardio away from leg days.": "Jauhkan kardio berat daripada hari kaki.",
 "Keep it one tap away": "Sentiasa satu ketik sahaja",
 "Keep my current programme": "Kekalkan program semasa saya",
