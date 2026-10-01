@@ -62,11 +62,12 @@ export function themeVars(mode, s) {
   return v;
 }
 const block = (mode, s) => Object.entries(themeVars(mode, s)).map(([k, c]) => `--${k}:${c};`).join('');
-/** The stylesheet for a palette, in the same shape as css/app.css's theme rules (forced theme, or the system's). */
-export const paletteCss = p => `:root{${block('dark', p.dark)}}:root[data-theme="light"]{${block('light', p.light)}}@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){${block('light', p.light)}}}`;
+/** The stylesheet for a palette, in the same shape as css/app.css's theme rules (forced theme, or the system's).
+ *  html:root outranks css/app.css's :root rules wherever the tag sits (js/first.js puts it above the stylesheet). */
+export const paletteCss = p => `html:root{${block('dark', p.dark)}}html:root[data-theme="light"]{${block('light', p.light)}}@media (prefers-color-scheme: light){html:root:not([data-theme="dark"]){${block('light', p.light)}}}`;
 
 // ---- applying --------------------------------------------------------------------------------------------------------
-const SAVED = 'wgg-palette';   // the last stylesheet, so the colours are right before the database opens
+const SAVED = 'wgg-palette';   // the last stylesheet, which js/first.js puts on the page before anything is drawn
 function styleTag(css) {
   let st = document.getElementById('palette-css');
   if (!css) return st?.remove();
@@ -79,4 +80,3 @@ export function applyPalette(s) {
   styleTag(css);
   try { if (css) localStorage.setItem(SAVED, css); else localStorage.removeItem(SAVED); } catch { /* private window: the database copy still applies */ }
 }
-export function applySavedPalette() { try { styleTag(localStorage.getItem(SAVED)); } catch { /* none saved */ } }

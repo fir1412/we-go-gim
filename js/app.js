@@ -7,7 +7,7 @@ import { setLang, getLang, translate, LANGS, setUserNames, pickLang } from './i1
 import * as today from './views/today.js';
 import * as daily from './views/daily.js';
 import * as learnView from './views/learn.js';
-import { applyPalette, applySavedPalette } from './palette.js';
+import { applyPalette } from './palette.js';
 import './fx.js'; // motion and touch feedback (self-starting)
 
 const TABS = [
@@ -378,6 +378,7 @@ export function applyTheme() {
   const t = S.settings.theme;
   if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem('wgg-theme', t === 'dark' || t === 'light' ? t : ''); } catch { /* js/first.js falls back to the phone's theme */ }
   applyPalette(S.settings);
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg || '#0F1117');
@@ -385,8 +386,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.14';
+export const APP_VERSION = '1.9.15';
 const WHATS_NEW = {
+  '1.9.15': ['Opens with an outline of the app at once, instead of a blank screen, while it starts on a slow phone'],
   '1.9.14': ['Clearer Malay, Chinese and Japanese: one word for each thing on every screen, and the last English bits (chart labels, level names, empty months) are translated'],
   '1.9.13': ['Sample data now fills every screen: sleep, heart rate, a pain flag with a note, and two weeks of the daily log', 'Daily targets show on Today on rest days too', 'Using the app in Malay, Chinese or Japanese? Suggest a better word under the language picker. The daily charts and a workout’s sleep and feel line are now translated'],
   '1.9.12': ['Check it yourself: see every website the app has contacted (from Welcome or Settings)', 'How your data is kept: where your workouts live, what can delete them, and a backup button (Settings)'],
@@ -611,7 +613,6 @@ export async function promptInstall() {
 
 // ---- boot -----------------------------------------------------------------------------
 async function boot() {
-  applySavedPalette(); // your colours from the first paint, before the database opens
   // Never run inside another site's frame (clickjacking): GitHub Pages can't send frame-ancestors, so stop here.
   if (window.top !== window.self) {
     $('#screen').innerHTML = `<div class="empty"><b>we go gim can't run inside another page.</b><p><a href="${esc(location.href)}" target="_top" rel="noopener">Open it on its own</a></p></div>`;

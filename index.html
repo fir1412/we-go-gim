@@ -48,16 +48,41 @@
 <link rel="modulepreload" href="js/views/today.js">
 <link rel="modulepreload" href="js/views/daily.js">
 <link rel="modulepreload" href="js/views/learn.js">
-<link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/app.css">
+<script src="js/first.js"></script>
+<style>
+/* The loading outline: drawn from this page alone, before the stylesheet and the code arrive (seconds on a slow
+   phone). The colours are css/app.css's (tests/palette.test.mjs checks), in the saved theme and app colours
+   (js/first.js). :where() keeps every rule here weaker than css/app.css, which takes over when it loads. */
+:root { --page: #0A0C11; --bg: #0F1117; --panel: #161922; --card: #1C202B; --line: #2A2F3E; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --page: #E4E7EF; --bg: #F2F3F8; --panel: #FFFFFF; --card: #F7F8FB; --line: #DADEE8; } }
+:root[data-theme="light"] { --page: #E4E7EF; --bg: #F2F3F8; --panel: #FFFFFF; --card: #F7F8FB; --line: #DADEE8; }
+:where(html, body) { height: 100%; margin: 0; background: var(--page); }
+:where(#app) { display: flex; flex-direction: column; height: 100dvh; max-width: 560px; margin: 0 auto; background: var(--bg); }
+:where(#bar) { display: flex; align-items: center; gap: 8px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 8px; }
+:where(#screen) { flex: 1; min-height: 0; overflow: hidden; padding: 4px 14px 20px; display: flex; flex-direction: column; gap: 12px; }
+:where(#tabs) { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding: 10px 4px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.sk { display: block; flex: none; border-radius: 16px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.sk-t { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.sk-sub { width: 40%; height: 12px; border-radius: 6px; } .sk-h1 { width: 30%; height: 28px; border-radius: 8px; }
+.sk-pill { width: 92px; height: 44px; border-radius: 22px; }
+.sk-days { display: flex; gap: 8px; } .sk-days .sk { flex: 1; height: 66px; }
+.sk-card { height: 170px; } .sk-card.short { height: 110px; }
+.sk-tab { width: 24px; height: 24px; margin: 0 auto 18px; border-radius: 8px; background: var(--line); box-shadow: none; }
+.sk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) { .sk { animation: sk-pulse 1.2s ease-in-out infinite alternate; } }
+@keyframes sk-pulse { to { opacity: .55; } }
+</style>
 </head>
 <body>
 <div id="app">
-  <header class="bar" id="bar"></header>
-  <main id="screen" tabindex="-1"><div class="empty"><b>Loading…</b></div></main>
+  <header class="bar" id="bar"><div class="sk-t" aria-hidden="true"><i class="sk sk-sub"></i><i class="sk sk-h1"></i></div><i class="sk sk-pill" aria-hidden="true"></i></header>
+  <main id="screen" tabindex="-1"><span class="sk-sr" role="status">Loading…</span><div class="sk-days" aria-hidden="true"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div><i class="sk sk-card" aria-hidden="true"></i><i class="sk sk-card short" aria-hidden="true"></i><i class="sk sk-card" aria-hidden="true"></i></main>
   <div id="timer" role="timer" aria-label="Rest timer" hidden></div>
-  <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+  <nav class="tabs" id="tabs" aria-label="Sections"><i class="sk sk-tab"></i><i class="sk sk-tab"></i><i class="sk sk-tab"></i><i class="sk sk-tab"></i><i class="sk sk-tab"></i></nav>
 </div>
+<!-- Below the outline, so a slow stylesheet doesn't keep the page blank. -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/app.css">
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 <noscript><h1>we go gim: free workout tracker</h1><p>Fills in every workout from your last one. No account, works offline, and your data stays on your phone. It needs JavaScript to run.</p><p><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="https://github.com/fir1412/we-go-gim">Source code</a></p></noscript>
