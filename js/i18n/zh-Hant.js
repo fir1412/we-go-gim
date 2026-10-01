@@ -2454,6 +2454,15 @@ export default {
 "Calories, last {0} days": "熱量，最近 {0} 天",
 "compared per gym": "按健身房比較",
 "{0} set · personal best on {1}": "{0} 組 · {1} 重新整理個人最佳",
+": {0} reps": "：{0} 次",
+"Find weight: {0} reps": "試重：{0} 次",
+"Last Bodyweight: {0} reps · {1} · {2} sets of {3}–{4} reps": "上次自重：{0} 次 · {1} · {2} 組，每組 {3}–{4} 次",
+"Last {0} kg each: {1} reps · {2} · {3} sets of {4}–{5} reps": "上次每隻 {0} 公斤：{1} 次 · {2} · {3} 組，每組 {4}–{5} 次",
+"Last {0} kg: {1} reps · {2} · {3} sets of {4}–{5} reps": "上次 {0} 公斤：{1} 次 · {2} · {3} 組，每組 {4}–{5} 次",
+"Today: {0}: {1} reps.": "今天：{0}：{1} 次。",
+"{0}: {1} up {2}% (mostly calibration)": "{0}：{1} 提升 {2}%（主要來自校準）",
+"Estimated max across your last {0} workouts. A jump this big usually includes load calibration (early weights were light), so treat it as a new baseline rather than pure strength.": "最近 {0} 次訓練的估算 1RM。漲幅這麼大通常包含重量校準（起初的重量偏輕），所以把它當作新的基準，而不完全是力量的提升。",
+"Opens with an outline of the app at once, instead of a blank screen, while it starts on a slow phone": "在較慢的手機上啟動時，會立即顯示應用程式的輪廓，而不是空白畫面",
 "Clearer Malay, Chinese and Japanese: one word for each thing on every screen, and the last English bits (chart labels, level names, empty months) are translated": "馬來文、中文和日文更清楚：同一樣東西在所有頁面都用同一個說法，剩下的英文（圖表標籤、等級名稱、空白月份）也都翻譯了"
 }
 };

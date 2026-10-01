@@ -2454,6 +2454,15 @@ export default {
 "Calories, last {0} days": "Kalori, {0} hari lepas",
 "compared per gym": "dibanding mengikut gim",
 "{0} set · personal best on {1}": "{0} set · rekod terbaik pada {1}",
+": {0} reps": ": {0} ulangan",
+"Find weight: {0} reps": "Cari berat: {0} ulangan",
+"Last Bodyweight: {0} reps · {1} · {2} sets of {3}–{4} reps": "Kali lepas berat badan: {0} ulangan · {1} · {2} set {3}–{4} ulangan",
+"Last {0} kg each: {1} reps · {2} · {3} sets of {4}–{5} reps": "Kali lepas {0} kg setiap satu: {1} ulangan · {2} · {3} set {4}–{5} ulangan",
+"Last {0} kg: {1} reps · {2} · {3} sets of {4}–{5} reps": "Kali lepas {0} kg: {1} ulangan · {2} · {3} set {4}–{5} ulangan",
+"Today: {0}: {1} reps.": "Hari ini: {0}: {1} ulangan.",
+"{0}: {1} up {2}% (mostly calibration)": "{0}: {1} naik {2}% (kebanyakannya kalibrasi)",
+"Estimated max across your last {0} workouts. A jump this big usually includes load calibration (early weights were light), so treat it as a new baseline rather than pure strength.": "Anggaran maksimum merentas {0} sesi terakhir anda. Lonjakan sebesar ini biasanya termasuk kalibrasi beban (berat awal ringan), jadi anggap ia asas baharu, bukan kekuatan semata-mata.",
+"Opens with an outline of the app at once, instead of a blank screen, while it starts on a slow phone": "Terus menunjukkan rangka aplikasi, bukan skrin kosong, sementara ia bermula pada telefon yang perlahan",
 "Clearer Malay, Chinese and Japanese: one word for each thing on every screen, and the last English bits (chart labels, level names, empty months) are translated": "Bahasa Melayu, Cina dan Jepun yang lebih jelas: satu perkataan untuk setiap perkara di semua skrin, dan saki-baki bahasa Inggeris (label carta, nama tahap, bulan kosong) kini diterjemah"
 }
 };

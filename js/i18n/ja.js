@@ -2454,6 +2454,15 @@ export default {
 "Calories, last {0} days": "カロリー、直近 {0} 日",
 "compared per gym": "ジムごとに比較",
 "{0} set · personal best on {1}": "{0} セット · {1} に自己ベスト",
+": {0} reps": "：{0} 回",
+"Find weight: {0} reps": "重さを決める：{0} 回",
+"Last Bodyweight: {0} reps · {1} · {2} sets of {3}–{4} reps": "前回 自重：{0} 回 · {1} · {2} セット × {3}–{4} 回",
+"Last {0} kg each: {1} reps · {2} · {3} sets of {4}–{5} reps": "前回 片手 {0} kg：{1} 回 · {2} · {3} セット × {4}–{5} 回",
+"Last {0} kg: {1} reps · {2} · {3} sets of {4}–{5} reps": "前回 {0} kg：{1} 回 · {2} · {3} セット × {4}–{5} 回",
+"Today: {0}: {1} reps.": "今日：{0}：{1} 回。",
+"{0}: {1} up {2}% (mostly calibration)": "{0}：{1} が {2}% アップ（ほぼキャリブレーション分）",
+"Estimated max across your last {0} workouts. A jump this big usually includes load calibration (early weights were light), so treat it as a new baseline rather than pure strength.": "直近 {0} 回のトレーニングの推定1RM（1回挙げられる最大重量）。これほど大きな伸びには、たいてい重さのキャリブレーション（最初の重さが軽かった分）が含まれます。純粋な筋力アップではなく、新しい基準と考えましょう。",
+"Opens with an outline of the app at once, instead of a blank screen, while it starts on a slow phone": "遅いスマホでも、起動中は真っ白な画面ではなく、すぐにアプリの輪郭を表示します",
 "Clearer Malay, Chinese and Japanese: one word for each thing on every screen, and the last English bits (chart labels, level names, empty months) are translated": "マレー語・中国語・日本語をより分かりやすく：同じものはどの画面でも同じ言葉で呼び、残っていた英語（グラフのラベル、レベル名、記録のない月）も翻訳しました"
 }
 };

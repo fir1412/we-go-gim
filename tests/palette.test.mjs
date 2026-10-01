@@ -48,6 +48,13 @@ test("the default palette and the token copy match css/app.css", () => {
   const last = (sel, k) => [...css.matchAll(new RegExp(`${sel} \\{[^}]*--${k}: (#[0-9A-F]{6})`, 'gi'))].at(-1)?.[1].toUpperCase();
   for (const k of Object.keys(TOKENS.light)) assert.equal(last(':root\\[data-theme="light"\\]', k), TOKENS.light[k], `light ${k}`);
   for (const k of Object.keys(TOKENS.dark)) assert.equal(last(':root', k) ?? val(dark, k), TOKENS.dark[k], `dark ${k}`);
+  // The loading outline in index.html repeats the surface colours, so it doesn't flash a different shade.
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const [skDark] = html.match(/:root \{[^}]*\}/), [skLight] = html.match(/:root\[data-theme="light"\] \{[^}]*\}/);
+  for (const k of ['page', 'bg', 'panel', 'card', 'line']) {
+    assert.equal(val(skDark, k), val(dark, k), `outline dark ${k}`);
+    assert.equal(val(skLight, k), val(light, k), `outline light ${k}`);
+  }
 });
 
 test('a restored backup keeps only a real palette and "#RRGGBB" colours', async () => {
