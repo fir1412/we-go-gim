@@ -385,8 +385,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.9.13';
+export const APP_VERSION = '1.9.14';
 const WHATS_NEW = {
+  '1.9.14': ['Clearer Malay, Chinese and Japanese: one word for each thing on every screen, and the last English bits (chart labels, level names, empty months) are translated'],
   '1.9.13': ['Sample data now fills every screen: sleep, heart rate, a pain flag with a note, and two weeks of the daily log', 'Daily targets show on Today on rest days too', 'Using the app in Malay, Chinese or Japanese? Suggest a better word under the language picker. The daily charts and a workout’s sleep and feel line are now translated'],
   '1.9.12': ['Check it yourself: see every website the app has contacted (from Welcome or Settings)', 'How your data is kept: where your workouts live, what can delete them, and a backup button (Settings)'],
   '1.9.11': ['App colours: pick a palette in More → Settings (Graphite, Midnight, Forest, Ember, Grape) or set your own background and card colours. Text stays readable on whatever you pick'],
