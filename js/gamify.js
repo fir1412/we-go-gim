@@ -1,7 +1,7 @@
 // Daily habit loop: a day streak that only counts planned training days (rest days never break it), streak
 // shields earned by perfect weeks, three small quests on training days, and badges. Everything is worked out
 // from the workout history, so it survives backups and can't drift.
-import { S, todayIso, dayForDate } from './state.js';
+import { S, todayIso, dayForDate, realSessions } from './state.js';
 import { addDays, exposures, score, workSets, muscleXP, MUSCLES, validIso } from './engine.js';
 import { learnProgress } from './learn.js';
 
@@ -10,7 +10,8 @@ export const gameOn = () => S.settings.gamify !== false;
 
 // Dates are checked here too, so a bad record (from an old backup or a bug) is skipped instead of crashing Today.
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const trainedDays = () => new Set(S.sessions.filter(s => !s.seed && validIso(s.date)).map(s => s.date));
+/** The days with a real workout (sample days never count). */
+export const trainedDays = () => new Set(S.sessions.filter(s => !s.seed && validIso(s.date)).map(s => s.date));
 /** Training days a week in the plan: distinct weekdays with exercises (two workouts on one weekday count once,
  *  just as the streak counts workout days, not sessions). */
 const planPerWeek = () => new Set((S.program?.days || []).filter(d => d?.slots?.length).map(d => d.dow)).size;
@@ -116,7 +117,8 @@ export function badges(t = todayIso()) {
   const got = { ...st.earned };
   if (real[0]) got.first = real[0].date;
   for (const n of [10, 25, 50, 100, 250]) if (real[n - 1]) got['w' + n] = real[n - 1].date;
-  const xp = muscleXP(S.sessions, S.exById, t);
+  // Levels and the whole-body badge count real sessions only, like every other badge.
+  const xp = muscleXP(realSessions(), S.exById, t);
   for (const u of xp.levelUps) {
     if (u.level >= 5 && !got.lv5) got.lv5 = u.date;
     if (u.level >= 10 && !got.lv10) got.lv10 = u.date;
@@ -131,14 +133,18 @@ export function badges(t = todayIso()) {
 export const badgesOn = d => badges(d).filter(b => b.date === d);
 
 // ---- small views ---------------------------------------------------------------------------------------
-/** Streak chip, then today's quests (training day) or a calm rest-day card. */
-export function todayGame(t = todayIso()) {
+/** A streak worth a picture: three workouts in a row (a share button below that would only embarrass). */
+export const streakShareable = st => st.streak >= 3;
+/** Streak chip, then today's quests (training day) or a calm rest-day card. `share`: a share button's HTML, placed
+ *  after the chip once the streak is worth sharing. */
+export function todayGame(t = todayIso(), share = '') {
   const st = streakInfo(t), q = quests(t);
   const shields = st.shields && S.sessions.some(s => !s.seed) ? `<span class="shield"><i aria-hidden="true">🛡️</i> Shields: ${st.shields}</span>` : '';
   const pause = st.pausedNow ? `<span class="shield"><i aria-hidden="true">⏸️</i> Streak paused</span>` : '';
   let h = st.best
     ? `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</b>${pause || shields}<span>Best: ${st.best}</span></a>`
     : `<a class="streak day" href="#/levels"><b><i class="flame" aria-hidden="true">🔥</i> Start your streak today: your first workout counts as 1</b>${shields}</a>`;
+  if (share && streakShareable(st)) h += `<div class="rrow" style="margin-top:-12px"><span></span>${share}</div>`;   // 8 px under the streak card, so it belongs to it
   const next = nextTraining(t);
   if (!q.length) {
     const wk = weekCount(t);
@@ -167,7 +173,8 @@ function nextTraining(t) {
   return null;
 }
 
-export function badgeWall(t = todayIso()) {
+/** Every badge, earned ones lit. `share`: a share button's HTML for the header, shown once the streak is worth sharing. */
+export function badgeWall(t = todayIso(), share = '') {
   const all = badges(t), got = all.filter(b => b.date).length;
-  return `<p class="lbl">Badges · ${got} of ${all.length}</p><ul class="box badges">${all.map(b => `<li class="${b.date ? 'got' : ''}"><span class="bi" aria-hidden="true">${b.date ? b.icon : '🔒'}</span><span class="bt"><b>${b.name}</b><small>${b.date ? b.about : 'Not yet'}</small></span></li>`).join('')}</ul>`;
+  return `<div class="rrow"><p class="lbl">Badges · ${got} of ${all.length}</p>${share && streakShareable(streakInfo(t)) ? share : ''}</div><ul class="box badges">${all.map(b => `<li class="${b.date ? 'got' : ''}"><span class="bi" aria-hidden="true">${b.date ? b.icon : '🔒'}</span><span class="bt"><b>${b.name}</b><small>${b.date ? b.about : 'Not yet'}</small></span></li>`).join('')}</ul>`;
 }

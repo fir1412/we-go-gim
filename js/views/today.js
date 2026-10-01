@@ -41,7 +41,7 @@ export function render(route) {
   }
   h += `</div>`;
   if (date === t) h += learnCard();
-  if (date === t && gameOn() && !S.settings.sample) h += todayGame(t);   // quests are about your own workout
+  if (date === t && gameOn() && !S.settings.sample) h += todayGame(t, `<button class="chipbtn" data-act="streak-share">${ICON.share} Share my streak</button>`);   // quests are about your own workout
 
   const doneHere = S.sessions.filter(s => s.date === date && !s.seed);
   for (const s of doneHere) {
@@ -186,6 +186,7 @@ function deloadCard(t) {
 }
 
 export const actions = {
+  async 'streak-share'() { (await import('../share.js')).openShare('streak'); },
   // Back to Welcome to pick a plan (the sample brought the example split). Workouts logged while trying are real and stay.
   async 'sample-end'() {
     await removeSeedData();

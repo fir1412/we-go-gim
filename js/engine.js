@@ -893,6 +893,80 @@ export function athleteLevel(total) {
   return { ...r, xp: total, base: r.base * 4, next: r.next * 4, into: total - r.base * 4, need: (r.next - r.base) * 4 };
 }
 
+// ---- what a workout and a month add up to (the finish screen, History's recap and the share pictures) --------------
+/** Sets that count toward a workout's total: work sets, less the unticked ones of a skipped exercise. */
+export const countedSets = e => (e.sets || []).filter(s => !s.warm && (s.done || !e.skip));
+
+/**
+ * A finished workout `d` (a draft) summed up against `sessions` (the history it isn't part of yet): sets done and
+ * planned, reps, weight lifted, the like-for-like change on last time (null for a partial workout), minutes, personal
+ * bests as data ({ ex, kind: 'max' | 'heavy', v, w, r }), lifts that beat last time, XP gained per muscle.
+ */
+export function summaryStats(d, sessions, exById, { gymId = null, now = Date.now() } = {}) {
+  let vol = 0, v = 0, lv = 0, done = 0, tot = 0, reps = 0, anyKg = false;
+  const prs = [], beat = [];
+  for (const e of d.entries) {
+    const ex = exById[e.exId];
+    if (!ex) continue;
+    const ws = workSets(e);
+    done += ws.length; tot += countedSets(e).length;
+    if (ws.length && isKg(ex.unit)) anyKg = true;
+    reps += ws.reduce((a, s) => a + (+s.r || 0), 0);
+    vol += volume(ex, ws);
+    const prev = exposures(sessions, ex, { gymId, before: d.date }), last = prev[0];
+    if (!ws.length || !last) continue;
+    // Like for like: only as many sets as both sessions have, so 3 sets vs last week's 4 isn't a "drop".
+    if (isKg(ex.unit) && last.sets.every(s => s.r != null)) { const n = Math.min(ws.length, last.sets.length); v += volume(ex, ws.slice(0, n)); lv += volume(ex, last.sets.slice(0, n)); }
+    const pb = personalBests(prev, ex);
+    const top = ws.reduce((a, s) => ((e1rm(+s.w, +s.r) || 0) > (e1rm(+a.w, +a.r) || 0) ? s : a)), heavy = ws.reduce((a, s) => (+s.w > +a.w ? s : a));
+    if (pb.best && (e1rm(+top.w, +top.r) || 0) > pb.best.v + EPS) prs.push({ ex, kind: 'max', v: e1rm(+top.w, +top.r), w: +top.w, r: +top.r });
+    else if (pb.heavy && +heavy.w > pb.heavy.w && ex.unit !== 'bw') prs.push({ ex, kind: 'heavy', w: +heavy.w, r: +heavy.r });
+    const sc = score({ sets: ws }, ex.unit), then = score(last, ex.unit);
+    const repsNow = ws.reduce((a, s) => a + (+s.r || 0), 0), repsThen = last.sets.reduce((a, s) => a + (+s.r || 0), 0);
+    if ((sc != null && then != null && sc > then + EPS) || (ex.unit === 'bw' && repsNow > repsThen)) beat.push(ex.name);
+  }
+  // A short or partial workout isn't compared with a full one: no red percentage for showing up.
+  const partial = tot > 0 && done < tot / 2;
+  const pct = lv && !partial ? Math.round((v / lv - 1) * 100) : null;
+  // A stale draft's clock is meaningless (days, or negative): leave the length out rather than show "3671 min".
+  const mins = d.past ? d.minutes ?? null : draftClock(d.start, now).stale ? null : Math.max(1, Math.round((now - d.start) / 60000));
+  const before = muscleXP(sessions, exById, d.date);
+  const after = muscleXP([...sessions, { id: d.id, date: d.date, name: d.name, end: now, entries: d.entries }], exById, d.date);
+  const gains = Object.entries(after.muscles).map(([m, r]) => ({ m, g: r.xp - (before.muscles[m]?.xp || 0), up: levelFor(r.xp).level > levelFor(before.muscles[m]?.xp || 0).level, L: levelFor(r.xp).level })).filter(x => x.g > 0).sort((a, b) => b.g - a.g);
+  return { done, tot, reps, vol, anyKg, pct, partial, mins, prs, beat, gains, xp: gains.reduce((a, x) => a + x.g, 0), first: !sessions.some(s => s.id !== d.id && s.date <= d.date) };
+}
+
+/**
+ * A month `ym` summed up: `list` is the month's sessions to count, `history` every session a lift's "best before this
+ * month" may come from (the same set of sessions the month is drawn from, never a made-up one against a real one).
+ * → { days, sets, vol, bests, top: { ex, g } | null, busiest: [muscle, sets] | null, first }, or null for an empty month.
+ */
+export function recapStats(ym, list, history, exById) {
+  if (!list.length) return null;
+  let sets = 0, vol = 0;
+  const musc = {}, exIds = new Set();
+  for (const s of list) for (const e of s.entries) {
+    const ex = exById[e.exId], ws = workSets(e);
+    if (!ex || !ws.length) continue;
+    sets += ws.length; vol += volume(ex, ws); exIds.add(ex.id);
+    const m = ex.muscles?.[0]; if (m) musc[m] = (musc[m] || 0) + ws.length;
+  }
+  const start = `${ym}-01`, end = `${ym}-31`;
+  let bests = 0, top = null;
+  for (const id of exIds) {
+    const ex = exById[id], exps = exposures(history, ex);
+    const inM = exps.filter(x => x.date >= start && x.date <= end), before = exps.filter(x => x.date < start);
+    const sc = xs => Math.max(0, ...xs.map(x => score(x, ex.unit) || 0));
+    const a = sc(before), b = sc(inM);
+    if (!a || !b) continue;
+    if (b > a + EPS) bests++;
+    // "Up N%" only where the score is an estimated max: for cable levels and bodyweight lifts score() ranks, it doesn't measure.
+    const g = b / a - 1;
+    if (hasEstMax(ex) && g > 0.001 && (!top || g > top.g)) top = { ex, g };
+  }
+  return { ym, days: new Set(list.map(s => s.date)).size, sets, vol, bests, top, busiest: Object.entries(musc).sort((x, y) => y[1] - x[1])[0] || null, first: !history.some(s => s.date < start) };
+}
+
 // ---- workout duration ----------------------------------------------------------------
 // Every ticked set gets a timestamp (`at`). The gap between two ticks on the same exercise is
 // one "set cycle" (rest + the set). We learn your real cycle per exercise from history.

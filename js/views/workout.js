@@ -1,6 +1,6 @@
 import { S, saveDraft, refresh, commitDraft, discardDraft, newEntry, startWorkout, todayIso, uid, deloadActive, saveExercise, saveSettings, realSessions, SESSION_CAP } from '../state.js';
 import { guessMuscles } from '../io.js';
-import { fmtLoad, unitShort, unitLong, unitsFor, LB_KG, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, personalBests, e1rm, isKg, workSets, topLoad, muscleXP, levelFor, estimateRemaining, suggest, addDays, MUSCLES, toDisp, kgFromDisp, getUnits, score, round, MAX_KG, MAX_REPS, stepLoad, barKgFor, draftClock, timerStale, moveEntry } from '../engine.js';
+import { fmtLoad, unitShort, unitLong, unitsFor, LB_KG, nextFor, volume, warmup, platesPerSide, nearestDumbbell, exposures, isKg, workSets, topLoad, estimateRemaining, suggest, addDays, MUSCLES, toDisp, kgFromDisp, getUnits, score, round, MAX_KG, MAX_REPS, stepLoad, barKgFor, draftClock, timerStale, moveEntry, countedSets, summaryStats } from '../engine.js';
 import { esc, fmtDate, fmtTime, chip, chipText, pill, ICON, openSheet, closeSheet, confirmSheet, toast, cvar, kstyle, num, kfmt, T, helpTip, expertWording } from '../ui.js';
 import { go, startTimer, canInstall } from '../app.js';
 import { groupLabels } from './today.js';
@@ -25,7 +25,7 @@ const lastAt = e =>Math.max(0, ...e.sets.map(s => s.at || 0));
 // A skipped exercise has nothing pending: it's passed over for the next set, the timer and the time left.
 const pending = e => (e.skip ? -1 : e.sets.findIndex(s => !s.done));
 /** Sets that count toward the total: all work sets, less the unticked ones of a skipped exercise. */
-const counted = e => e.sets.filter(s => !s.warm && (s.done || !e.skip));
+const counted = countedSets;
 
 /** The set to do next after working on `e`: superset partner first, then `e` itself, then the next unfinished exercise. */
 function nextUp(e) {
@@ -267,19 +267,9 @@ function cardioSheet() {
 }
 
 // ---- early wins: the first few workouts show that the plan is working ---------------------------------
-function earlyWins(d) {
+function earlyWins(d, beat) {
   const before = S.sessions.filter(s => !s.seed && !s.imported).length;
   if (before >= 5) return '';
-  const beat = [];
-  for (const e of d.entries) {
-    const ex = S.exById[e.exId], ws = workSets(e);
-    if (!ex || !ws.length) continue;
-    const last = exposures(realSessions(), ex, { gymId: d.gymId, before: d.date })[0];
-    if (!last) continue;
-    const now = score({ sets: ws }, ex.unit), then = score(last, ex.unit);
-    const repsNow = ws.reduce((a, s) => a + (+s.r || 0), 0), repsThen = last.sets.reduce((a, s) => a + (+s.r || 0), 0);
-    if ((now != null && then != null && now > then + 1e-6) || (ex.unit === 'bw' && repsNow > repsThen)) beat.push(ex.name);
-  }
   if (beat.length) return `<div class="box prbox win"><p class="lbl">You beat last time</p><div class="chips">${ICON.trendUp}${beat.slice(0, 6).map(n => pill(n, 'up')).join('')}</div><p class="fine">That is how it works: every session starts from your last one and asks for a little more where you earned it.</p></div>`;
   if (!before) return `<div class="box prbox win"><p class="lbl">First workout logged</p><p class="fine">Next time every set is filled in from today, with a small step up where you earned it. Beat it and you will see it here.</p></div>`;
   return '';
@@ -295,9 +285,12 @@ function platesShort(ex, w) {
   return p.ok ? ` · ${p.plates.length ? p.plates.join('+') + '/side' : 'empty bar'}` : '';
 }
 
+/** The finished workout's numbers (shared with the share picture): the engine's sums over the real history. */
+const summaryData = d => summaryStats(d, realSessions(), S.exById, { gymId: S.settings.gymId });
+
 function summary(d) {
-  let vol = 0, v = 0, lv = 0, done = 0, tot = 0, reps = 0, anyKg = false; // vol: this workout; v/lv: like-for-like with last time
-  const prs = [];
+  const sd = summaryData(d), { done, tot, reps, vol, anyKg, pct, partial, mins, beat, gains } = sd;
+  const prs = sd.prs.map(p => (p.kind === 'max' ? `${p.ex.name}: best ${expertWording() ? 'e1RM' : 'estimated 1-rep max'}, ${num(toDisp(p.v, p.ex))} ${unitsFor(p.ex)}` : `${p.ex.name}: heaviest load, ${fmtLoad(p.ex, p.w)}${p.ex.unit === 'L' ? '' : ' ' + unitShort(p.ex)}`));
   // Next-time targets come from the same engine as the Today screen, with this workout counted as the latest log.
   const asSess = { id: d.id, date: d.date, gymId: d.gymId, end: Date.now(), entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sets: e.sets, rir: e.rir, pain: e.pain })) };
   const nextDate = addDays(d.date, 7);
@@ -306,34 +299,11 @@ function summary(d) {
     const ex = S.exById[e.exId];
     if (!ex) return '';
     const ws = workSets(e);
-    done += ws.length; tot += counted(e).length;
-    if (ws.length && isKg(ex.unit)) anyKg = true;
-    reps += ws.reduce((a, s) => a + (+s.r || 0), 0);
-    const prevExps = exposures(realSessions(), ex, { gymId: S.settings.gymId, before: d.date });
-    const last = prevExps[0];
-    vol += volume(ex, ws);
-    if (last && ws.length && isKg(ex.unit) && last.sets.every(s => s.r != null)) {
-      // Like for like: only as many sets as both sessions have, so 3 sets vs last week's 4 isn't a "drop".
-      const n = Math.min(ws.length, last.sets.length);
-      v += volume(ex, ws.slice(0, n)); lv += volume(ex, last.sets.slice(0, n));
-    }
-    if (ws.length && prevExps.length) {
-      const pb = personalBests(prevExps, ex);
-      const bestNow = Math.max(0, ...ws.map(s => e1rm(+s.w, +s.r) || 0));
-      const heavyNow = Math.max(...ws.map(s => +s.w || 0));
-      if (pb.best && bestNow > pb.best.v + 1e-6) prs.push(`${ex.name}: best ${expertWording() ? 'e1RM' : 'estimated 1-rep max'}, ${num(toDisp(bestNow, ex))} ${unitsFor(ex)}`);
-      else if (pb.heavy && heavyNow > pb.heavy.w && ex.unit !== 'bw') prs.push(`${ex.name}: heaviest load, ${fmtLoad(ex, heavyNow)}${ex.unit === 'L' ? '' : ' ' + unitShort(ex)}`);
-    }
     const nx = nextFor(e, e.slot, ex);
     if (!ws.length || !e.slot) return `<div class="nt"><span>${esc(ex.name)}${e.pain ? ' ' + pill('pain', 'down') : ''}</span><b class="t-${nx.t}">${esc(nx.text)}</b></div>`;
     const sg = suggest(e.slot, ex, ctx), u = sg.w == null || ex.unit === 'bw' ? '' : unitShort(ex);
     return `<div class="nt"><span>${esc(ex.name)} ${e.pain ? pill('pain', 'down') : chip(sg, ex)}</span><b class="num">${sg.w == null ? (ex.unit === 'bw' ? esc(T('bw')) : expertWording() ? '?' : 'Find weight') : esc(fmtLoad(ex, sg.w))}${u ? `<small> ${u}</small>` : ''} × ${sg.reps.join('·')}</b></div>`;
   }).join('');
-  // A short or partial workout isn't compared with a full one: no red percentage for showing up.
-  const partial = tot && done < tot / 2;
-  const pct = lv && !partial ? Math.round((v / lv - 1) * 100) : null;
-  // A stale draft's clock is meaningless (days, or negative): leave the length out rather than show "3671 min".
-  const mins = d.past ? d.minutes : draftClock(d.start).stale ? null : Math.max(1, Math.round((Date.now() - d.start) / 60000));
   const planned = d.plannedSec ? Math.round(d.plannedSec / 60) : null;
   let h = `<div class="hero" style="--c:var(--up)"><div><h2>Nice work</h2><p>${esc(d.name)}${d.past ? ` · ${fmtDate(d.date, { dow: true })}` : ''}${mins ? ` · ${mins} min` : ''}${planned && !d.past ? ` (planned ~${planned})` : ''}</p></div></div>
     <div class="kpis"><div class="kpi"><b>${done}/${tot}</b><span>sets done</span></div>${anyKg ? `<div class="kpi"><b>${kfmt(toDisp(vol))}</b><span>${getUnits()} ${expertWording() ? 'volume' : 'lifted'}*</span></div>` : `<div class="kpi"><b>${kfmt(reps)}</b><span>total reps</span></div>`}
@@ -349,20 +319,18 @@ function summary(d) {
     h += `<div class="box pad gamewin"><p class="big"><i class="flame" aria-hidden="true">🔥</i> Workout streak: ${st.streak}</p>${st.streak > 1 && st.streak === st.best ? '<p class="fine">Your best streak yet.</p>' : ''}</div>`;
     if (fresh.length) h += `<div class="box prbox badgewin"><p class="lbl">New badge</p>${fresh.map(b => `<p><span class="bi" aria-hidden="true">${b.icon}</span> <b>${b.name}</b></p><p class="fine">${b.about}</p>`).join('')}</div>`;
   }
-  h += earlyWins(d);
+  h += earlyWins(d, beat);
   // Early on, one offer of reminders: the biggest reason people drift away is forgetting the next workout.
   if (!d.past && !S.settings.calAdded && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Want a nudge on training days?</b></p><p class="fine">Your phone's calendar can remind you 10 minutes before. Nothing is sent anywhere.</p><button class="btn ghost" data-act="cal-export">Add training days to my calendar</button></div>`;
   if (!d.past && canInstall() && S.sessions.filter(s => !s.seed && !s.imported).length < 3) h += `<div class="box pad remindbox"><p><b>Keep it one tap away</b></p><p class="fine">Install the app: an icon on your home screen, full screen, works offline.</p><button class="btn ghost" data-act="install">Install the app</button></div>`;
   if (prs.length) h += `<div class="box prbox"><p class="lbl">Personal bests</p>${prs.map(p => `<p>${ICON.star}${esc(p)}</p>`).join('')}</div>`;
   // XP earned by this workout, and any level-ups it causes
-  const before = muscleXP(realSessions(), S.exById, d.date);
-  const after = muscleXP([...realSessions(), { id: d.id, date: d.date, name: d.name, end: Date.now(), entries: d.entries }], S.exById, d.date);
-  const gains = Object.entries(after.muscles).map(([m, r]) => ({ m, g: r.xp - (before.muscles[m]?.xp || 0), up: levelFor(r.xp).level > levelFor(before.muscles[m]?.xp || 0).level, L: levelFor(r.xp).level })).filter(x => x.g > 0).sort((a, b) => b.g - a.g);
   if (gains.length) h += `<a class="box prbox" href="#/levels"><p class="lbl">${expertWording() ? 'XP' : 'XP (experience points)'} earned · +${gains.reduce((a, x) => a + x.g, 0)}</p><div class="xpgain">${gains.map(x => pill(`${x.up ? '▲ ' : ''}${x.m} +${x.g}${x.up ? ` · level ${x.L}` : ''}`, x.up ? 'push' : 'up')).join('')}</div></a>`;
   h += `<div class="box pad0"><p class="lbl in">Next time</p>${rows}</div>
     <div class="box ready"><div class="rrow"><span>How did it feel?</span><div class="seg" role="group" aria-label="Feel">${FEEL.map(([val, l]) => `<button data-act="feel" data-v="${val}" aria-pressed="${d.feel === val}" title="${l}" aria-label="${val}: ${l}">${val}</button>`).join('')}</div></div></div>
     <p class="fine">*${anyKg ? `${esc(T('volume'))} is weight × reps added up and counts both dumbbells. ` : ''}${d.entries.some(e => S.exById[e.exId] && isKg(S.exById[e.exId].unit) && unitsFor(S.exById[e.exId]) !== getUnits()) ? `Lifts shown in another unit are converted to ${getUnits()} here. ` : ''}"vs last time" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.</p>
     <button class="btn" data-act="save" style="--c:var(--up)">Save workout</button>
+    ${S.settings.sample ? '' : `<button class="btn ghost" data-act="summary-share">${ICON.share} Share this workout</button>`}
     <button class="btn ghost" data-act="back-to-workout">Back to workout</button>`;
   return { title: 'Summary', sub: fmtDate(d.date, { dow: true }), color: 'up', html: h };
 }
@@ -374,6 +342,8 @@ const commit = () => { saveDraft(); refresh(); };
 function stepFor(ex) { return ex.unit === 'L' ? 1 : ex.unit === 'bw' ? 2.5 : ex.inc || 2.5; }
 
 export const actions = {
+  // A picture of this workout (and of a new best, when there is one), drawn on the phone: see share.js.
+  async 'summary-share'() { const d = S.draft; if (d?.summary) (await import('../share.js')).openShare('workout', { ...summaryData(d), name: d.name, date: d.date }); },
   async 'start-day'(el) {
     const day = S.program.days.find(d => d.dow === +el.dataset.dow);
     await startWorkout(day, todayIso());

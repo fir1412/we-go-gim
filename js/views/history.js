@@ -1,5 +1,5 @@
-import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout } from '../state.js';
-import { unitsFor, weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, score, MAX_KG, MAX_REPS } from '../engine.js';
+import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout, realSessions } from '../state.js';
+import { unitsFor, weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, MAX_KG, MAX_REPS, recapStats } from '../engine.js';
 import { esc, num, fmtDate, fmtMonth, dowLetter, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 import { syncRawNames } from '../i18n.js';
@@ -68,6 +68,9 @@ export function render(route) {
     ${vm !== nowM ? `<button class="linkbtn center" data-act="hist-month-now">Back to this month</button>` : ''}</div>`;
 
   h += recap(vm, inMonth);
+  // Early in a month there's nothing to sum up yet, but last month there is: offer that picture instead.
+  const pm = addMonths(vm, -1);
+  if (vm === nowM && !recapData(vm, inMonth) && recapData(pm, S.sessions.filter(s => s.date.slice(0, 7) === pm))) h += `<button class="btn ghost" data-act="recap-share" data-m="${pm}">${ICON.share} Share last month</button>`;
   h += `<div class="rrow"><p class="lbl">Sessions</p>${nImp ? `<button class="linkbtn" data-act="toggle-seed" aria-pressed="${!showSeed}">${showSeed ? `Hide ${nImp} ${impWord}` : `Show ${impWord}`}</button>` : ''}</div>`;
   if (!list.length) h += inMonth.length ? `<div class="empty"><b>Only imported sessions in ${monthName(vm)}.</b><p>Your ${nImp} imported session${nImp === 1 ? ' is' : 's are'} hidden. Tap Show imported.</p></div>`
     : S.sessions.length ? `<div class="empty"><b>No sessions in ${monthName(vm)}.</b><p>Use the arrows or the month list above to see other months.</p></div>`
@@ -96,33 +99,17 @@ export function render(route) {
   return { title: 'History', sub: 'Month by month, newest first', html: h, color: 'upper' };
 }
 
+/** A month's numbers (the recap card and the share picture): the user's own sessions; while the sample is on, the
+ *  sample's, like the counts above the calendar, and bests are compared within the same history (never a made-up
+ *  past against a real month). null when there's nothing to sum up. */
+export const recapData = (vm, list) => recapStats(vm, list.filter(s => !s.seed || S.settings.sample), S.settings.sample ? S.sessions : realSessions(), S.exById);
+
 /** One card summing up a month: sessions, sets, weight lifted, bests and the lift that improved most. */
 function recap(vm, list) {
-  const real = list.filter(s => !s.seed);
-  if (!real.length) return '';
-  let sets = 0, vol = 0;
-  const musc = {}, exIds = new Set();
-  for (const s of real) for (const e of s.entries) {
-    const ex = S.exById[e.exId], ws = workSets(e);
-    if (!ex || !ws.length) continue;
-    sets += ws.length; vol += volume(ex, ws); exIds.add(ex.id);
-    const m = ex.muscles?.[0]; if (m) musc[m] = (musc[m] || 0) + ws.length;
-  }
-  const start = `${vm}-01`, end = `${vm}-31`;
-  let bests = 0, top = null;
-  for (const id of exIds) {
-    const ex = S.exById[id], exps = exposures(S.sessions, ex);
-    const inM = exps.filter(x => x.date >= start && x.date <= end), before = exps.filter(x => x.date < start);
-    const sc = xs => Math.max(0, ...xs.map(x => score(x, ex.unit) || 0));
-    const a = sc(before), b = sc(inM);
-    if (!a || !b) continue;
-    if (b > a + 1e-6) bests++;
-    const g = b / a - 1;
-    if (g > 0.001 && (!top || g > top.g)) top = { ex, g };
-  }
-  const busiest = Object.entries(musc).sort((x, y) => y[1] - x[1])[0];
-  const days = new Set(real.map(s => s.date)).size;
-  return `<section class="box recap"><p class="lbl">${esc(fmtMonth(vm))} recap</p>
+  const r = recapData(vm, list);
+  if (!r) return '';
+  const { days, sets, vol, bests, top, busiest } = r;
+  return `<section class="box recap"><div class="rrow"><p class="lbl">${esc(fmtMonth(vm))} recap${S.settings.sample ? ' · sample' : ''}</p><button class="chipbtn" data-act="recap-share" data-m="${vm}">${ICON.share} Share this month</button></div>
     <div class="kpis"><div class="kpi"><b>${days}</b><span>day${days === 1 ? '' : 's'} trained</span></div><div class="kpi"><b>${sets}</b><span>working sets</span></div><div class="kpi"><b>${vol ? kfmt(toDisp(vol)) : '—'}</b><span>${getUnits()} lifted</span></div></div>
     <ul class="rlist">${bests ? `<li>${ICON.star}<span><b>${bests}</b> lift${bests === 1 ? '' : 's'} beat ${bests === 1 ? 'its' : 'their'} best before this month</span></li>` : ''}
     ${top ? `<li>${ICON.trendUp}<span>Most improved: <a href="#/ex/${esc(top.ex.id)}">${esc(top.ex.name)}</a>, up ${Math.round(top.g * 100)}%</span></li>` : ''}
@@ -228,6 +215,11 @@ export const actions = {
     await logPast(date, day);
   },
   'toggle-seed'() { showSeed = !showSeed; refresh(); },
+  // The month's picture, drawn on the phone (share.js). data-m names the month: this one, or last month early on.
+  async 'recap-share'(el) {
+    const m = el.dataset.m, r = recapData(m, S.sessions.filter(s => s.date.slice(0, 7) === m));
+    if (r) (await import('../share.js')).openShare('month', r);
+  },
   'hist-month'(el) { viewMonth = el.value; refresh(); },
   'hist-month-step'(el) { viewMonth = addMonths(document.querySelector('[data-input="hist-month"]')?.value || todayIso().slice(0, 7), +el.dataset.n); refresh(); },
   'hist-month-now'() { viewMonth = null; refresh(); },

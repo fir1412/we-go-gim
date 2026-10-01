@@ -11,13 +11,20 @@ function seasoned() {
   return S.settings.setupAnswers?.experience === 'experienced' || imported >= 12;
 }
 /** The overall title. The first steps are neutral instead of "Rookie". */
-function athleteTitle(L) {
+export function athleteTitle(L) {
   if (L < 3) return seasoned() ? 'Experienced lifter' : 'Getting started';
   if (L < 5) return seasoned() ? 'Experienced lifter' : 'Building momentum';
   return `${titleFor(L)} lifter`;
 }
 /** A muscle's title; low levels read as a starting point, not a verdict. */
-const muscleTitle = L => (L < 3 ? 'Building a base' : L < 5 ? 'Building' : titleFor(L));
+export const muscleTitle = L => (L < 3 ? 'Building a base' : L < 5 ? 'Building' : titleFor(L));
+/** The level as data (this screen's hero and the share picture): the athlete level and title, XP in all, the muscles
+ *  that levelled up in the last 3 days (earned here, not imported), and the strongest muscle. */
+export function levelData(t = todayIso(), data = muscleXP(S.sessions, S.exById, t)) {
+  const ath = athleteLevel(data.total);
+  const top = Object.entries(data.muscles).sort((a, b) => b[1].xp - a[1].xp)[0];
+  return { L: ath.level, title: athleteTitle(ath.level), total: data.total, fresh: data.levelUps.filter(u => !u.imported && u.date <= t && daysBetween(u.date, t) <= 3), top: top ? { muscle: top[0], level: levelFor(top[1].xp).level } : null };
+}
 const setWord = () => (T('sets') === 'sets' ? 'working set' : 'hard set');
 
 let mode = 'level';   // level | week
@@ -66,7 +73,7 @@ export function render() {
   const ranked = MUSCLES.map(m => ({ m, r: data.muscles[m] || { xp: 0, week: 0, events: [], lastDate: null } }))
     .map(x => ({ ...x, L: levelFor(x.r.xp) })).sort((a, b) => b.r.xp - a.r.xp);
   if (!sel || !MUSCLES.includes(sel)) sel = ranked[0]?.m || 'Chest';
-  const ath = athleteLevel(data.total);
+  const ath = athleteLevel(data.total), lv = levelData(t, data);
   const weekTotal = ranked.reduce((a, x) => a + x.r.week, 0);
 
   let h = progressNav('levels');
@@ -74,10 +81,13 @@ export function render() {
   if (!expertWording()) h += `<p class="fine xpexp"><b>XP means experience points.</b> Every set you finish gives points to the muscles it works. More points take a muscle to a higher level.</p>`;
   if (!data.total) h += `<div class="box pad emptyact"><b>No XP yet</b><p class="fine">Every working set earns XP for the muscles it trains, and beating a best earns a bonus. Finish your first workout, or import old logs so your levels start from your real history.</p><div class="row2"><a class="btn" href="#/today">Go to today's workout</a><a class="btn ghost" href="#/import">Import old logs</a></div></div>`;
   h += `<div class="lvlhero"><div class="lvbadge"><span>LVL</span><b>${ath.level}</b></div>
-    <div class="grow"><b class="lvtitle">${esc(athleteTitle(ath.level))}</b><small>${xpf(ath.into)} / ${xpf(ath.need)} XP to level ${ath.level + 1} · +${xpf(weekTotal)} XP this week</small>${bar(ath.pct, 'on')}</div></div>`;
+    <div class="grow"><b class="lvtitle">${esc(lv.title)}</b><small>${xpf(ath.into)} / ${xpf(ath.need)} XP to level ${ath.level + 1} · +${xpf(weekTotal)} XP this week</small>${bar(ath.pct, 'on')}</div></div>`;
+  // Pictures of the level and the streak (share.js): only the user's own data, never the sample's, and only with the game on.
+  const share = gameOn() && !S.settings.sample;
+  if (share && data.total) h += `<div class="rrow"><button class="chipbtn" data-act="level-share">${ICON.share} Share my level</button></div>`;
 
   // Only level-ups earned in the app: an import of old logs shouldn't fire a burst of banners.
-  const fresh = data.levelUps.filter(u => !u.imported && u.date <= t && daysBetween(u.date, t) <= 3);
+  const fresh = lv.fresh;
   if (fresh.length) h += `<div class="lvup-banner" role="status"><b>${ICON.star}Level up!</b><span>${fresh.slice(-4).reverse().map(u => `${esc(u.muscle)} → Lv${u.level}${u.date === t ? '' : ` (${fmtDate(u.date)})`}`).join(' · ')}</span></div>`;
   h += nextXP(data, t);
 
@@ -113,7 +123,7 @@ export function render() {
   }
   h += `</ul>`;
 
-  if (gameOn()) h += badgeWall(t);
+  if (gameOn()) h += badgeWall(t, share ? `<button class="chipbtn" data-act="streak-share">${ICON.share} Share my streak</button>` : '');
   const ups = data.levelUps.slice(-6).reverse();
   if (ups.length) h += `<p class="lbl">Recent level-ups</p><ul class="box xplist pad">${ups.map(u => `<li><span>${fmtDate(u.date)}</span><span class="grow">${esc(u.muscle)} reached level ${u.level}</span><b class="lvstar">${ICON.star}</b></li>`).join('')}</ul>`;
   const nImp = S.sessions.filter(s => s.imported).length;
@@ -157,6 +167,8 @@ function nextDayFor(m, t) {
 }
 
 export const actions = {
+  async 'level-share'() { (await import('../share.js')).openShare('level', levelData()); },
+  async 'streak-share'() { (await import('../share.js')).openShare('streak'); },
   muscle(el) { sel = el.dataset.m; region = el.dataset.r || null; refresh(); },
   mode(el) { mode = el.dataset.v; refresh(); },
   body: el => saveSettings({ bodyType: el.dataset.v }),
