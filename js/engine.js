@@ -845,7 +845,7 @@ function muscleXPRaw(sessions, exById, today) {
       const key = ex.perGym && s.gymId ? `${ex.id}@${s.gymId}` : ex.id;
       if (sc != null) {
         if (best[key] != null && sc > best[key] + EPS) {
-          ms.forEach((m, i) => { gain[m] = (gain[m] || 0) + (i === 0 ? XP_PR : XP_PR / 2); (why[m] ||= []).push(`PR on ${ex.name}`); });
+          ms.forEach((m, i) => { gain[m] = (gain[m] || 0) + (i === 0 ? XP_PR : XP_PR / 2); (why[m] ||= []).push(ex.name); });
         }
         best[key] = Math.max(best[key] ?? -Infinity, sc);
       }
@@ -857,7 +857,7 @@ function muscleXPRaw(sessions, exById, today) {
       rec.lastDate = s.date;
       if (weekFrom && s.date >= weekFrom) rec.week += g;
       const n = sets[m] || 0;
-      rec.events.push({ date: s.date, xp: g, sets: n, pr: !!why[m], why: `${n} set${n === 1 ? '' : 's'} · ${why[m] ? why[m].join(', ') : s.name}`, sessionId: s.id, session: s.name });
+      rec.events.push({ date: s.date, xp: g, sets: n, pr: !!why[m], why: `${n} set${n === 1 ? '' : 's'} · ${why[m] ? `PR on ${why[m].join(', ')}` : s.name}`, sessionId: s.id, session: s.name });
       const after = levelFor(rec.xp).level;
       if (after > before) levelUps.push({ date: s.date, muscle: m, level: after, imported: !!(s.imported || s.seed) });
     }

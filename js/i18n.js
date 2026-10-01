@@ -59,6 +59,8 @@ export function collapse(key, vals) {
     const ids = [...m.matchAll(/\{(\d+)\}/g)].map(x => +x[1]);
     const nums = ids.every(i => vals[i][0] === 'num');
     if (ids.length > 1 && nums) { out.push(['num', ids.map(i => vals[i][1]).join(sep)]); return `{${out.length - 1}}`; }
+    // A list of names ("Bum (glutes), Forearms, Neck") is one value too, each name translated: one entry covers any length.
+    if (ids.length > 1 && ids.every(i => vals[i][0] === 'name')) { out.push(['num', ids.map(i => nameIn(vals[i][1])).join(sep)]); return `{${out.length - 1}}`; }
     return ids.map(i => { out.push(vals[i]); return `{${out.length - 1}}`; }).join(', ');
   });
   return { key: k, vals: out };

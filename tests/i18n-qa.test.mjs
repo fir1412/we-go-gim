@@ -148,3 +148,22 @@ test('sentence keys are written the way they appear on screen', async () => {
     assert.deepEqual(off, [], `${L}: ${off.join(' | ')}`);
   }
 });
+
+// One word per idea in each language (the 2026-10-01 review loop). A word on this list is the one the review
+// replaced, so seeing it again means two screens call the same thing by different names.
+const RETIRED = {
+  ms: [/\b[Dd]umbel\b/, /\b[Bb]arbel\b/, /Hari Ini/, /timbangan/i, /rekod timbang berat/, /\bjadual\b/i, /\blawatan\b/, /rekod berturut-turut/, /\bpustaka\b/, /\b[Ll]onjakan berat|\b[Ll]ompatan berat/],
+  zh: [/训练安排/, /示例安排/, /连续记录/, /编造/, /点击添加/, /\d kg|\} kg|\} lb|用 (kg|lb) 显示/],
+  'zh-Hant': [/訓練安排/, /範例安排/, /連續記錄/, /編造/, /\} kg|\} lb|用 (kg|lb) 顯示/],
+  ja: [/分割メニュー/, /ワークアウト/, /インポート/, /プログラム/, /土台づくり/, /ダンベル1つあたり/, /（\+?ポンド/],
+};
+test('retired words stay retired, and Insights is not called Progress', async () => {
+  for (const [L, words] of Object.entries(RETIRED)) {
+    const d = (await import(`../js/i18n/${L}.js`)).default.s;
+    for (const re of words) {
+      const hit = Object.entries(d).filter(([, v]) => re.test(v)).map(([k, v]) => `${k} -> ${v}`);
+      assert.deepEqual(hit, [], `${L} ${re}`);
+    }
+    assert.notEqual(d.Insights, d.Progress, `${L}: Insights is a tab inside Progress`);
+  }
+});
