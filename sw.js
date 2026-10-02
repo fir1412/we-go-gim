@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever app files change.
-const VERSION = 'wegogim-v52';
+const VERSION = 'wegogim-v53';
 const CORE = [
   './', './index.html', './js/first.js', './privacy.html', './terms.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/db.js', './js/seed.js', './js/sample.js', './js/engine.js', './js/ui.js', './js/palette.js', './js/io.js',
@@ -23,9 +23,10 @@ self.addEventListener('activate', e => {
 
 // Cache key without the query string, so ?today=… doesn't create duplicate entries.
 const keyFor = url => url.origin + url.pathname;
+const coreKeys = new Set(CORE.map(path => new URL(path, self.location.href).href));
 
-// App files: network first (so updates arrive) with a 3 s timeout, then cache.
-// Fonts and CDN libraries: cache first.
+// Installed core and large assets: cache first. Other same-origin requests: network first,
+// with a 3 s cache fallback for page loads. Updates install a complete new core cache.
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -40,6 +41,12 @@ self.addEventListener('fetch', e => {
   }
   if (url.origin === self.location.origin) {
     const key = keyFor(url);
+    // Keep the installed app's files together. A stalled network must not block cached scripts,
+    // and new files arrive together through install's addAll, rather than one fetch at a time.
+    if (coreKeys.has(key)) {
+      e.respondWith(caches.open(VERSION).then(c => c.match(key)).then(hit => hit || fetch(req, { cache: 'no-cache' })));
+      return;
+    }
     // Only a page load may fall back to the app shell. A script or data file answered with index.html would stop
     // the app on "Loading…" (a module served as HTML is refused), so those fail normally instead.
     const shell = req.mode === 'navigate';
