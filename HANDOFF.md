@@ -88,12 +88,36 @@ do not confuse browser simulations with actual phone verification or review with
 
 ## Before publishing
 
+### Internal publication completed (2026-10-04)
+
+User approved GitHub/Pages publication and Play internal testing only; production submission
+is NOT authorised. User separately approved the policy/export declarations at app creation.
+
+- GitHub main pushed to579df86; Pages build confirmed built. Live mockup:
+  https://fir1412.github.io/we-go-gim/mockups/welcome.html. Updated privacy is published too.
+- Play account fir1412, developer8815481908048608009 had only Tally. Created NEW we go gim
+  app record4974756118756386209; package io.github.fir1412.wegogim was confirmed available.
+  The earlier TWA project was preparation, not an existing listing in this Console account.
+- Signed AAB versionCode2/versionName1.11.0 accepted, minimum24,target36,9.35MBinstall estimate.
+  Internal track4700623995534838864 is Active; release1 is Available to internal testers.
+- Existing Beta Testers list(9accounts) selected and saved. No invitations/messages sent.
+  Opt-in:https://play.google.com/apps/internaltest/4700623995534838864
+- Play initially warned no testers; saving the list and refreshing removed that warning.
+  Remaining non-blocking warning is missing deobfuscation mapping; minifyEnabled=false.
+- Play displays temporary name io.github.fir1412.wegogim(unreviewed). Installation can take
+  up to an hour to propagate. App setup/listing/content declarations are not yet submitted
+  for public review. Native launcher uses the official artwork.
+- This account explicitly requires closed testing with12testers for14continuous days before
+  applying for production access. Internal testing does not fulfil that requirement.
+- Final uploaded AAB SHA256:6be393dfb0d1f9473205471ef7b1cadfa2070dfaea7d83615783c4aa0e5a4cb1.
+  Next Android release must use a versionCode greater than2.
+- Do not modify Tally's release. Do not promote to closed/open/production without user authority.
+
 - See release/README.md and release/listing-en.md. Listing art/screenshots prepared;
   screenshots use synthetic Chromium data and are labelled as simulations in their manifest.
-- Native versionCode2isprovisional: confirm the highest code already uploaded in Play Console.
+- VersionCode2isnowuploaded to internal testing; increment for the next build.
 - Confirm signing identity in Console; upload key is not necessarily the Play app signing key.
-- Publish updated public privacy page, complete Data safety/health declarations, upload to internal
-  testing and check Play pre-launch report. Optional feedback prevents a blanket "no data collected".
-- Confirm account production-access/testing requirements; this session did not inspect the Console.
-- No push, website deployment or Play submission performed. Public launch timing depends on Console
-  requirements and Google review. Do not claim the app is already available from the Play Store.
+- Complete Data safety/health declarations and check Play pre-launch reports before any broader
+  release. Optional feedback prevents a blanket "no data collected". Privacy page is already live.
+- Public launch requires the account's closed-test criteria and Google review, plus user permission.
+  Internal testers have access; do not claim the app is publicly available or reviewed.

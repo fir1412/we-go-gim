@@ -1,7 +1,8 @@
 # we go gim Android release
 
 Capacitor Android 1.11.0, package `io.github.fir1412.wegogim`, versionCode2.
-The package name preserves the earlier TWA listing. Min Android7(API24), target/compile36.
+The package name comes from the earlier TWA preparation. A new Play app record was created
+in fir1412's Console on2026-10-04. Min Android7(API24), target/compile36.
 
 ## Build
 
@@ -55,5 +56,9 @@ plan/time/custom message renews that window; no indefinite closed-app scheduling
 1,000 English copy drafts are in content/reminders/drafts.md; the composer supports editing and
 sharing. Notification delivery/screen illumination remain subject to Android/DND/battery settings.
 
-See HANDOFF.md for actual verified tests and remaining limitations. Nothing has been uploaded or
-submitted to Play in this session.
+Internal release1(versionCode2) is published and Active. Existing Beta Testers list has9accounts.
+Join:https://play.google.com/apps/internaltest/4700623995534838864
+Installation may take up to an hour to propagate; the unreviewed listing has a temporary package
+name. No production submission is authorised. This account needs12closed testers for14continuous
+days before requesting production access; internal testing does not count for that requirement.
+See HANDOFF.md for actual verified tests, approval scope and remaining public-release steps.
