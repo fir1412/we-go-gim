@@ -1,8 +1,10 @@
+import { setExercise } from '../set-units.js';
 import { S, todayIso, deleteSession, saveSession, startFromSession, discardDraft, refresh, startWorkout, realSessions } from '../state.js';
 import { unitsFor, weekStart, addDays, workSets, volume, fmtLoad, unitShort, dowOf, exposures, compareExposure, muscleXP, xpBySession, toDisp, fromDisp, getUnits, MAX_KG, MAX_REPS, recapStats } from '../engine.js';
 import { esc, num, fmtDate, fmtMonth, dowLetter, pill, ICON, confirmSheet, toast, cvar, kstyle, MONTHS, kfmt, dowName, openSheet, closeSheet, T, expertWording } from '../ui.js';
 import { go } from '../app.js';
 import { syncRawNames } from '../i18n.js';
+import { displayText } from '../plain.js';
 
 let editing = null; // session id being edited
 let showSeed = true;
@@ -52,7 +54,7 @@ export function render(route) {
   g += '<span class="pad" aria-hidden="true"></span>'.repeat((dowOf(first) + 6) % 7);
   for (let i = 0; i < days; i++) {
     const d = addDays(first, i), ss = on[d];
-    const lab = `${fmtDate(d)}${ss ? ': ' + ss.map(s => s.name).join(', ') : ''}`;
+    const lab = `${fmtDate(d)}${ss ? ': ' + ss.map(s => displayText(s.name)).join(', ') : ''}`;
     g += ss ? `<a href="#/session/${esc(ss[0].id)}" class="on ${d === t ? 'now' : ''}" style="${kstyle(ss[0].color)}" aria-label="${esc(lab)}">${i + 1}</a>`
       : `<span class="${d === t ? 'now' : ''} ${d > t ? 'fut' : ''}" aria-label="${esc(lab)}">${i + 1}</span>`;
   }
@@ -87,7 +89,7 @@ export function render(route) {
     const doneEx = s.entries.filter(e => workSets(e).length).length;
     const lead = s.entries.find(e => workSets(e).length);
     const ex = lead && S.exById[lead.exId];
-    const line = ex ? `${ex.name} ${fmtLoad(ex, Math.max(...workSets(lead).map(x => +x.w || 0)))}${ex.unit === 'bw' ? '' : ' ' + unitShort(ex)} × ${workSets(lead).map(x => x.r ?? '?').join('·')}` : 'No sets';
+    const line = ex ? `${ex.name} · ${workSets(lead).length} sets` : 'No sets';
     const pain = s.entries.some(e => e.pain);
     const mins = s.start && s.end && s.end > s.start ? Math.round((s.end - s.start) / 60000) : s.minutes ?? null;
     const gx = xp[s.id]?.total || 0;
@@ -153,11 +155,14 @@ function detail(id) {
     h += `<article class="box exc hx"><header><div><h2>${ex ? `<a href="#/ex/${esc(ex.id)}">${esc(name)}</a>` : esc(name)}</h2><p>${ex ? esc(unitShort(ex) || (ex.unit === 'L' ? 'level' : 'bodyweight')) : ''}${e.rir ? ` · ${esc(T('rir'))} ${esc(e.rir)}` : ''}${cmp?.prevDate ? ` · vs ${fmtDate(cmp.prevDate)}` : ''}</p></div><div class="badges">${badges}</div></header>`;
     if (ed) {
       h += `<div class="sets">${e.sets.map((x, si) => `<div class="set edit ${x.done ? 'done' : ''}"><span class="i">${x.warm ? 'W' : ++n}</span>
-        <input class="inp" id="ew-${ei}-${si}" type="text" inputmode="decimal" autocomplete="off" step="any" value="${esc(ex && ex.unit !== 'L' ? toDisp(x.w, ex) ?? '' : x.w ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name}, set ${si + 1}: ${ex?.unit === 'L' ? 'level' : ex?.unit === 'bw' ? `added weight in ${getUnits()}` : `weight in ${unitsFor(ex)}`}`)}">
+        <input class="inp" id="ew-${ei}-${si}" type="text" inputmode="decimal" autocomplete="off" step="any" value="${esc(ex && setExercise(ex, x).unit !== 'L' ? toDisp(x.w, setExercise(ex, x)) ?? '' : x.w ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="w" aria-label="${esc(`${name}, set ${si + 1}: ${setExercise(ex, x).unit === 'L' ? 'level' : setExercise(ex, x).unit === 'bw' ? `added weight in ${getUnits()}` : `weight in ${unitsFor(setExercise(ex, x))}`}`)}">
         <input class="inp" id="er-${ei}-${si}" type="number" inputmode="numeric" value="${esc(x.r ?? '')}" data-input="edit-set" data-e="${ei}" data-s="${si}" data-f="r" aria-label="${esc(`${name}, set ${si + 1}: reps`)}">
-        <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="${esc(`${name}, set ${si + 1} done`)}">${ICON.check}</button></div>`).join('')}</div>`;
+        <button class="check" data-act="edit-done" data-e="${ei}" data-s="${si}" aria-pressed="${!!x.done}" aria-label="${esc(`${name}, set ${si + 1} done`)}">${ICON.check}</button><span class="set-unit fine">${esc(unitShort(setExercise(ex, x)) || T('bw'))}</span></div>`).join('')}</div>`;
     } else {
-      const fl = w => (ex ? fmtLoad(ex, w) : String(w ?? '—'));
+      const fl = (w, set) => {
+        const rowEx = ex && setExercise(ex, set);
+        return rowEx ? fmtLoad(rowEx, w) + (unitShort(rowEx) ? ' ' + unitShort(rowEx) : '') : String(w ?? '—');
+      };
       const work = workSets(e), warm = e.sets.filter(x => x.warm && x.done), skipped = e.sets.filter(x => !x.done && !x.warm).length;
       h += work.length ? `<p class="sline num">${esc(groupSets(work, fl))}</p>` : `<p class="fine">No sets done.</p>`;
       const extra = [warm.length ? `Warm-up ${groupSets(warm, fl)}` : '', skipped ? `${skipped} skipped` : ''].filter(Boolean).join(' · ');
@@ -179,10 +184,10 @@ function groupSets(sets, fl) {
   const out = [];
   for (const x of sets) {
     const last = out[out.length - 1];
-    if (last && last.w === x.w) last.r.push(x.r ?? '?');
-    else out.push({ w: x.w, r: [x.r ?? '?'] });
+    if (last && last.w === x.w && last.set.loadUnit === x.loadUnit && last.set.disp === x.disp) last.r.push(x.r ?? '?');
+    else out.push({ w: x.w, set: x, r: [x.r ?? '?'] });
   }
-  return out.map(g => `${fl(g.w)} × ${g.r.join('·')}`).join(' · ');
+  return out.map(g => `${fl(g.w, g.set)} × ${g.r.join('·')}`).join(' · ');
 }
 
 let buffer = null;
@@ -232,7 +237,7 @@ export const actions = {
   'edit-set'(el) {
     const s = S.sessions.find(x => x.id === editing);
     const entry = s.entries[+el.dataset.e], set = entry.sets[+el.dataset.s];
-    const ex = S.exById[entry.exId];
+    const ex = setExercise(S.exById[entry.exId], set);
     // Loads are typed in the display unit (kg or lb) and stored in kg; cable levels never convert.
     // Same limits as the live workout: no negatives, and a typo like 9999 is refused, not saved.
     const f = el.dataset.f, lvl = ex?.unit === 'L';

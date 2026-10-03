@@ -1,3 +1,4 @@
+import { setExercise, loadMeta } from './set-units.js';
 // Import / export: CSV, JSON backup, and a forgiving parser for free-text workout logs (pasted or from PDF).
 import { MAX_KG, MAX_REPS, cleanText, validIso } from './engine.js';
 import { EXERCISES } from './seed.js';
@@ -29,7 +30,7 @@ export function toCSV(sessions, exById, gyms = []) {
       const ex = exById[e.exId];
       let n = 0;
       for (const set of e.sets || []) {
-        rows.push([s.date, safeText(s.name), safeText(ex?.name || e.exId), ex?.unit || '', set.warm ? 'W' : ++n, set.warm ? 1 : 0, set.w ?? '', set.r ?? '', set.done ? 1 : 0, safeText(e.rir ?? ''), e.pain ? 1 : 0, safeText(gname(s.gymId)), safeText(e.note || ''),
+        rows.push([s.date, safeText(s.name), safeText(ex?.name || e.exId), setExercise(ex || { unit: '' }, set).unit, set.warm ? 'W' : ++n, set.warm ? 1 : 0, set.w ?? '', set.r ?? '', set.done ? 1 : 0, safeText(e.rir ?? ''), e.pain ? 1 : 0, safeText(gname(s.gymId)), safeText(e.note || ''),
           safeText(s.note || ''), Number.isFinite(s.hr) ? s.hr : ''].map(q).join(','));
       }
     }
@@ -183,7 +184,7 @@ export function sessionsFromCSV(text, { lb = false, dateOrder = 'auto', fallback
     let ent = sess.entries.find(e => e.exName === exName);
     if (!ent) { ent = { exName, unit: ['kg', 'kg/DB', 'L', 'bw'].includes(cell('unit')) ? cell('unit') : '', sets: [], rir: null, pain: false, note: '' }; sess.entries.push(ent); }
     const warm = cell('warmup') === '1' || /^warm/i.test(cell('settype')) || /^w$/i.test(cell('setorder'));
-    const set = { w, r: reps, done: cell('done') !== '0', ...(warm ? { warm: true } : {}) };
+    const set = { w, r: reps, ...(ours && ['kg', 'kg/DB', 'L', 'bw'].includes(cell('unit')) ? { loadUnit: cell('unit') } : {}), done: cell('done') !== '0', ...(warm ? { warm: true } : {}) };
     const k = Math.min(12, Math.max(1, Math.round(num(cell('sets')) || 1)));
     for (let i = 0; i < k; i++) ent.sets.push({ ...set });
     if (cell('rir')) ent.rir = cell('rir');

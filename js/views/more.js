@@ -1,3 +1,4 @@
+import { loadMeta } from '../set-units.js';
 import { S, load, saveSettings, saveProgram, withUniqueDays, MAX_TEMPLATES, saveExercise, deleteExercise, exportAll, importAll, validateBackup, resetAll, removeSeedData, todayIso, uid, refresh, cleanPauses, SESSION_CAP } from '../state.js';
 import * as db from '../db.js';
 import { MUSCLES, isKg, unitsFor, unitLong, exposures, toDisp, fromDisp, getUnits, estimateDay, MAX_KG, MAX_REPS, cleanText } from '../engine.js';
@@ -1248,7 +1249,7 @@ export const actions = {
       // A heart rate and gym from the log are kept (the gym when one here has that name).
       id: uid('imp'), date: s.date, name: s.name, color: s.color || 'upper', gymId: S.settings.gymId, hr: null, ...importExtras(s, S.settings.gyms),
       // Trimmed to what a restore keeps, so a backup of this brings back exactly what's shown.
-      entries: s.entries.filter(e => gid.has(imp.gOf[gk(e)])).slice(0, SESSION_CAP).map(e => ({ exId: gid.get(imp.gOf[gk(e)]), sets: e.sets.slice(0, SESSION_CAP).map(x => ({ w: x.w, r: x.r, done: x.done !== false, ...(x.warm ? { warm: true } : {}) })), rir: e.rir ?? null, pain: !!e.pain, note: e.note || '' })),
+      entries: s.entries.filter(e => gid.has(imp.gOf[gk(e)])).slice(0, SESSION_CAP).map(e => ({ exId: gid.get(imp.gOf[gk(e)]), sets: e.sets.slice(0, SESSION_CAP).map(x => ({ w: x.w, r: x.r, done: x.done !== false, ...loadMeta(x), ...(x.warm ? { warm: true } : {}) })), rir: e.rir ?? null, pain: !!e.pain, note: e.note || '' })),
       readiness: null, feel: null, note: [...(s.dateWas ? [`Date written as ${s.dateWas} in the log.`] : []), ...s.notes].join(' · '), imported: true,
     })).filter(s => s.entries.length);
     const dates = new Set(sessions.map(s => s.date));

@@ -643,7 +643,7 @@ async function boot() {
   }
   await setLang(S.settings.lang || guessLang()).catch(() => setLang('en'));
   applyTheme();
-  onChange(() => { applyTheme(); render(); });
+  onChange(() => { applyTheme(); render(); if (globalThis.gimNative) restNotice(); });
   // Another tab changed the data: reload it here too (after the workout in progress is saved, not in the middle of one).
   db.onRemoteChange(async () => {
     if (S.draft) return toast('Changes were made in another tab. They will show after this workout.', 'flat');
@@ -654,6 +654,7 @@ async function boot() {
   window.addEventListener('hashchange', () => { if (sheetOpen()) closeSheet(); render(); });
   render();
   document.body.classList.add('ready');
+  if (globalThis.gimNative) restNotice();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 1500));
   idle(() => Object.keys(LAZY).reduce((p, n) => p.then(() => loadView(n).catch(() => {})), Promise.resolve()));
   // Confirm a reload caused by an update, so a manual "Check for updates" visibly lands.

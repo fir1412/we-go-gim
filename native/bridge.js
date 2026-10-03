@@ -18,6 +18,7 @@ async function encode(blob) {
 const safeName = name => String(name).replace(/[^\p{L}\p{N}._-]/gu, '_').slice(0, 120) || 'export';
 let shareBusy = false;
 let notificationQueue = Promise.resolve();
+let requestedRest = '';
 
 if (Capacitor.isNativePlatform()) {
   document.documentElement.dataset.native = 'android';
@@ -59,13 +60,16 @@ if (Capacitor.isNativePlatform()) {
     },
     restNotification(timer, enabled) {
       const end = timer?.end, label = timer?.label;
+      const key = enabled && end ? `${end}|${label}` : '';
+      if (key === requestedRest) return notificationQueue;
+      requestedRest = key;
       notificationQueue = notificationQueue.catch(() => {}).then(async () => {
       await LocalNotifications.cancel({ notifications: [{ id: 1 }] });
       if (!end || !enabled || end <= Date.now()) return;
       if ((await LocalNotifications.checkPermissions()).display !== 'granted') return;
       await LocalNotifications.schedule({ notifications: [{ id: 1, channelId: 'rest', title: 'Rest done. Next set.', body: label || 'Ready for the next set?', schedule: { at: new Date(end), allowWhileIdle: true } }] });
       });
-      return notificationQueue;
+      return notificationQueue.catch(error => { requestedRest = ''; throw error; });
     }
   };
   await App.addListener('backButton', () => {

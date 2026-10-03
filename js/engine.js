@@ -1,3 +1,4 @@
+import { setExercise, compatibleSet } from './set-units.js';
 // Pure training logic. No DOM, no storage: safe to unit-test in Node.
 
 export const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -26,8 +27,8 @@ export const setEngineMonths = names => { MONTHS.splice(0, 12, ...names); zhDate
 export const shortDate = iso => (zhDates ? `${MONTHS[+iso.slice(5, 7) - 1]}${+iso.slice(8, 10)}日` : `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]}`);
 
 /** Working sets of an entry: done and not warm-up. */
-export function workSets(entry) {
-  return (entry.sets || []).filter(s => s.done && !s.warm);
+export function workSets(entry, ex = null) {
+  return (entry.sets || []).filter(s => s.done && !s.warm && (!ex || compatibleSet(ex, s)));
 }
 
 // ---- caches -----------------------------------------------------------------------
@@ -73,7 +74,7 @@ export function exposures(sessions, ex, { gymId = null, before = null } = {}) {
   for (const { s, e } of exIndex(sessions).get(ex.id) || []) {
     if (before && s.date > before) continue;
     if (ex.perGym && gymId && s.gymId && s.gymId !== gymId) continue;
-    const ws = workSets(e);
+    const ws = workSets(e, ex);
     if (ws.length) out.push({ date: s.date, sessionId: s.id, entry: e, sets: ws, pain: !!e.pain, rir: e.rir ?? null, approx: !!s.approx });
   }
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
@@ -510,9 +511,10 @@ export function nextFor(entry, slot, ex) {
 
 /** Volume in kg. Dumbbell loads count both hands. Cable levels and bodyweight return 0. */
 export function volume(ex, sets) {
-  if (!isKg(ex.unit)) return 0;
-  const k = ex.unit === 'kg/DB' ? 2 : 1;
-  return sets.reduce((a, s) => a + (+s.w || 0) * (+s.r || 0) * k, 0);
+  return sets.reduce((a, s) => {
+    const unit = setExercise(ex, s).unit;
+    return a + (isKg(unit) ? (+s.w || 0) * (+s.r || 0) * (unit === 'kg/DB' ? 2 : 1) : 0);
+  }, 0);
 }
 
 /** Warm-up ramp toward a working load. */
@@ -840,7 +842,8 @@ function muscleXPRaw(sessions, exById, today) {
       const ms = ex.muscles || [];
       ms.forEach((m, i) => { gain[m] = (gain[m] || 0) + ws.length * (i === 0 ? XP_SET : XP_HELPER); });
       ms.forEach(m => { (sets[m] ||= 0); sets[m] += ws.length; });
-      const sc = score({ sets: ws }, ex.unit);
+      const comparable = ws.filter(s => compatibleSet(ex, s));
+      const sc = comparable.length ? score({ sets: comparable }, ex.unit) : null;
       // Machines and cables are only compared with themselves at the same gym.
       const key = ex.perGym && s.gymId ? `${ex.id}@${s.gymId}` : ex.id;
       if (sc != null) {
@@ -908,11 +911,12 @@ export function summaryStats(d, sessions, exById, { gymId = null, now = Date.now
   for (const e of d.entries) {
     const ex = exById[e.exId];
     if (!ex) continue;
-    const ws = workSets(e);
-    done += ws.length; tot += countedSets(e).length;
-    if (ws.length && isKg(ex.unit)) anyKg = true;
-    reps += ws.reduce((a, s) => a + (+s.r || 0), 0);
-    vol += volume(ex, ws);
+    const allSets = workSets(e);
+    const ws = workSets(e, ex);
+    done += allSets.length; tot += countedSets(e).length;
+    if (allSets.some(s => isKg(setExercise(ex, s).unit))) anyKg = true;
+    reps += allSets.reduce((a, s) => a + (+s.r || 0), 0);
+    vol += volume(ex, allSets);
     const prev = exposures(sessions, ex, { gymId, before: d.date }), last = prev[0];
     if (!ws.length || !last) continue;
     // Like for like: only as many sets as both sessions have, so 3 sets vs last week's 4 isn't a "drop".

@@ -15,5 +15,6 @@ mkdirSync(target);
 for (const asset of assets) cpSync(join(root, asset), join(target, asset), { recursive: true });
 // Only the bridge is bundled; existing relative modules stay usable on the website.
 await build({ entryPoints: [join(root, 'native/bridge.js')], bundle: true, format: 'esm', outfile: join(target, 'native/bridge.js'), target: 'chrome109' });
-writeFileSync(join(target, 'index.html'), readFileSync(join(target, 'index.html'), 'utf8').replace('<script type="module" src="js/app.js"></script>', '<script type="module">import "./native/bridge.js"; await import("./js/app.js");</script>'));
+writeFileSync(join(target, 'native/start.js'), 'import "./bridge.js";\nawait import("../js/app.js");\n');
+writeFileSync(join(target, 'index.html'), readFileSync(join(target, 'index.html'), 'utf8').replace('<script type="module" src="js/app.js"></script>', '<script type="module" src="native/start.js"></script>'));
 console.log('Packaged public assets and native bridge; no service worker or private files.');

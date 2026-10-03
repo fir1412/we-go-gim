@@ -25,6 +25,23 @@ Carry forward: public asset allowlist; awaited native save; bounded cache; delay
 separate dev package; no automatic browser storage migration; upload key != Play signing key;
 do not confuse browser simulations with actual phone verification or review with publication.
 
+## Second checkpoint
+
+- Startup bug found on real Samsung SM-S948B: strict CSP rejects inline bootstrap.
+  Fixed by external native/start.js. Reinstalled `.dev`, native Welcome loads correctly.
+- Actual screen-off test: scheduled native rest alert, put phone to sleep; Android notification
+  record shows id1/high-importance rest channel delivered. Screen illumination not verified.
+  Test used adb permission grant/exact-alarm appop on development package only.
+- Mid-workout per-set kg/lb/level/bodyweight control added at user's request. Earlier completed
+  sets retain load metadata; kg/lb share kg storage; other type changes clear only unfinished loads.
+  Engine volume/exposures/PR logic exclude incompatible units. JSON/CSV preserve load types.
+- 553 unit tests pass; mixed-unit browser reload/save test passes; focused four-language sweep
+  now passes (calendar aria-label names translated individually).
+- Build-tool uuid override to11.1.1 fixes all3moderate audit findings; install audit reports0.
+- Compatibility matrix first900cases has5transientHistoryoverflows; rerun waits for animations.
+- User's official icon source copied verbatim from penup_20261003_231302.jpg;
+  exporting web/Android/Play variants. Original orientation and drawing preserved.
+
 ## Verification / next work
 
 - Baseline 545 unit tests passed before changes.

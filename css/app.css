@@ -189,6 +189,7 @@ body { display: block; }
 .helper { margin: -2px 0 0; font-size: 0.75rem; color: var(--mute); }
 .helper b { color: var(--ink); }
 .sets { display: grid; gap: 5px; }
+.set-unit { grid-column: 2 / 4; justify-self: start; min-height: 36px; padding: 4px 10px; margin-bottom: 4px; }
 .set { display: grid; grid-template-columns: 22px 1fr 1fr 42px; gap: 6px; align-items: center; }
 .set .i { font-family: var(--display); font-size: 0.9375rem; color: var(--mute); text-align: center; }
 .set.warm .i { color: var(--flat); }

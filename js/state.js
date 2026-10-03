@@ -1,3 +1,4 @@
+import { loadMeta } from './set-units.js';
 // App state held in memory, persisted through db.js.
 import * as db from './db.js';
 import { EXERCISES, PROGRAM, DEFAULT_SETTINGS, MUSCLE_UPDATES } from './seed.js';
@@ -255,7 +256,7 @@ async function doCommit() {
     ...(() => { const stale = !d.past && !(Date.now() - d.start >= 0 && Date.now() - d.start <= 12 * 3600e3); return { start: d.past || stale ? null : d.start, end: d.past || stale ? null : Date.now(), minutes: d.past ? d.minutes ?? null : stale ? null : undefined }; })(),
     readiness: d.readiness, deload: !!d.deload, ...(d.past ? { backfilled: true } : {}),
     hr: d.hr, feel: d.feel, note: d.note, ...(d.cardio?.length ? { cardio: d.cardio.map(c => ({ type: c.type, min: c.min, intensity: c.intensity, ...(c.km ? { km: c.km } : {}) })) } : {}),
-    entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sug: e.sg?.t || null, sets: e.sets.map(s => ({ w: s.w, r: s.r, done: !!s.done, ...(s.warm ? { warm: true } : {}), ...(s.at && !d.past ? { at: s.at } : {}) })), rir: e.rir, pain: e.pain, note: e.note })),
+    entries: d.entries.map(e => ({ exId: e.exId, slot: e.slot, sug: e.sg?.t || null, sets: e.sets.map(s => ({ w: s.w, r: s.r, done: !!s.done, ...loadMeta(s), ...(s.warm ? { warm: true } : {}), ...(s.at && !d.past ? { at: s.at } : {}) })), rir: e.rir, pain: e.pain, note: e.note })),
   };
   await saveSession(sess);
   // Cardio done in the workout also lands in the cardio log.
@@ -349,7 +350,7 @@ export function sanitizeBackup(data) {
   const cap = (v, max) => (v != null && (v > max || v < 0) ? null : v);
   // A negative load is kept only on a bodyweight or assisted lift, where it is the machine's help.
   const assisted = new Set((Array.isArray(data.exercises) ? data.exercises : []).filter(e => e && (e.unit === 'bw' || /\bassist/i.test(e.name))).map(e => e.id));
-  const set = (x, neg = false) => ({ w: neg && numOr(x?.w) < 0 && numOr(x?.w) >= -MAX_KG ? numOr(x.w) : cap(numOr(x?.w), MAX_KG), r: cap(numOr(x?.r), MAX_REPS), done: bool(x?.done), ...(x?.warm ? { warm: true } : {}), ...(Number.isFinite(x?.at) ? { at: x.at } : {}) });
+  const set = (x, neg = false) => ({ ...loadMeta(x), w: neg && numOr(x?.w) < 0 && numOr(x?.w) >= -MAX_KG ? numOr(x.w) : cap(numOr(x?.w), MAX_KG), r: cap(numOr(x?.r), MAX_REPS), done: bool(x?.done), ...(x?.warm ? { warm: true } : {}), ...(Number.isFinite(x?.at) ? { at: x.at } : {}) });
   const slot = s => s && typeof s === 'object' ? { exId: str(s.exId, 80), sets: Math.max(1, Math.min(20, Math.round(numOr(s.sets, 3)))), lo: numOr(s.lo, 8), hi: numOr(s.hi, 12), group: str(s.group, 4), ...(s.note ? { note: str(s.note, 120) } : {}) } : undefined;
   const cardio = c => ({ type: str(c?.type, 40) || 'Other', min: numOr(c?.min, 0), intensity: oneOf(c?.intensity, ['easy', 'moderate', 'hard'], 'moderate'), ...(numOr(c?.km) ? { km: numOr(c.km) } : {}) });
   const out = { ...data };
