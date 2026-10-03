@@ -422,4 +422,4 @@ export function langPicker(cur, langs) {
 /** iPhone or iPad (iPadOS reports itself as a Mac with touch). */
 export const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 /** Opened as the installed app rather than in a browser tab. */
-export const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+export const standalone = () => !!globalThis.gimNative || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;

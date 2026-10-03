@@ -1404,7 +1404,8 @@ export async function pdfToText(file, onPage) {
 }
 
 // ---- files ----------------------------------------------------------------------------------
-export function download(name, text, type = 'text/plain') {
+export async function download(name, text, type = 'text/plain') {
+  if (globalThis.gimNative) return globalThis.gimNative.save(name, new Blob([text], { type }));
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = Object.assign(document.createElement('a'), { href: url, download: name });
   document.body.appendChild(a); a.click(); a.remove();
@@ -1412,6 +1413,7 @@ export function download(name, text, type = 'text/plain') {
 }
 /** Share a file through Android's share sheet (Drive, WhatsApp, email…). Returns false if unsupported. */
 export async function shareFile(name, text, type = 'application/json') {
+  if (globalThis.gimNative) return globalThis.gimNative.share(name, new Blob([text], { type }));
   const file = new File([text], name, { type });
   if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return true; }
   return false;

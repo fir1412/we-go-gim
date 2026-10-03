@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.fir1412.wegogim",
+  "appName": "we go gim",
+  "webDir": "www",
+  "server": { "androidScheme": "https", "cleartext": false },
+  "android": { "backgroundColor": "#0F1117" },
+  "plugins": { "SystemBars": { "insetsHandling": "css" } }
+}

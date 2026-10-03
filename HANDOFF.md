@@ -1,0 +1,38 @@
+# Capacitor Android migration — 2026-10-04
+
+Current work is on `fix-welcome`. User requested Capacitor conversion, Play preparation,
+Tally lessons, bug/phone checks, frequent commits. Also asked about screen-off rest alerts.
+
+## Implementation checkpoint
+
+- Capacitor 8.5.2, permanent package `io.github.fir1412.wegogim` from existing TWA project.
+- Debug suffix `.dev`: never uninstall or overwrite an existing Play app for sideload tests.
+- Public assets allowlisted into ignored `www`; bundle bridge only. Native has no service worker.
+- Native SAF Save as completes after actual write; backups await completion. No storage permission.
+- FileProvider limited to dedicated share cache; 32 MiB per output, 64 files/96 MiB cache,
+  shares retained 24h for delayed recipient reads. Concurrent sharing rejected.
+- Rest alerts use native LocalNotifications, high importance sound/vibration channel;
+  POST_NOTIFICATIONS and user-controlled SCHEDULE_EXACT_ALARM. No full-screen intent.
+  Screen illumination is controlled by Android settings; Doze can delay frequent idle alarms.
+- Android Back delegates to existing app/sheet history; root minimizes app. Keyboard adjustResize.
+- Native app uses separate WebView storage: old PWA/TWA data needs JSON export/import.
+
+## Tally lessons reviewed
+
+Read D:/tally-android commits f0a5a86, 34cac75 and 5a740a2 plus HANDOFF and sync script;
+also tally-play history and existing wegogim-play README/twa-manifest.
+Carry forward: public asset allowlist; awaited native save; bounded cache; delayed share cleanup;
+separate dev package; no automatic browser storage migration; upload key != Play signing key;
+do not confuse browser simulations with actual phone verification or review with publication.
+
+## Verification / next work
+
+- Baseline 545 unit tests passed before changes.
+- Dependencies installed. npm initially reported 3 moderate issues; online audit still needs verification.
+- Native assets sync completed. Android build, new regression tests, phone checks and release
+  signing/store preparation remain in progress. Do not claim ready to upload yet.
+- Connected adb phone available. SDK C:/Users/user/.bubblewrap/android_sdk;
+  JDK21 D:/tools/jdk21-extract/jdk-21.0.12.1+1.
+- Existing signing key C:/Users/user/wegogim-android-keys (never print/commit secrets).
+- Native versionCode 2 is provisional: verify highest uploaded code before submission.
+- No push, deployment or Play submission performed or requested in this session.

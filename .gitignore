@@ -2,3 +2,14 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+www/
+android/.gradle/
+android/**/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+output/
+*.jks
+*.keystore

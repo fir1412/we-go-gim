@@ -296,7 +296,7 @@ function pickExercise(title, onPick, cur = null) {
     <ul class="picklist">${S.exercises.map(x => `<li data-name="${esc(searchText(x))}"><button data-pick="${esc(x.id)}" ${x.id === cur ? 'aria-current="true"' : ''}><b>${esc(x.name)}</b><small>${esc((x.muscles || []).slice(0, 2).join(', ') || 'No muscles set')}${inProg.has(x.id) ? ' · in programme' : ''}</small></button></li>`).join('')}</ul>
     <a class="btn ghost" href="#/exercise/new">${ICON.plus} New exercise</a>`, { label: title });
   el.querySelector('#pick-q').addEventListener('input', ev => searchList(el, ev.target.value, '.picklist li'));
-  el.addEventListener('click', ev => {
+  el.addEventListener('click', async ev => {
     if (ev.target.closest('.cardiohint a')) { closeSheet(); return; }
     if (ev.target.closest('a[href="#/exercise/new"]')) { pendingPick = onPick; pendingAt = location.hash.replace(/^#\/?/, '') || 'program'; return; }
     const b = ev.target.closest('[data-pick]');
@@ -1060,13 +1060,13 @@ export const actions = {
     const name = backupName(), text = JSON.stringify(await exportAll());
     try {
       if (await shareFile(name, text)) { await markBackup(); return; }
-      download(name, text, 'application/json');
+      await download(name, text, 'application/json');
       await markBackup();
       toast('Sharing isn\'t available here, so the file was saved to Downloads', 'flat');
     } catch (e) { if (e.name !== 'AbortError') throw e; }
   },
-  async 'backup-dl'() { download(backupName(), JSON.stringify(await exportAll()), 'application/json'); await markBackup(); toast('Backup saved to Downloads', 'up'); },
-  'csv-dl'() { download(`wegogim-${todayIso()}.csv`, toCSV(S.sessions, S.exById, S.settings.gyms), 'text/csv'); toast('CSV saved to Downloads', 'up'); },
+  async 'backup-dl'() { await download(backupName(), JSON.stringify(await exportAll()), 'application/json'); await markBackup(); toast('Backup saved to Downloads', 'up'); },
+  async 'csv-dl'() { await download(`wegogim-${todayIso()}.csv`, toCSV(S.sessions, S.exById, S.settings.gyms), 'text/csv'); toast('CSV saved to Downloads', 'up'); },
   async restore(el) {
     const f = el.files?.[0]; el.value = '';
     if (!f) return;
@@ -1290,10 +1290,11 @@ export const actions = {
   async 'st-toggle'(el) {
     // Notifications need the phone's permission first; without it the switch stays off.
     if (el.dataset.f === 'restNotify' && el.checked) {
-      const p = 'Notification' in window ? await Notification.requestPermission().catch(() => 'denied') : 'unsupported';
+      const p = globalThis.gimNative ? (await globalThis.gimNative.notificationPermission() ? 'granted' : 'denied') : 'Notification' in window ? await Notification.requestPermission().catch(() => 'denied') : 'unsupported';
       if (p !== 'granted') { el.checked = false; return toast(p === 'unsupported' ? 'This browser cannot show notifications' : 'Notifications are blocked. Allow them in your phone settings for this app.', 'flat'); }
     }
     await saveSettings({ [el.dataset.f]: el.checked });
+    if (el.dataset.f === 'restNotify') (await import('../app.js')).restNotice();
   },
   'st-missed': el => saveSettings({ missedReminders: el.checked }),
   'st-game': el => saveSettings({ gamify: el.checked }),
@@ -1450,10 +1451,10 @@ export function exportCalendar() {
   const google = `<p class="fine">Google Calendar (most Android phones): tap each day and save. It repeats every week at ${esc(time)}.</p><div class="callist">${links}</div>`;
   const file = `<p class="fine">Any other calendar (iPhone, Samsung, Huawei, Xiaomi, OPPO, vivo, Outlook): download one file with every day, then open it.</p><button class="btn ghost" data-x="ics">Download calendar file</button>`;
   const el = openSheet(`<h2 class="sh-title">Add training days to my calendar</h2>${getLang() === 'zh' ? file + google : google + file}`, { label: 'Training reminders' });
-  el.addEventListener('click', ev => {
+  el.addEventListener('click', async ev => {
     if (ev.target.closest('a[href^="https://calendar.google.com"]')) saveSettings({ calAdded: true });
     if (!ev.target.closest('[data-x="ics"]')) return;
-    download('we-go-gim-training.ics', trainingIcs(days, time, url, new Date(), words), 'text/calendar');
+    await download('we-go-gim-training.ics', trainingIcs(days, time, url, new Date(), words), 'text/calendar');
     saveSettings({ calAdded: true });
     toast('Open the downloaded file to add the reminders to your calendar', 'up');
   });

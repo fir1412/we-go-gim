@@ -278,6 +278,15 @@ export function startTimer(sec, label) {
 
 // The first rest of a workout: offer the rest-over notification once, where it's useful, not buried in Settings.
 function offerNotice() {
+  if (globalThis.gimNative) {
+    if (!S.settings.restNotifyAsked && !S.draft?.past) {
+      saveSettings({ restNotifyAsked: true });
+      toast('Buzz when rest is over?', 'upper', { action: { label: 'Turn on', fn: async () => {
+        if (await globalThis.gimNative.notificationPermission()) { await saveSettings({ restNotify: true }); restNotice(); }
+      } } });
+    }
+    return;
+  }
   if (S.settings.restNotify || S.settings.restNotifyAsked || !('Notification' in window) || Notification.permission === 'denied' || S.draft?.past) return;
   saveSettings({ restNotifyAsked: true });
   setTimeout(() => toast('Buzz when rest is over?', 'upper', { action: { label: 'Turn on', fn: async () => {
@@ -293,6 +302,7 @@ let noticeT = null;
 export function restNotice() {
   clearTimeout(noticeT);
   const t = S.draft?.timer;
+  if (globalThis.gimNative) { globalThis.gimNative.restNotification(t, S.settings.restNotify).catch(console.error); return; }
   if (!t || !S.settings.restNotify || !('Notification' in window) || Notification.permission !== 'granted') return;
   noticeT = setTimeout(async () => {
     if (document.visibilityState === 'visible' || S.draft?.timer?.end !== t.end) return;
@@ -578,7 +588,7 @@ let installEvt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (parseRoute().name === 'more') render(); });
 window.addEventListener('appinstalled', () => { installEvt = null; toast('Installed. Open we go gim from your home screen.', 'up'); });
 /** Offered in every browser until the app runs installed: one tap where the browser allows it, its own steps elsewhere. */
-export const canInstall = () => !!installEvt || !standalone();
+export const canInstall = () => !globalThis.gimNative && (!!installEvt || !standalone());
 /** How to install in this browser, as [title, steps, note]. Only Chrome-family browsers can do it in one tap. */
 function installSteps() {
   const ua = navigator.userAgent, samsung = /SamsungBrowser/.test(ua);
@@ -650,7 +660,7 @@ async function boot() {
   try { if (sessionStorage.getItem('wgg-updated')) { sessionStorage.removeItem('wgg-updated'); setTimeout(() => toast('Updated to the latest version', 'up'), 300); } } catch {}
   onboarding();
   import('./feedback.js').then(m => m.flushFeedback()).catch(() => {});
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  if (!globalThis.gimNative && 'serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(reg => {
       // An installed app can stay open for days: look for updates whenever it comes back to the front.
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });

@@ -268,7 +268,7 @@ export const actions = {
     const { shareFile, download } = await import('../io.js');
     const name = `wegogim-backup-${todayIso()}.json`, text = JSON.stringify(await exportAll());
     try {
-      if (!(await shareFile(name, text))) { download(name, text, 'application/json'); toast('Backup saved to Downloads', 'up'); }
+      if (!(await shareFile(name, text))) { await download(name, text, 'application/json'); toast('Backup saved to Downloads', 'up'); }
       await saveSettings({ lastBackup: todayIso() });
     } catch (e) { if (e.name !== 'AbortError') throw e; }
   },
