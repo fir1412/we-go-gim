@@ -47,4 +47,13 @@ node --test tests/e2e/*.e2e.mjs
 | `js/views/*.js` | Today, Workout, Insights, Levels, History, More |
 | `sw.js` | Offline cache |
 
-Icon: a tuxedo kitten holding two dumbbells, drawn for this project (`icons/icon.svg`, full-bleed `icons/icon-maskable.svg`), MIT like the code.
+Official icon: the owner's supplied artwork, preserved in `icons/official-source.jpg`.
+Run `node scripts/export-icons.mjs` to export the web, Android and Play icon sizes.
+
+## Capacitor Android
+
+Install Node 22+, JDK 21 and Android SDK 36. Then run `npm ci`, `npm run sync`,
+and `android/gradlew.bat -p android assembleDebug` on Windows.
+The debug package ends in `.dev`, so it can coexist with the Play app.
+Release instructions and verification status are in [release/README.md](release/README.md)
+and [HANDOFF.md](HANDOFF.md).
