@@ -101,6 +101,7 @@ function start() {
     <button class="linkbtn center" data-act="wz-cancel">Keep my current programme</button>`
     : `<div class="wz-hero"><img src="icons/icon-192.png" alt="" width="48" height="48"><h2>Every workout, filled in for you</h2><p>Your next weights and reps come from your last session, with a small step up when you've earned it.</p><p class="wz-trust">Free: no ads, no account, no sign-up. Your workouts stay on this phone: the app never uploads them, and backups go only where you send them.</p><button class="linkbtn" data-act="net-check">Check it yourself</button></div>
     ${isIOS() && !standalone() ? `<div class="warn wz-warn" style="--k:var(--flat)"><b>On iPhone, add to Home Screen first</b><span>Safari can clear data after 7 days unopened, and data from a Safari tab doesn't move to the installed app. Tap Share, then Add to Home Screen.</span></div>` : ''}
+    ${globalThis.gimNative ? `<div class="box pad stack"><b>Already using we go gim on the web?</b><p>Open the website app, go to More → Backup and export, and save a JSON backup. Then restore that file here. Website and Android data are stored separately.</p><a class="btn ghost" href="https://fir1412.github.io/we-go-gim/" target="_blank" rel="noopener">Open website app</a><button class="btn ghost" data-act="wz-native-restore">Restore my backup</button></div>` : ''}
     ${prefs()}
     <p class="fine center-t wz-consent"><a href="terms.html" target="_blank" rel="noopener">Not medical advice. By continuing you agree to the terms of use.</a></p>
     <button class="btn wz-main" data-act="wz-begin">Build my plan <small>· ${S.settings.experience ? 6 : 7} quick questions, about a minute</small></button>
@@ -214,6 +215,9 @@ export const actions = {
     if (fb) await saveProgram(structuredClone(fb.program));
     await finish('today', { tour: false });
     toast('Full body, 3 days is your plan. Change it under More → Programme.', 'up');
+  },
+  async 'wz-native-restore'() {
+    await finish('data', { tour: false });
   },
   'wz-units': el => saveSettings({ units: el.dataset.v === 'lb' ? 'lb' : 'kg' }),
   'wz-text': el => saveSettings({ textSize: ['large', 'xl'].includes(el.dataset.v) ? el.dataset.v : 'normal' }),

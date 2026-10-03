@@ -10,6 +10,10 @@ try {
   await b.run(() => document.querySelector('[data-act="wz-sample"]').click());
   await b.until(() => document.querySelector('[data-act="sample-end"]'));
   await b.run(() => document.querySelector('.scrim')?.click());
+  await b.run(async () => {
+    const { S, startWorkout } = await import('./js/state.js');
+    await startWorkout(S.program.days.find(d => d.slots.length));
+  });
   for (const lang of ['en', 'ms', 'zh', 'zh-Hant', 'ja']) {
     await b.run(async lang => {
       const { S, saveSettings, refresh } = await import('./js/state.js');

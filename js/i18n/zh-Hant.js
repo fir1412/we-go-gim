@@ -220,6 +220,15 @@ export default {
 "Zottman curl": "佐特曼彎舉"
 },
 "s": {
+"Already using we go gim on the web?": "已經在網頁上使用 we go gim？",
+"Open the website app, go to More → Backup and export, and save a JSON backup. Then restore that file here. Website and Android data are stored separately.": "開啟網頁應用程式，前往更多 → 備份與匯出，儲存 JSON 備份。然後在這裡還原該檔案。網頁和 Android 的資料分別儲存。",
+"Open website app": "開啟網頁應用程式",
+"Restore my backup": "還原我的備份",
+"One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone or an uninstall. It is not encrypted; keep it private. Progress photos are not included.": "一個檔案備份你的訓練、計劃和設定。請儲存在應用程式之外，以便手機遺失或應用程式解除安裝後還原。檔案未加密，請妥善保管。備份不含進度照片。",
+"Only on this phone, in the Android app’s private storage. It is separate from browser data and is not copied to your other devices.": "僅儲存在這部手機的 Android 應用程式專用儲存空間。它與瀏覽器資料分開，不會複製到你的其他裝置。",
+"Deleted by: uninstalling this app, clearing its storage in Android settings, or a phone reset. Clearing browser data or the app’s cache does not delete workouts.": "解除安裝應用程式、在 Android 設定中清除應用程式儲存空間或重設手機會刪除資料。清除瀏覽器資料或應用程式快取不會刪除訓練紀錄。",
+"A local Android alert, even with the screen off. Sound and timing depend on your notification, alarm and battery settings.": "即使螢幕關閉也可收到 Android 本機提醒。聲音和時間取決於通知、鬧鐘和電池設定。",
+"Optional reminders on your planned training days. Each app visit schedules the next four weeks. Android may delay delivery while saving battery.": "可選的計劃訓練日提醒。每次開啟應用程式會安排未來四週的提醒。Android 節電時可能延遲通知。",
 "Write or share a gym reminder": "編寫或分享健身提醒",
 "A gym reminder, in your words": "用自己的話寫健身提醒",
 "Edit this draft, then copy it or choose an app to share it.": "編輯草稿，然後複製或選擇應用程式分享。",

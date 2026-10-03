@@ -220,9 +220,9 @@ document.addEventListener('input', ev => {
 function dataKept() {
   const li = s => `<li>${esc(s)}</li>`;
   const sheet = openSheet(`<h2 class="sh-title">How your data is kept</h2><ul class="steps">
-    ${li('Only on this phone, in the storage of the browser the app runs in. It is not copied to a server or to your other devices, so no one can bring it back, not even the developer.')}
+    ${li(globalThis.gimNative ? 'Only on this phone, in the Android app’s private storage. It is separate from browser data and is not copied to your other devices.' : 'Only on this phone, in the storage of the browser the app runs in. It is not copied to a server or to your other devices, so no one can bring it back, not even the developer.')}
     ${li('What is kept: your workouts, exercises, plan, body weight, measurements, progress photos and settings.')}
-    ${li("Deleted by: uninstalling the app, clearing the browser's data for it, cleaner apps, or a phone reset.")}
+    ${li(globalThis.gimNative ? 'Deleted by: uninstalling this app, clearing its storage in Android settings, or a phone reset. Clearing browser data or the app’s cache does not delete workouts.' : "Deleted by: uninstalling the app, clearing the browser's data for it, cleaner apps, or a phone reset.")}
     ${isIOS() && !standalone() ? li("On iPhone, keep the app on the Home Screen: Safari clears websites it hasn't seen for 7 days.") : ''}
     ${li('Safe through: closing, restarting, updates and going offline.')}
     ${li('New phone? Save a backup, then restore it there.')}</ul>

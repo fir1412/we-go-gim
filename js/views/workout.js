@@ -244,6 +244,7 @@ export function startGuess(ex, f = 1) {
   return Math.max(5, round(base * k, lb ? 10 * LB_KG : 5));
 }
 function startPick(e, ex, ei) {
+  if (e.sets.some(s => !compatibleSet(ex, s))) return '';
   if (e.sg?.t !== 'cal' || ex.unit === 'bw' || e.sets.some(s => s.done || (!s.warm && +s.w > 0))) return '';
   return `<div class="startw"><p><b>New lift.</b> How heavy do you usually go on this, or is it new to you?</p><div class="seg" role="group" aria-label="Starting weight for ${esc(ex.name)}">${[[0.6, 'Light / new'], [1, 'Medium'], [1.5, 'Heavy']].map(([v, l]) => `<button data-act="start-w" data-e="${ei}" data-v="${v}">${l}</button>`).join('')}</div><p class="fine">Tap one and a starting weight is filled in, or type your own below.</p></div>`;
 }
@@ -431,11 +432,11 @@ export const actions = {
     relabelRest(); closeSheet(); commit();
   },
   warm(el) {
-    const e = E(el), ex = S.exById[e.exId];
+    const e = E(el), next = e.sets.find(s => !s.done && !s.warm) || e.sets.find(s => !s.warm), ex = setExercise(S.exById[e.exId], next);
     closeSheet();
     if (e.sets.some(s => s.warm)) { e.sets = e.sets.filter(s => !s.warm); return commit(); }
-    const w = +(e.sets.find(s => !s.warm)?.w);
-    const ws = warmup(w, ex, S.settings.equip);
+    const w = +next?.w;
+    const ws = warmup(w, ex, S.settings.equip).map(s => ({ ...s, ...loadMeta(next) }));
     if (!ws.length) return toast(isKg(ex.unit) ? 'Set a working weight first' : 'Warm-ups only work for kg loads', 'flat');
     e.sets.unshift(...ws);
     commit();
@@ -861,4 +862,3 @@ function howToUrl(ex) {
   if (lang === 'zh') return `https://search.bilibili.com/all?keyword=${encodeURIComponent(`${name} ${how}`)}`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} ${how}`)}`;
 }
-

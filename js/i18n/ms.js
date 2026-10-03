@@ -220,6 +220,15 @@ export default {
 "Zottman curl": "Zottman curl"
 },
 "s": {
+"Already using we go gim on the web?": "Sudah menggunakan we go gim di web?",
+"Open the website app, go to More → Backup and export, and save a JSON backup. Then restore that file here. Website and Android data are stored separately.": "Buka aplikasi web, pergi ke Lagi → Sandaran dan eksport, dan simpan sandaran JSON. Kemudian pulihkan fail itu di sini. Data web dan Android disimpan berasingan.",
+"Open website app": "Buka aplikasi web",
+"Restore my backup": "Pulihkan sandaran saya",
+"One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone or an uninstall. It is not encrypted; keep it private. Progress photos are not included.": "Satu fail sandaran untuk senaman, pelan dan tetapan anda. Simpan di luar aplikasi ini sekiranya telefon hilang atau aplikasi dinyahpasang. Fail ini tidak disulitkan; simpan secara peribadi. Foto kemajuan tidak disertakan.",
+"Only on this phone, in the Android app’s private storage. It is separate from browser data and is not copied to your other devices.": "Hanya pada telefon ini, dalam storan peribadi aplikasi Android. Ia berasingan daripada data pelayar dan tidak disalin ke peranti lain anda.",
+"Deleted by: uninstalling this app, clearing its storage in Android settings, or a phone reset. Clearing browser data or the app’s cache does not delete workouts.": "Dipadam apabila aplikasi dinyahpasang, storannya dikosongkan dalam tetapan Android, atau telefon ditetapkan semula. Mengosongkan data pelayar atau cache aplikasi tidak memadam senaman.",
+"A local Android alert, even with the screen off. Sound and timing depend on your notification, alarm and battery settings.": "Amaran Android setempat, walaupun skrin dimatikan. Bunyi dan masa bergantung pada tetapan notifikasi, penggera dan bateri anda.",
+"Optional reminders on your planned training days. Each app visit schedules the next four weeks. Android may delay delivery while saving battery.": "Peringatan pilihan pada hari latihan yang dirancang. Setiap kali aplikasi dibuka, empat minggu seterusnya dijadualkan. Android mungkin melambatkan penghantaran untuk menjimatkan bateri.",
 "Write or share a gym reminder": "Tulis atau kongsi peringatan gim",
 "A gym reminder, in your words": "Peringatan gim dengan kata-kata anda",
 "Edit this draft, then copy it or choose an app to share it.": "Sunting draf ini, kemudian salin atau pilih aplikasi untuk berkongsi.",

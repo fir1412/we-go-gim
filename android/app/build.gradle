@@ -8,12 +8,22 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2
-        versionName "1.10.0"
+        versionName "1.11.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (System.getenv('GIM_KEYSTORE_PASSWORD')) {
+                storeFile file(System.getenv('GIM_KEYSTORE') ?: 'C:/Users/user/wegogim-android-keys/upload-keystore.jks')
+                storePassword System.getenv('GIM_KEYSTORE_PASSWORD')
+                keyAlias 'upload'
+                keyPassword System.getenv('GIM_KEYSTORE_PASSWORD')
+            }
         }
     }
     buildTypes {
@@ -22,6 +32,7 @@ android {
             versionNameSuffix "-test"
         }
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

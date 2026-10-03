@@ -12,7 +12,7 @@ for (const [density, size] of [['mdpi', 48], ['hdpi', 72], ['xhdpi', 96], ['xxhd
   exports.push([`android/app/src/main/res/mipmap-${density}/ic_launcher_foreground.png`, size * 108 / 48, .60]);
 }
 exports.push(['icons/og-image.png', 1200, .70, 630]);
-for (const folder of readdirSync('android/app/src/main/res').filter(n => n.startsWith('drawable-'))) {
+for (const folder of readdirSync('android/app/src/main/res').filter(n => n === 'drawable' || n.startsWith('drawable-'))) {
   const file = `android/app/src/main/res/${folder}/splash.png`;
   try {
     const png = readFileSync(file);

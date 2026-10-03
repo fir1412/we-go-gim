@@ -220,6 +220,15 @@ export default {
 "Zottman curl": "ゾットマンカール"
 },
 "s": {
+"Already using we go gim on the web?": "すでにウェブで we go gim を使っていますか？",
+"Open the website app, go to More → Backup and export, and save a JSON backup. Then restore that file here. Website and Android data are stored separately.": "ウェブ版を開き、その他 → バックアップとエクスポートで JSON バックアップを保存してください。そのファイルをここで復元します。ウェブ版と Android 版のデータは別々に保存されます。",
+"Open website app": "ウェブ版を開く",
+"Restore my backup": "バックアップを復元",
+"One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone or an uninstall. It is not encrypted; keep it private. Progress photos are not included.": "トレーニング、プラン、設定を一つのファイルにバックアップします。端末の紛失やアンインストールに備え、アプリの外に保存してください。暗号化されていないため、安全に保管してください。経過写真は含まれません。",
+"Only on this phone, in the Android app’s private storage. It is separate from browser data and is not copied to your other devices.": "このスマートフォンの Android アプリ専用ストレージにのみ保存されます。ブラウザのデータとは別で、他の端末にはコピーされません。",
+"Deleted by: uninstalling this app, clearing its storage in Android settings, or a phone reset. Clearing browser data or the app’s cache does not delete workouts.": "アプリのアンインストール、Android 設定でのストレージ消去、端末の初期化で削除されます。ブラウザのデータやアプリのキャッシュを消去してもトレーニング記録は削除されません。",
+"A local Android alert, even with the screen off. Sound and timing depend on your notification, alarm and battery settings.": "画面がオフでも届く Android の端末内通知です。音や通知時刻は、通知・アラーム・バッテリーの設定に左右されます。",
+"Optional reminders on your planned training days. Each app visit schedules the next four weeks. Android may delay delivery while saving battery.": "予定したトレーニング日の通知を任意で受け取れます。アプリを開くたびに次の四週間分を設定します。Android の節電機能により通知が遅れる場合があります。",
 "Write or share a gym reminder": "ジムのリマインダーを作成・共有",
 "A gym reminder, in your words": "自分の言葉でジムのリマインダーを作成",
 "Edit this draft, then copy it or choose an app to share it.": "下書きを編集してコピーするか、共有するアプリを選んでください。",

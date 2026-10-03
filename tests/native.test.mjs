@@ -29,8 +29,9 @@ test('native share passes exact backup bytes and MIME without a browser download
 });
 
 test('Android entry respects CSP and packages only public assets', () => {
-  const html = readFileSync(new URL('../www/index.html', import.meta.url), 'utf8');
-  assert.match(html, /src="native\/start.js"/);
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const build = readFileSync(new URL('../scripts/build-native.mjs', import.meta.url), 'utf8');
+  assert.match(build, /src="native\/start.js"/);
   assert.doesNotMatch(html, /<script type="module">/);
   assert.match(html, /script-src 'self'/);
 });

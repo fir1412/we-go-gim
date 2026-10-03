@@ -89,7 +89,7 @@ export function render(route) {
     const doneEx = s.entries.filter(e => workSets(e).length).length;
     const lead = s.entries.find(e => workSets(e).length);
     const ex = lead && S.exById[lead.exId];
-    const line = ex ? `${ex.name} · ${workSets(lead).length} sets` : 'No sets';
+    const line = ex ? `${displayText(ex.name)} · ${workSets(lead).length} sets` : 'No sets';
     const pain = s.entries.some(e => e.pain);
     const mins = s.start && s.end && s.end > s.start ? Math.round((s.end - s.start) / 60000) : s.minutes ?? null;
     const gx = xp[s.id]?.total || 0;

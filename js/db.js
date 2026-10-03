@@ -69,6 +69,12 @@ export async function init() {
       const stores = {};
       for (const store of STORES) stores[store] = idb
         ? await tx(store, 'readonly', os => reqP(os.getAll())) : Object.values(mem[store]);
+      // A previous fallback install may have settings only in localStorage.
+      if (!stores.kv.some(record => record.key === 'settings')) {
+        const legacy = JSON.parse(localStorage.getItem(`${NAME}.kv`) || '{}');
+        if (legacy.settings) for (const store of STORES)
+          stores[store] = Object.values(JSON.parse(localStorage.getItem(`${NAME}.${store}`) || '{}'));
+      }
       await native.migrate({ stores });
       idb?.close(); idb = null; mem = null;
     }

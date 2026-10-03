@@ -44,3 +44,26 @@ test('native database failure stops startup rather than creating a fresh browser
   assert.equal(db.storageMode(), null);
   delete globalThis.window;
 });
+
+test('one-time fallback migration preserves the source and stops safely on failure', async () => {
+  const source = new Map([
+    ['setlist.kv', JSON.stringify({ settings: { key: 'settings', value: { onboarded: true } } })],
+    ['setlist.sessions', JSON.stringify({ kept: { id: 'kept', entries: [] } })]
+  ]);
+  const original = source.get('setlist.sessions');
+  let fail = true, migrated;
+  globalThis.localStorage = { getItem: key => source.get(key) || null, setItem: (key, value) => source.set(key, value) };
+  globalThis.window = { gimNative: { storage: {
+    init: async () => ({ migrated: false }),
+    migrate: async ({ stores }) => { if (fail) throw Error('migration disk full'); migrated = stores; }
+  } } };
+  try {
+    const db = await import('../js/db.js?native-migration');
+    await assert.rejects(db.init(), /migration disk full/);
+    assert.equal(db.storageMode(), null); assert.equal(source.get('setlist.sessions'), original);
+    fail = false; assert.equal(await db.init(), 'sqlite');
+    assert.deepEqual(migrated.sessions, [{ id: 'kept', entries: [] }]);
+    assert.equal(migrated.kv[0].key, 'settings');
+    assert.equal(source.get('setlist.sessions'), original);
+  } finally { delete globalThis.window; delete globalThis.localStorage; }
+});

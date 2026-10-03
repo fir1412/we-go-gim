@@ -12,12 +12,14 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Set;
+import java.util.Arrays;
+import java.util.HashSet;
 
 /** Authoritative app-private storage. Never uses the WebView or cache directory. */
 @CapacitorPlugin(name = "WorkoutStorage")
 public class WorkoutStoragePlugin extends Plugin {
     private SQLiteDatabase database;
-    private static final Set<String> STORES = Set.of("sessions", "exercises", "body", "cardio", "kv");
+    private static final Set<String> STORES = new HashSet<>(Arrays.asList("sessions", "exercises", "body", "cardio", "kv"));
     private SQLiteDatabase db() {
         if (database == null) {
             database = getContext().openOrCreateDatabase("workouts.sqlite", 0, null);

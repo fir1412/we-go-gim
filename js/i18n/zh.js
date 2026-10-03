@@ -220,6 +220,15 @@ export default {
 "Zottman curl": "佐特曼弯举"
 },
 "s": {
+"Already using we go gim on the web?": "已经在网页上使用 we go gim？",
+"Open the website app, go to More → Backup and export, and save a JSON backup. Then restore that file here. Website and Android data are stored separately.": "打开网页应用，前往更多 → 备份与导出，保存 JSON 备份。然后在这里恢复该文件。网页和 Android 的数据分别保存。",
+"Open website app": "打开网页应用",
+"Restore my backup": "恢复我的备份",
+"One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone or an uninstall. It is not encrypted; keep it private. Progress photos are not included.": "一个文件备份你的训练、计划和设置。请保存在应用之外，以便手机丢失或应用卸载后恢复。文件未加密，请妥善保管。备份不含进度照片。",
+"Only on this phone, in the Android app’s private storage. It is separate from browser data and is not copied to your other devices.": "仅保存在这部手机的 Android 应用专用存储中。它与浏览器数据分开，不会复制到你的其他设备。",
+"Deleted by: uninstalling this app, clearing its storage in Android settings, or a phone reset. Clearing browser data or the app’s cache does not delete workouts.": "卸载应用、在 Android 设置中清除应用存储或重置手机会删除数据。清除浏览器数据或应用缓存不会删除训练记录。",
+"A local Android alert, even with the screen off. Sound and timing depend on your notification, alarm and battery settings.": "即使屏幕关闭也可收到 Android 本地提醒。声音和时间取决于通知、闹钟和电池设置。",
+"Optional reminders on your planned training days. Each app visit schedules the next four weeks. Android may delay delivery while saving battery.": "可选的计划训练日提醒。每次打开应用会安排未来四周的提醒。Android 节电时可能延迟通知。",
 "Write or share a gym reminder": "编写或分享健身提醒",
 "A gym reminder, in your words": "用自己的话写健身提醒",
 "Edit this draft, then copy it or choose an app to share it.": "编辑草稿，然后复制或选择应用分享。",

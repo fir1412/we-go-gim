@@ -385,6 +385,7 @@ function equip() {
 // ---- data: backup / export -----------------------------------------------------------------------
 let undoMeta; // undefined: not read yet; null: none; else {at, what, n}
 function data() {
+  const backupHelp = 'One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone or an uninstall. It is not encrypted; keep it private. Progress photos are not included.';
   if (undoMeta === undefined) {
     undoMeta = null;
     db.getKv('undo').then(u => { if (u?.data) { undoMeta = { at: u.at, what: u.what, n: u.data.sessions?.length || 0 }; refresh(); } }).catch(() => {});
@@ -393,7 +394,7 @@ function data() {
   const WHAT = { restore: 'restoring a backup', erase: 'erasing everything', undo: 'the last undo' };
   let h = `<div class="kpis"><div class="kpi"><b>${n}</b><span>sessions</span></div><div class="kpi"><b>${S.body.length}</b><span>weigh-ins</span></div><div class="kpi"><b>${S.cardio.length}</b><span>cardio</span></div></div>
     <section class="box pad stack"><div class="rrow"><p class="lbl">Backup</p>${lb ? pill(`Last: ${agoTxt(lb)}`, daysAgo(lb) > 14 ? 'flat' : 'up') : S.sessions.some(s => !s.seed) ? pill('Never backed up', 'down') : ''}</div>
-      <p class="fine">One file with everything: sessions, programme, exercises, weigh-ins, cardio and settings. If the phone is lost or the browser data is cleared, this file is the only copy. The file isn't encrypted, so keep it somewhere private; progress photos aren't included.${isIOS() ? ' On iPhone, choose Save to Files, then iCloud Drive, to keep a copy in iCloud.' : ''}</p>
+      <p class="fine">${globalThis.gimNative ? esc(T(backupHelp)) : `One file with everything: sessions, programme, exercises, weigh-ins, cardio and settings. If the phone is lost or the browser data is cleared, this file is the only copy. The file isn't encrypted, so keep it somewhere private; progress photos aren't included.${isIOS() ? ' On iPhone, choose Save to Files, then iCloud Drive, to keep a copy in iCloud.' : ''}`}</p>
       <button class="btn" data-act="backup-share">${ICON.upload} Share backup (Drive, WhatsApp, email)</button>
       <button class="btn ghost" data-act="backup-dl">${ICON.save} Save backup file</button>
       <label class="btn ghost filebtn">Restore from backup<input type="file" id="restore-file" accept=".json,application/json" data-input="restore"></label></section>`;
@@ -663,7 +664,7 @@ function settings() {
     <div class="box pad stack">
       ${tg('timerSound', 'Rest timer sound', 'Two short beeps when rest is over')}
       ${tg('timerVibrate', 'Rest timer vibration', 'Buzz when rest is over')}
-      ${tg('restNotify', 'Notify when rest is over', 'A notification if the app is in the background or the screen is off. Some phones pause web apps after a while, so it can arrive late')}
+      ${tg('restNotify', 'Notify when rest is over', globalThis.gimNative ? 'A local Android alert, even with the screen off. Sound and timing depend on your notification, alarm and battery settings.' : 'A notification if the app is in the background or the screen is off. Some phones pause web apps after a while, so it can arrive late')}
       ${tg('wakeLock', 'Keep screen on during workouts', 'So you can glance at the next set')}
       ${seg('New day starts at', 'st-daystart', String(st.dayStart || 0), [['0', 'Midnight'], ['3', '3:00'], ['5', '5:00']])}
       <p class="fine">For night shifts: a workout after midnight counts for the day before.</p>
@@ -1299,6 +1300,7 @@ export const actions = {
   feedback: () => openFeedback(APP_VERSION),
   'close-sheet': () => closeSheet(),
   async 'check-update'() {
+    if (globalThis.gimNative) { location.href = 'https://play.google.com/store/apps/details?id=io.github.fir1412.wegogim'; return; }
     if (!navigator.onLine) return toast("You're offline. Connect and try again.", 'flat');
     toast('Checking for updates…');
     const r = await checkForUpdates().catch(() => 'error');

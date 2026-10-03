@@ -1,0 +1,44 @@
+[
+  {
+    "file": "release/screenshots/en-today.png",
+    "route": "today",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/en-workout.png",
+    "route": "workout",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/en-insights.png",
+    "route": "insights",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/en-history.png",
+    "route": "history",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/en-levels.png",
+    "route": "levels",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/en-more.png",
+    "route": "more",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  }
+]
