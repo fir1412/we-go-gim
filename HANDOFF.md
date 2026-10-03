@@ -15,7 +15,9 @@ Tally lessons, bug/phone checks, frequent commits. Also asked about screen-off r
   POST_NOTIFICATIONS and user-controlled SCHEDULE_EXACT_ALARM. No full-screen intent.
   Screen illumination is controlled by Android settings; Doze can delay frequent idle alarms.
 - Android Back delegates to existing app/sheet history; root minimizes app. Keyboard adjustResize.
-- Native app uses separate WebView storage: old PWA/TWA data needs JSON export/import.
+- Native app now uses app-private Android SQLite via WorkoutStoragePlugin. Existing native
+  WebView data is copied once in a transaction; original source remains intact. Website/TWA
+  data is separate and still needs JSON export/import. Never uninstall the existing app to test.
 
 ## Tally lessons reviewed
 

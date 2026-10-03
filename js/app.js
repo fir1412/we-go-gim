@@ -1,4 +1,5 @@
 import { S, load, onChange, saveDraft, saveSettings, todayIso, dayForDate } from './state.js';
+import { syncTrainingReminders } from './reminders.js';
 import { setUnits, setBwLabel } from './engine.js';
 import { setWording, T, TIP, $, $$, esc, ICON, sheetOpen, openSheet, closeSheet, setOnBack, sheetSettling, selectorFor, toast, cvar, isHex, onFor, expertWording, setDateLang, isIOS, standalone } from './ui.js';
 import { setPlain } from './plain.js';
@@ -176,7 +177,7 @@ function dispatch(kind, ev) {
   if (!fn) return;
   if (kind === 'click') learnView.learnFrom({ act: name });
   if (kind === 'click') ev.preventDefault();
-  Promise.resolve(fn(el, ev, current.route)).catch(err => { console.error(err); toast(err.message || 'Something went wrong', 'down'); });
+  Promise.resolve(fn(el, ev, current.route)).catch(err => { if (err.name === 'AbortError') return; console.error(err); toast(err.message || 'Something went wrong', 'down'); });
 }
 // Long-press an icon-only button to see what it does (phones have no hover tooltips).
 let pressT = null, pressShown = false;
@@ -396,8 +397,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.10.0';
+export const APP_VERSION = '1.11.0';
 const WHATS_NEW = {
+  '1.11.0': ['Change kg, lb, machine levels or bodyweight for a set during a workout. Completed earlier sets keep their original load type.', 'New official app icon.'],
   '1.10.0': ['Share a moment: a finished workout, a new best, your streak, a month or your level, as a picture for WhatsApp or a story. Drawn on your phone, nothing is uploaded, and weights stay off unless you turn them on'],
   '1.9.15': ['Opens with an outline of the app at once, instead of a blank screen, while it starts on a slow phone'],
   '1.9.14': ['Clearer Malay, Chinese and Japanese: one word for each thing on every screen, and the last English bits (chart labels, level names, empty months) are translated'],
@@ -643,7 +645,9 @@ async function boot() {
   }
   await setLang(S.settings.lang || guessLang()).catch(() => setLang('en'));
   applyTheme();
-  onChange(() => { applyTheme(); render(); if (globalThis.gimNative) restNotice(); });
+  const syncNative = () => { if (globalThis.gimNative) { restNotice(); syncTrainingReminders(S)?.catch(console.error); } };
+  onChange(() => { applyTheme(); render(); syncNative(); });
+  window.addEventListener('focus', syncNative);
   // Another tab changed the data: reload it here too (after the workout in progress is saved, not in the middle of one).
   db.onRemoteChange(async () => {
     if (S.draft) return toast('Changes were made in another tab. They will show after this workout.', 'flat');
@@ -654,7 +658,7 @@ async function boot() {
   window.addEventListener('hashchange', () => { if (sheetOpen()) closeSheet(); render(); });
   render();
   document.body.classList.add('ready');
-  if (globalThis.gimNative) restNotice();
+  syncNative();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 1500));
   idle(() => Object.keys(LAZY).reduce((p, n) => p.then(() => loadView(n).catch(() => {})), Promise.resolve()));
   // Confirm a reload caused by an update, so a manual "Check for updates" visibly lands.

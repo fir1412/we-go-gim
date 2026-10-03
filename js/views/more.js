@@ -5,6 +5,7 @@ import { MUSCLES, isKg, unitsFor, unitLong, exposures, toDisp, fromDisp, getUnit
 import { esc, pill, ICON, toast, confirmSheet, openSheet, closeSheet, cvar, kstyle, COLORS, dowName, fmtDate, MONTHS, T, helpTip, isHex, hexOf, langPicker, isIOS, standalone } from '../ui.js';
 import { LANGS, getLang, syncRawNames } from '../i18n.js';
 import { trainingIcs, googleCalendarUrl } from '../calendar.js';
+import { reminderText } from '../reminders.js';
 import { displayText } from '../plain.js';
 import { toCSV, sessionsFromCSV, parseLogText, pdfToText, download, shareFile, readFile, matchExercise, routeFile, decodeBytes, importFile, guessMuscles, guessNewExercise, EQUIP_UNIT, sessionNameFromFile, dedupeSessions, nameKey, nameOverlap, importExtras, loadForeignNames } from '../io.js';
 import { searchText, CARDIO_WORDS } from '../seed.js';
@@ -672,6 +673,9 @@ function settings() {
     </div>
     <div class="box pad stack">
       <p class="lbl">Training reminders</p>
+      ${globalThis.gimNative ? `${tg('trainingReminders', 'Workout notifications', 'Optional reminders on your planned training days. Each app visit schedules the next four weeks. Android may delay delivery while saving battery.')}
+      <label class="field"><span>Notification message (optional)</span><input class="inp" maxlength="180" data-input="st-reminder-text" value="${esc(st.trainingReminderText || '')}" placeholder="Use a varied reminder"></label>` : ''}
+      <button class="btn ghost" data-act="reminder-write">Write or share a gym reminder</button>
       <p class="fine">Adds your training days to your phone's calendar, which reminds you 10 minutes before. Works even when the app is closed. Nothing is sent anywhere.</p>
       <div class="rrow"><label for="st-remind">Reminder time</label><input class="inp sm" id="st-remind" type="time" value="${esc(st.remindAt || '18:00')}" data-input="st-remind"></div>
       <button class="btn ghost" data-act="cal-export">${ICON.clock || ''} Add training days to my calendar</button>
@@ -749,6 +753,18 @@ async function markBackup() { if (S.settings.lastBackup !== todayIso()) await sa
 const backupName = () => `wegogim-backup-${todayIso()}.json`;
 
 export const actions = {
+  'reminder-write'() {
+    openSheet(`<h2>A gym reminder, in your words</h2><p class="fine">Edit this draft, then copy it or choose an app to share it.</p><label class="field"><span>Message</span><textarea class="inp" id="gym-reminder-message" maxlength="1000">${esc(reminderText())}</textarea></label><div class="row2"><button class="btn ghost" data-act="reminder-shuffle">Another idea</button><button class="btn ghost" data-act="reminder-copy">Copy message</button></div><button class="btn" data-act="reminder-share">Choose where to share</button>`);
+  },
+  'reminder-shuffle'() { const field = document.getElementById('gym-reminder-message'); if (field) field.value = reminderText(); },
+  async 'reminder-copy'() { const text = document.getElementById('gym-reminder-message')?.value.trim(); if (!text) return toast('Write a message first', 'flat'); await navigator.clipboard.writeText(text); toast('Message copied', 'up'); },
+  async 'reminder-share'() {
+    const text = document.getElementById('gym-reminder-message')?.value.trim();
+    if (!text) return toast('Write a message first', 'flat');
+    if (globalThis.gimNative) await globalThis.gimNative.shareText(text);
+    else if (navigator.share) await navigator.share({ title: 'we go gim', text });
+    else { await navigator.clipboard.writeText(text); toast('Message copied. Paste it into your chosen app.', 'up'); }
+  },
   async 'mus-fix'(el) { const x = S.exById[el.dataset.id]; if (x) await saveExercise({ ...x, muscles: guessMuscles(x.name), musclesKept: true }); },
   async 'mus-keep'(el) { const x = S.exById[el.dataset.id]; if (x) await saveExercise({ ...x, musclesKept: true }); },
   async 'mus-fix-all'() { for (const { x, g } of muscleRechecks()) await saveExercise({ ...x, muscles: g, musclesKept: true }); toast('Muscles updated', 'up'); },
@@ -1066,8 +1082,8 @@ export const actions = {
       toast('Sharing isn\'t available here, so the file was saved to Downloads', 'flat');
     } catch (e) { if (e.name !== 'AbortError') throw e; }
   },
-  async 'backup-dl'() { await download(backupName(), JSON.stringify(await exportAll()), 'application/json'); await markBackup(); toast('Backup saved to Downloads', 'up'); },
-  async 'csv-dl'() { await download(`wegogim-${todayIso()}.csv`, toCSV(S.sessions, S.exById, S.settings.gyms), 'text/csv'); toast('CSV saved to Downloads', 'up'); },
+  async 'backup-dl'() { await download(backupName(), JSON.stringify(await exportAll()), 'application/json'); await markBackup(); toast(globalThis.gimNative ? 'Backup saved' : 'Backup saved to Downloads', 'up'); },
+  async 'csv-dl'() { await download(`wegogim-${todayIso()}.csv`, toCSV(S.sessions, S.exById, S.settings.gyms), 'text/csv'); toast(globalThis.gimNative ? 'Spreadsheet saved' : 'CSV saved to Downloads', 'up'); },
   async restore(el) {
     const f = el.files?.[0]; el.value = '';
     if (!f) return;
@@ -1289,6 +1305,9 @@ export const actions = {
     toast(r === 'updating' ? 'Update found. The app reloads when it is ready.' : r === 'latest' ? `You're on the latest version (${APP_VERSION})` : r === 'unsupported' ? 'Updates work once the app is opened from its website' : "Couldn't check right now. Try again later.", r === 'error' ? 'down' : 'up');
   },
   async 'st-toggle'(el) {
+    if (el.dataset.f === 'trainingReminders') {
+      if (!globalThis.gimNative || !await globalThis.gimNative.trainingPermission(el.checked)) { el.checked = false; return toast('Notifications are blocked. Allow them in Android settings, then try again.', 'flat'); }
+    }
     // Notifications need the phone's permission first; without it the switch stays off.
     if (el.dataset.f === 'restNotify' && el.checked) {
       const p = globalThis.gimNative ? (await globalThis.gimNative.notificationPermission() ? 'granted' : 'denied') : 'Notification' in window ? await Notification.requestPermission().catch(() => 'denied') : 'unsupported';
@@ -1308,6 +1327,7 @@ export const actions = {
   'st-text': el => saveSettings({ textSize: ['large', 'xl'].includes(el.dataset.v) ? el.dataset.v : 'normal' }),
   'st-daystart': el => saveSettings({ dayStart: +el.dataset.v || 0 }),
   'st-remind': el => { if (/^\d{2}:\d{2}$/.test(el.value)) saveSettings({ remindAt: el.value }); },
+  'st-reminder-text': el => saveSettings({ trainingReminderText: el.value.trim().slice(0, 180) }),
   'cal-export'() { exportCalendar(); },
   'st-warm': el => saveSettings({ autoWarmup: el.dataset.v === 'all' ? true : el.dataset.v === 'barbell' ? 'barbell' : false }),
   // Units and wording apply straight away: saving settings repaints every screen.
@@ -1471,4 +1491,3 @@ function muscleRechecks() {
   }
   return out;
 }
-

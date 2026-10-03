@@ -220,6 +220,16 @@ export default {
 "Zottman curl": "Zottman curl"
 },
 "s": {
+"Write or share a gym reminder": "Tulis atau kongsi peringatan gim",
+"A gym reminder, in your words": "Peringatan gim dengan kata-kata anda",
+"Edit this draft, then copy it or choose an app to share it.": "Sunting draf ini, kemudian salin atau pilih aplikasi untuk berkongsi.",
+"Message": "Mesej",
+"Another idea": "Idea lain",
+"Copy message": "Salin mesej",
+"Choose where to share": "Pilih tempat untuk berkongsi",
+"Workout notifications": "Notifikasi senaman",
+"Notification message (optional)": "Mesej notifikasi (pilihan)",
+"Use a varied reminder": "Gunakan pelbagai peringatan",
 "); three workouts without progress are flagged as": "); tiga sesi tanpa kemajuan ditandakan sebagai",
 "*Total weight lifted is weight × reps added up and counts both dumbbells. \"compared with last time\" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.": "*Jumlah berat diangkat ialah berat × ulangan dicampur, dan mengira kedua-dua dumbbell. \"Berbanding kali lepas\" membandingkan bilangan set yang sama pada senaman yang direkod mengikut berat kali lepas; pin kabel/mesin dan berat badan tidak dikira.",
 "+ Add as a new exercise": "+ Tambah sebagai senaman baharu",

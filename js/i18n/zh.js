@@ -220,6 +220,16 @@ export default {
 "Zottman curl": "佐特曼弯举"
 },
 "s": {
+"Write or share a gym reminder": "编写或分享健身提醒",
+"A gym reminder, in your words": "用自己的话写健身提醒",
+"Edit this draft, then copy it or choose an app to share it.": "编辑草稿，然后复制或选择应用分享。",
+"Message": "消息",
+"Another idea": "换个想法",
+"Copy message": "复制消息",
+"Choose where to share": "选择分享方式",
+"Workout notifications": "训练通知",
+"Notification message (optional)": "通知内容（可选）",
+"Use a varied reminder": "使用不同的提醒",
 "); three workouts without progress are flagged as": "）；连续三次训练没有进步会被标记为",
 "*Total weight lifted is weight × reps added up and counts both dumbbells. \"compared with last time\" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.": "*总训练量是重量 × 次数的总和，哑铃按两只计算。“与上次相比”比较的是上次按重量记录的动作的相同组数；绳索档位和自重不计入。",
 "+ Add as a new exercise": "+ 添加为新动作",

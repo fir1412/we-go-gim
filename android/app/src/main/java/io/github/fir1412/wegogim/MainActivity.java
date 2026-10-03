@@ -6,6 +6,7 @@ import android.os.Bundle;
 public class MainActivity extends BridgeActivity {
     @Override public void onCreate(Bundle state) {
         registerPlugin(SaveFilePlugin.class);
+        registerPlugin(WorkoutStoragePlugin.class);
         super.onCreate(state);
     }
 }

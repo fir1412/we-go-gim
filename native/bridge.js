@@ -5,6 +5,7 @@ import { Share } from '@capacitor/share';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
 const SaveFile = registerPlugin('SaveFile');
+const WorkoutStorage = registerPlugin('WorkoutStorage');
 const MAX = 32 * 1024 * 1024;
 async function encode(blob) {
   if (blob.size > MAX) throw Error('File exceeds the 32 MB Android export limit.');
@@ -19,6 +20,8 @@ const safeName = name => String(name).replace(/[^\p{L}\p{N}._-]/gu, '_').slice(0
 let shareBusy = false;
 let notificationQueue = Promise.resolve();
 let requestedRest = '';
+let requestedTraining = '';
+let trainingQueue = Promise.resolve();
 
 if (Capacitor.isNativePlatform()) {
   document.documentElement.dataset.native = 'android';
@@ -29,8 +32,32 @@ if (Capacitor.isNativePlatform()) {
   for (const file of old.files) if (file.type === 'file' && file.mtime < Date.now() - 86400000)
     await Filesystem.deleteFile({ path: `${dir}/${file.name}`, directory: Directory.Cache }).catch(() => {});
   await LocalNotifications.createChannel({ id: 'rest', name: 'Rest timer', importance: 5, visibility: 1, vibration: true });
-  await LocalNotifications.addListener('localNotificationActionPerformed', () => { location.hash = '#/workout'; });
+  await LocalNotifications.createChannel({ id: 'training', name: 'Workout reminders', importance: 3, visibility: 0 });
+  await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => { location.hash = notification.id === 1 ? '#/workout' : '#/today'; });
   window.gimNative = {
+    storage: WorkoutStorage,
+    async shareText(text) {
+      try { await Share.share({ title: 'we go gim', text }); }
+      catch (error) { if (/share cancel/i.test(error.message)) throw new DOMException('Share cancelled', 'AbortError'); throw error; }
+    },
+    async trainingPermission(enabled) {
+      if (enabled && (await LocalNotifications.requestPermissions()).display !== 'granted') return false;
+      await WorkoutStorage.write({ store: 'kv', records: [{ key: 'native-training-opt-in', value: !!enabled }] });
+      requestedTraining = '';
+      return true;
+    },
+    trainingNotifications(items) {
+      const key = JSON.stringify(items);
+      if (key === requestedTraining) return trainingQueue;
+      requestedTraining = key;
+      trainingQueue = trainingQueue.catch(() => {}).then(async () => {
+        await LocalNotifications.cancel({ notifications: Array.from({ length: 28 }, (_, i) => ({ id: 2000 + i })) });
+        const consent = (await WorkoutStorage.read({ store: 'kv', key: 'native-training-opt-in' })).records[0]?.value;
+        if (!consent || !items.length || (await LocalNotifications.checkPermissions()).display !== 'granted') return;
+        await LocalNotifications.schedule({ notifications: items.filter(n => n.at > Date.now()).map(n => ({ id: n.id, title: 'we go gim', body: n.body, channelId: 'training', schedule: { at: new Date(n.at) } })) });
+      });
+      return trainingQueue.catch(error => { requestedTraining = ''; throw error; });
+    },
     async save(name, blob) {
       const result = await SaveFile.save({ name: safeName(name), mime: blob.type || 'application/octet-stream', data: await encode(blob) });
       if (result.cancelled) throw new DOMException('Save cancelled', 'AbortError');
@@ -46,7 +73,11 @@ if (Capacitor.isNativePlatform()) {
       const path = `${dir}/${crypto.randomUUID()}-${safeName(name)}`;
       const { uri } = await Filesystem.writeFile({ path, directory: Directory.Cache, data: await encode(blob) });
       try { await Share.share({ files: [uri], title: 'we go gim', text }); }
-      catch (error) { await Filesystem.deleteFile({ path, directory: Directory.Cache }); throw error; }
+      catch (error) {
+        await Filesystem.deleteFile({ path, directory: Directory.Cache }).catch(() => {});
+        if (/share cancel/i.test(error.message)) throw new DOMException('Share cancelled', 'AbortError');
+        throw error;
+      }
       return true;
       } finally { shareBusy = false; }
     },

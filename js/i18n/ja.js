@@ -220,6 +220,16 @@ export default {
 "Zottman curl": "ゾットマンカール"
 },
 "s": {
+"Write or share a gym reminder": "ジムのリマインダーを作成・共有",
+"A gym reminder, in your words": "自分の言葉でジムのリマインダーを作成",
+"Edit this draft, then copy it or choose an app to share it.": "下書きを編集してコピーするか、共有するアプリを選んでください。",
+"Message": "メッセージ",
+"Another idea": "別の案",
+"Copy message": "メッセージをコピー",
+"Choose where to share": "共有先を選ぶ",
+"Workout notifications": "トレーニング通知",
+"Notification message (optional)": "通知メッセージ（任意）",
+"Use a varied reminder": "さまざまなリマインダーを使う",
 "); three workouts without progress are flagged as": "）。3回続けて伸びがない場合は次のように表示されます：",
 "*Total weight lifted is weight × reps added up and counts both dumbbells. \"compared with last time\" compares the same number of sets on lifts logged by weight last time; cable levels and bodyweight are left out.": "*総挙上量は重さ × 回数の合計で、ダンベルは2本分として数えます。「前回との比較」は、前回重さで記録した種目の同じセット数で比べます。ケーブル・マシンの目盛りと自重は含みません。",
 "+ Add as a new exercise": "+ 新しい種目として追加",

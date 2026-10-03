@@ -1,4 +1,4 @@
-// Tiny IndexedDB wrapper with a localStorage fallback.
+// Native Android SQLite; the website uses IndexedDB with a localStorage fallback.
 // Stores: sessions, exercises, body, cardio (keyed by id) and kv (keyed by key).
 
 const NAME = 'setlist', VERSION = 1;
@@ -53,10 +53,28 @@ function lsSave(store) {
 }
 
 let mode = null;
-/** 'indexeddb', or 'localstorage' when the browser's database is unavailable (for example some private windows). */
+let native = null;
+/** 'sqlite' on Android; 'indexeddb' or browser 'localstorage'. Native errors never fall back. */
 export const storageMode = () => mode;
 
 export async function init() {
+  native = globalThis.window?.gimNative?.storage || null;
+  if (native) {
+    const status = await native.init();
+    if (!status.migrated) {
+      // Read existing WebView data before selecting SQLite; never erase the source.
+      // An unreadable source must stop migration rather than quietly seed an empty app.
+      if ('indexedDB' in globalThis) idb = await open();
+      else lsLoad();
+      const stores = {};
+      for (const store of STORES) stores[store] = idb
+        ? await tx(store, 'readonly', os => reqP(os.getAll())) : Object.values(mem[store]);
+      await native.migrate({ stores });
+      idb?.close(); idb = null; mem = null;
+    }
+    mode = 'sqlite';
+    return mode;
+  }
   try { idb = await open(); } catch (e) {
     if (/another tab/.test(e?.message || '')) throw e;
     idb = null; lsLoad();
@@ -81,11 +99,13 @@ function tx(store, mode, fn) {
 const reqP = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 
 export async function all(store) {
+  if (native) return (await native.read({ store })).records;
   if (!idb) return Object.values(mem[store]);
   return tx(store, 'readonly', os => reqP(os.getAll()));
 }
 
 export async function put(store, obj) {
+  if (native) { await nativeWrite({ store, records: [obj] }); notify(store); return obj; }
   if (!idb) { const k = store === 'kv' ? obj.key : obj.id; mem[store][k] = obj; lsSave(store); notify(store); return obj; }
   await tx(store, 'readwrite', os => { os.put(obj); });
   notify(store);
@@ -93,18 +113,21 @@ export async function put(store, obj) {
 }
 
 export async function putMany(store, list) {
+  if (native) { await nativeWrite({ store, records: list }); notify(store); return; }
   if (!idb) { for (const o of list) mem[store][store === 'kv' ? o.key : o.id] = o; lsSave(store); notify(store); return; }
   await tx(store, 'readwrite', os => { for (const o of list) os.put(o); });
   notify(store);
 }
 
 export async function del(store, key) {
+  if (native) { await nativeWrite({ store, operation: 'delete', key }); notify(store); return; }
   if (!idb) { delete mem[store][key]; lsSave(store); notify(store); return; }
   await tx(store, 'readwrite', os => { os.delete(key); });
   notify(store);
 }
 
 export async function clear(store) {
+  if (native) { await nativeWrite({ store, operation: 'clear' }); notify(store); return; }
   if (!idb) { mem[store] = {}; lsSave(store); notify(store); return; }
   await tx(store, 'readwrite', os => { os.clear(); });
   notify(store);
@@ -112,6 +135,7 @@ export async function clear(store) {
 
 /** One key from the kv store, read directly (never the whole store: it holds progress photos). */
 export async function getKv(key, fallback = null) {
+  if (native) { const hit = (await native.read({ store: 'kv', key })).records[0]; return hit ? hit.value : fallback; }
   if (!idb) { const hit = mem.kv[key]; return hit ? hit.value : fallback; }
   const hit = await tx('kv', 'readonly', os => reqP(os.get(key)));
   return hit ? hit.value : fallback;
@@ -120,7 +144,13 @@ export const setKv = (key, value) => put('kv', { key, value });
 
 /** Keys of the kv store starting with a prefix, without loading every value (photos are large). */
 export async function kvKeys(prefix) {
+  if (native) return (await native.keys({ prefix })).keys;
   if (!idb) return Object.keys(mem.kv).filter(k => k.startsWith(prefix));
   const keys = await tx('kv', 'readonly', os => reqP(os.getAllKeys()));
   return keys.filter(k => String(k).startsWith(prefix));
+}
+
+async function nativeWrite(input) {
+  try { await native.write(input); }
+  catch (error) { failHandler(error); throw error; }
 }

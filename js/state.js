@@ -388,6 +388,8 @@ export function sanitizeBackup(data) {
   if (data.settings && typeof data.settings === 'object') {
     const s = { ...data.settings };
     delete s.feedbackQueue; delete s.feedbackSent; // this phone's own, never another's
+    if ('trainingReminderText' in s) s.trainingReminderText = str(s.trainingReminderText, 180);
+    s.trainingReminders = false; // restoring a backup must not opt this phone into notifications
     for (const k of ['goalKg', 'heightCm', 'sessionLen']) if (k in s) s[k] = numOr(s[k]);
     if (s.targets && typeof s.targets === 'object') s.targets = Object.fromEntries(DAILY_FIELDS.filter(k => k in s.targets).map(k => [k, numOr(s.targets[k])]));
     // Today and the CSV export look gyms up on every render: always a list of real gyms, and gymId one of them.
