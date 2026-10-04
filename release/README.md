@@ -1,7 +1,7 @@
 # we go gim Android release
 
-Prepared Capacitor Android 1.11.1, package `io.github.fir1412.wegogim`, versionCode3.
-1.11.0/code2 is currently active internally; see HANDOFF.md for current publication state.
+Capacitor Android 1.11.1, package `io.github.fir1412.wegogim`, versionCode3, is active internally.
+See HANDOFF.md for closed-testing/review status and the paused phone interoperability checks.
 The package name comes from the earlier TWA preparation. A new Play app record was created
 in fir1412's Console on2026-10-04. Min Android7(API24), target/compile36.
 
@@ -23,7 +23,7 @@ Debug package `.dev` is for phone checks; never uninstall Play to sideload aroun
 
 ## Play Console preparation
 
-- VersionCode 2 is already published internally. Every subsequent upload needs a larger code.
+- VersionCode 3 is already published internally. Every subsequent upload needs a larger code.
 - Verify the upload certificate matches the existing listing. Upload signing and Play app signing
   certificates normally differ. This native app needs no Digital Asset Links.
 - Upload the signed AAB to the intended test track. Check Play's supported device comparison:

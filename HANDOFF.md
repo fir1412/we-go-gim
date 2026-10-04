@@ -2,7 +2,27 @@
 
 ## Claude: resume here
 
-### Latest checkpoint: listing setup underway
+### Latest checkpoint: 1.11.1 internal published, closed release saved
+
+**1.11.1 / code 3 is Active / Available to internal testers**, released 4 Oct 08:49 (Console).
+All five store languages are saved, each with six localized screenshots and a feature banner.
+Only the five banners carry the owner-approved AI label; drawing/icon and screenshots do not.
+Pages privacy changes verified HTTP 200 with native-storage and optional-contact text.
+Closed Alpha track **4698930157045016030** configured for **Malaysia only**, Beta Testers list
+(9 accounts), support email. Signed code 3 reused from artifact library; closed release 1 saved
+with five-language notes. Google review submission is the next action, not yet verified complete.
+Publishing overview queued 18 changes and initially blocked on the missing Advertising ID
+declaration. Verified source and merged manifest have no AD_ID; saved **No**. Quick checks
+are running (Console estimated up to 13 minutes). Submit only when enabled and no blocking issues.
+Play validation: no errors; missing deobfuscation mapping warning only (minifyEnabled false).
+Code 3 loses zero supported devices: 12,320 phones / 6,749 tablets unchanged from code 2.
+
+Latest valid local AAB SHA256:
+`24f5d60c380fe5532d441520171ba3cf60d0748ed937783f0663190247a992e5`.
+APK SHA256: `c4dac25580027b370badd75cb7e87c8e1a1e32e8ba02e824a845bcff902f66d0`.
+APK apksigner passed. AAB jarsigner reports jar verified with normal self-signed upload-key
+warnings and JarInputStream ordering warnings. Build/lint passed. Next upload must use code > 3.
+GitHub main checkpoint 6384d6a. The paragraphs below preserve setup history; this status wins.
 
 **Phone testing paused by user to prioritize Tally. Do not use ADB or operate the phone until
 the user resumes these checks.** Connected device is now Samsung A32 SM-A325F / Android 13
