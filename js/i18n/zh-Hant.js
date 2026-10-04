@@ -1033,6 +1033,7 @@ export default {
 "Middle trapezius": "斜方肌中部",
 "Middle traps (middle trapezius)": "中斜方肌（斜方肌中部）",
 "Midnight": "午夜",
+"palette:Midnight": "午夜",
 "Minutes": "分鐘",
 "Minutes per week": "每週分鐘數",
 "Missed-workout reminders": "錯過訓練提醒",

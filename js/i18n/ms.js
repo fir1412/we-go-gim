@@ -1033,6 +1033,7 @@ export default {
 "Middle trapezius": "Trapezius tengah",
 "Middle traps (middle trapezius)": "Trapezius tengah",
 "Midnight": "Tengah malam",
+"palette:Midnight": "Tengah malam",
 "Minutes": "Minit",
 "Minutes per week": "Minit seminggu",
 "Missed-workout reminders": "Peringatan sesi terlepas",

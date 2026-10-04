@@ -6,8 +6,10 @@ Older sections preserve historical checkpoints; the opening resume section takes
 
 - Capacitor Android **1.11.0 / versionCode 2** is active in Play internal testing.
 - GitHub main and Pages are published. Working branch is `fix-welcome`.
-- User authorised GitHub/Pages and internal testing; closed/open/production releases require
-  further authority. Do not modify Tally or send invitations/messages.
+- User authorised GitHub/Pages, internal testing, Google review and closed testing. Production
+  and open testing remain unauthorised. Do not modify Tally or send invitations/messages.
+- Prepared 1.11.1 / code 3 fixes the Japanese palette name and clarifies optional feedback
+  diagnostics in privacy text. Read HANDOFF for the latest upload and listing status.
 - Android workouts use **app-private SQLite**, not browser persistent storage. Website data
   remains separate. Preserve migration sources and fail visibly on storage errors.
 - Never uninstall an existing app or clear its data to bypass signing problems. Use the

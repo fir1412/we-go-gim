@@ -38,12 +38,21 @@ try {
   }
   }
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1024, height: 500, deviceScaleFactor: 1, mobile: false });
-  await b.run(() => {
-    document.body.innerHTML = `<div style="position:fixed;inset:0;background:#0F1117;display:flex;align-items:center;padding:28px;gap:36px;color:#EEF0F7;font-family:system-ui;box-sizing:border-box"><img src="icons/official-source.jpg" width="420" height="420" style="border-radius:28px"><div><div style="font-weight:700;font-size:24px;color:#FF8A3D;margin-bottom:22px">we go gim</div><div style="font-size:48px;font-weight:800;line-height:1.08;letter-spacing:-1px">Your next workout.<br>Already filled in.</div><div style="font-size:22px;line-height:1.5;margin-top:26px">Track sets. See your progress.<br>Works offline. No account. No ads.</div></div></div>`;
+  const featureCopy = {
+    en: ['Your next workout.<br>Already filled in.', 'Track sets. See your progress.<br>Works offline. No account. No ads.'],
+    ms: ['Latihan seterusnya.<br>Sudah tersedia.', 'Catat set. Lihat kemajuan.<br>Luar talian. Tanpa akaun atau iklan.'],
+    zh: ['下次训练。<br>已经填好。', '记录组数，查看进步。<br>离线使用，无需账号，没有广告。'],
+    'zh-Hant': ['下次訓練。<br>已經填好。', '記錄組數，查看進步。<br>離線使用，無需帳號，沒有廣告。'],
+    ja: ['次のトレーニング。<br>準備はできています。', 'セットと成長を記録。<br>オフライン対応。アカウント・広告なし。'],
+  };
+  for (const [lang, copy] of Object.entries(featureCopy)) {
+  await b.run(copy => {
+    document.body.innerHTML = `<div style="position:fixed;inset:0;background:#0F1117;display:flex;align-items:center;padding:28px;gap:36px;color:#EEF0F7;font-family:system-ui;box-sizing:border-box"><img src="icons/official-source.jpg" width="420" height="420" style="border-radius:28px"><div><div style="font-weight:700;font-size:24px;color:#FF8A3D;margin-bottom:22px">we go gim</div><div style="font-size:42px;font-weight:800;line-height:1.15;letter-spacing:-1px">${copy[0]}</div><div style="font-size:22px;line-height:1.5;margin-top:26px">${copy[1]}</div></div></div>`;
     return document.querySelector('img').decode();
-  });
+  }, copy);
   const { data } = await b.send('Page.captureScreenshot', { format: 'png' });
-  writeFileSync('release/feature-1024x500.png', Buffer.from(data, 'base64'));
+  writeFileSync(lang === 'en' ? 'release/feature-1024x500.png' : `release/feature-${lang}-1024x500.png`, Buffer.from(data, 'base64'));
+  }
   writeFileSync('release/screenshots/manifest.json', JSON.stringify(captures, null, 2));
 } finally { await b.close(); }
 console.log('Thirty localized phone-format browser screenshots and feature graphic generated.');

@@ -1,6 +1,7 @@
 # we go gim Android release
 
-Capacitor Android 1.11.0, package `io.github.fir1412.wegogim`, versionCode2.
+Prepared Capacitor Android 1.11.1, package `io.github.fir1412.wegogim`, versionCode3.
+1.11.0/code2 is currently active internally; see HANDOFF.md for current publication state.
 The package name comes from the earlier TWA preparation. A new Play app record was created
 in fir1412's Console on2026-10-04. Min Android7(API24), target/compile36.
 
@@ -33,7 +34,8 @@ Debug package `.dev` is for phone checks; never uninstall Play to sideload aroun
   If changed later, publish and verify it before submitting related Play declarations.
 - Data safety: optional feedback collects feedback text, optional email/contact, and app information
   (version, phone/browser type, language, current screen) through Google Forms. No workout/body
-  data collection, no ads/analytics. Do not answer "no data collected" while feedback exists.
+  data collection, no ads or automatic analytics. Feedback diagnostics support bug analysis.
+  Do not answer "no data collected" while feedback exists.
 - Health declaration: fitness/activity tracking; no medical diagnosis or treatment claims.
 - Ads: no. App access: all accessible without login. Category: Health & Fitness. Support:
   fir1412dev@gmail.com. Audience13+asstatedinterms; answer forms after reviewing their exact wording.

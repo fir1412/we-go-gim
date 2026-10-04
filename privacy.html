@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy · we go gim</title>
-<meta name="description" content="No account, no analytics, no trackers. Your workouts stay on your phone. The developer only receives feedback you choose to send.">
+<meta name="description" content="No account, no automatic analytics, no trackers. Your workouts stay on your phone. The developer only receives feedback you choose to send.">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="canonical" href="https://fir1412.github.io/we-go-gim/privacy.html">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -24,7 +24,7 @@
   <div class="top"><img src="icons/icon-192.png" alt="we go gim icon" width="40" height="40"><a href="./">Back to the app</a></div>
   <h1>Privacy</h1>
   <p class="mute">Last updated 4 October 2026</p>
-  <p><b>Short version: no account, no analytics, no trackers. Your workouts stay on your phone. The only thing the developer receives is feedback you choose to send.</b></p>
+  <p><b>Short version: no account, no automatic analytics, no trackers. Your workouts stay on your phone. The only thing the developer receives is feedback you choose to send.</b></p>
   <p lang="ms">Ringkasnya: tiada akaun, tiada analitik, tiada penjejak. Senaman anda kekal dalam telefon anda. Pembangun hanya menerima maklum balas yang anda pilih untuk hantar.</p>
   <p lang="zh-Hans">简而言之：无需账号，没有分析工具，没有追踪器。训练记录只保存在你的手机上。开发者只会收到你主动发送的反馈。</p>
   <p lang="zh-Hant">簡而言之：無需帳號，沒有分析工具，沒有追蹤器。訓練紀錄只保存在你的手機上。開發者只會收到你主動傳送的意見回饋。</p>
@@ -34,22 +34,22 @@
   <h2>What the app stores, and where</h2>
   <p><b>Android app:</b> your workout data stays in an app-private Android SQLite database, separate from browser storage and the website app. Move website data by exporting and restoring a JSON backup. Clearing WebView/browser data does not erase this database; uninstalling the app or clearing its Android storage does. Keep exported backups. Android saves exports to destinations you choose; shares temporarily use private app cache. Android cloud backup is disabled. Optional local rest alerts and training reminders do not contact a server. Rest alerts use optional precise-alarm access. Each app visit schedules the next four weeks of training reminders. Editable messages are shared only when you choose a recipient app. Android notification, battery and Do Not Disturb settings control delivery and screen illumination.</p>
   <ul>
-    <li>Workouts, weigh-ins, measurements, cardio, progress photos, your programme and settings are stored only in your browser's storage on your device (IndexedDB). The developer cannot see or access them.</li>
-    <li>There are no accounts, no servers of ours, no analytics, no ads and no trackers. The app uses no cookies, so there is no cookie banner. With no account, there is nothing to sign up for, subscribe to or cancel.</li>
+    <li><b>Website app:</b> workouts, weigh-ins, measurements, cardio, progress photos, your programme and settings use browser storage on your device (IndexedDB). Android uses the separate database described above. The developer cannot see or access either.</li>
+    <li>There are no accounts, no servers of ours, no automatic analytics, no ads and no trackers. The app uses no cookies, so there is no cookie banner. With no account, there is nothing to sign up for, subscribe to or cancel.</li>
     <li>Body weight, measurements, pain flags and notes are health-related. Because they stay on your device, no one else processes them.</li>
   </ul>
 
   <h2>When something leaves your phone</h2>
   <ul>
-    <li><b>Loading the app:</b> its files come from GitHub Pages, which may log standard web-server data such as your IP address (see GitHub's privacy statement). Nothing about you or your workouts is sent.</li>
+    <li><b>Loading the website app:</b> its files come from GitHub Pages, which may log standard web-server data such as your IP address (see GitHub's privacy statement). No workout data is sent. The installed Android app bundles its files and starts offline.</li>
     <li><b>Importing a PDF:</b> the PDF reader library is downloaded once from cdnjs (Cloudflare). Your PDF is read on your phone and is not uploaded.</li>
-    <li><b>Feedback (optional):</b> if you choose More → Send feedback, your message, an optional contact and a short line of app information (version, phone type, browser, app language, current screen) go to the developer's Google Form. Google's privacy terms apply. No workout or body data is included.</li>
+    <li><b>Feedback (optional):</b> if you choose More → Send feedback, your message, an optional contact (email address or social handle) and a short line of app information (version, phone type, browser, app language, current screen) go to the developer's Google Form. The developer uses your message and app information to diagnose problems and improve the app, and your contact only to reply. These details are sent only when you submit feedback; there is no automatic usage tracking. Google's privacy terms apply. No workout or body data is included automatically; avoid including private details in your message.</li>
     <li><b>Links you choose to open:</b> "How to do it" opens a video search on YouTube (or Bilibili in Simplified Chinese), and "Add training days to my calendar" opens Google Calendar or saves a calendar file. These sites' own privacy terms apply once you open them. The app sends them only the exercise or day name in the link.</li>
     <li><b>Backups and exports</b> are files you create and choose where to send (for example Google Drive or WhatsApp). Once shared, that service's privacy terms apply.</li>
   </ul>
 
   <h2>Deleting your data</h2>
-  <p>There is no account to delete. To delete everything: More → Backup and export → Erase everything, or clear the site's data in your browser settings, or uninstall the app. There is no copy anywhere else. Feedback you sent can be deleted on request: use Send feedback again and say roughly what you sent and when. There is no need to ask publicly.</p>
+  <p>There is no account to delete. To delete local app data, use More → Backup and export → Erase everything. Android Clear storage/data or uninstalling we go gim also deletes Android data. Clearing the website's data in your browser deletes only website data; clearing cache or uninstalling a browser does not delete the Android database. Exported files you saved or shared remain at their chosen destinations until you delete them there. Feedback you sent can be deleted on request: use Send feedback again and say roughly what you sent and when, or email the developer below. There is no need to ask publicly.</p>
 
   <h2>Who is responsible</h2>
   <p>The developer (GitHub user fir1412) is responsible for the feedback form, the only personal data the developer receives. It is stored in Google Forms (Google LLC, which may process it in the United States; Google relies on the EU–US Data Privacy Framework and standard contractual clauses for such transfers). The basis is your consent: nothing is sent unless you press Send. Feedback is deleted within 12 months at the latest, or sooner on request. You can ask for a copy or deletion as above or by email to <a href="mailto:fir1412dev@gmail.com">fir1412dev@gmail.com</a>, and you can complain to your data-protection authority.</p>

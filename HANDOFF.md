@@ -2,6 +2,39 @@
 
 ## Claude: resume here
 
+### Latest checkpoint: listing setup underway
+
+User now approved Google review and closed testing, official Play installation with synthetic
+checks preserving existing data, AI labels on feature banners, IARC terms/questionnaire, and
+optional feedback contact disclosure as Email address/User IDs. Production/open testing and
+messages/invitations remain unauthorised. This supersedes the older approval scope below.
+
+Prepared **1.11.1 / code 3**, with a corrected Japanese Midnight palette name, matching dictionary
+keys, version-aware artifact filenames, and clearer privacy text separating Android SQLite from
+website storage and optional feedback diagnostics from automatic analytics. Build/lint passed;
+560 unit tests and the palette browser test passed. Artifacts are in output/release/artifacts.json.
+The local old 1.11.0 filenames were overwritten during preparation and MUST NOT be re-uploaded;
+the historical code-2 hashes below describe the already-uploaded Play bundle only.
+
+Play setup saved: privacy, unrestricted access, no ads, government/financial declarations,
+activity/fitness + nutrition/weight management health declaration, audience 13+, category and
+support contact, Data safety, and IARC rating (Everyone / PEGI 3). Data safety collects only
+optional feedback: Email address, User IDs, Diagnostics, App interactions, Other user-generated
+content; optional, non-ephemeral, encrypted in transit, not shared (Google Forms processor),
+deletion URL privacy.html. No workout/body collection. Contact fields are for replies; diagnostics
+and feedback help diagnose bugs. No accounts or external-login requirement.
+
+Five listing languages added: en-GB, ms, zh-CN, zh-TW, ja-JP. English listing saved. Other four
+text/screenshots entered; Malay upload and translated banners still underway. Save and verify
+each listing and label only feature banners as AI-created/edited, per owner approval.
+30 real-app browser screenshots and five localized banners are prepared under release/.
+Levels/settings use Forest to subtly demonstrate real palette customization. Screenshots use
+synthetic data and are not phone captures. No Google review submission/closed rollout yet.
+
+Finish listings, push GitHub/Pages privacy changes, upload code 3 internally, configure closed
+testing and submit for review. User must recruit 12 opted-in testers for 14 continuous days.
+Try official Play install without uninstall/data clearing/credential changes/new terms.
+
 Android **1.11.0 / versionCode 2** is already published to Play **internal testing**.
 GitHub main, the updated privacy page and the startup mockup are published too.
 Local branch: `fix-welcome`. Code checkpoint: `579df86`; internal publication notes: `9df3300`.

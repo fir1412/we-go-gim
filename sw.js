@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever app files change.
-const VERSION = 'wegogim-v55';
+const VERSION = 'wegogim-v56';
 const CORE = [
   './', './index.html', './js/first.js', './privacy.html', './terms.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/state.js', './js/db.js', './js/seed.js', './js/sample.js', './js/engine.js', './js/ui.js', './js/palette.js', './js/io.js',

@@ -397,8 +397,9 @@ export function applyTheme() {
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => S.settings && applyTheme());
 
 // ---- first-run tour and "what's new" ------------------------------------------------------
-export const APP_VERSION = '1.11.0';
+export const APP_VERSION = '1.11.1';
 const WHATS_NEW = {
+  '1.11.1': ['The Midnight colour palette has a clearer Japanese name.'],
   '1.11.0': ['Change kg, lb, machine levels or bodyweight for a set during a workout. Completed earlier sets keep their original load type.', 'New official app icon.'],
   '1.10.0': ['Share a moment: a finished workout, a new best, your streak, a month or your level, as a picture for WhatsApp or a story. Drawn on your phone, nothing is uploaded, and weights stay off unless you turn them on'],
   '1.9.15': ['Opens with an outline of the app at once, instead of a blank screen, while it starts on a slow phone'],

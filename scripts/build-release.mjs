@@ -3,6 +3,8 @@ import { readFileSync, mkdirSync, copyFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
+const { version } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+if (!/^\d+\.\d+\.\d+$/.test(version)) throw Error('A numeric release version is required');
 const env = { ...process.env };
 env.GIM_KEYSTORE ||= 'C:/Users/user/wegogim-android-keys/upload-keystore.jks';
 if (!env.GIM_KEYSTORE_PASSWORD) {
@@ -25,8 +27,8 @@ writeFileSync(local, readFileSync(local, 'utf8').replace(/^(sdk.dir=[A-Za-z]):/m
 run('cmd.exe', ['/d', '/c', 'android\\gradlew.bat', '-p', 'android', 'assembleRelease', 'bundleRelease', 'lintRelease']);
 mkdirSync(resolve(root, 'output/release'), { recursive: true });
 const files = [
-  ['android/app/build/outputs/bundle/release/app-release.aab', 'we-go-gim-1.11.0.aab'],
-  ['android/app/build/outputs/apk/release/app-release.apk', 'we-go-gim-1.11.0.apk']
+  ['android/app/build/outputs/bundle/release/app-release.aab', `we-go-gim-${version}.aab`],
+  ['android/app/build/outputs/apk/release/app-release.apk', `we-go-gim-${version}.apk`]
 ];
 const manifest = [];
 for (const [source, name] of files) {
