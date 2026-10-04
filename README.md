@@ -41,7 +41,7 @@ node --test tests/e2e/*.e2e.mjs
 | --- | --- |
 | `js/engine.js` | Pure training logic: suggestions, trends, plateaus, deloads, warm-ups, plates, XP, duration estimates |
 | `js/state.js` | In-memory state, workout draft lifecycle, persistence |
-| `js/db.js` | Android SQLite storage; IndexedDB with localStorage fallback on the website |
+| `js/db.js` | Android saves workouts in private phone storage (SQLite); the website uses separate browser storage |
 | `js/seed.js` | Exercise library, 5-day programme, starter history |
 | `js/io.js` | CSV, JSON backup, free-text and PDF log parsing |
 | `js/views/*.js` | Today, Workout, Insights, Levels, History, More |

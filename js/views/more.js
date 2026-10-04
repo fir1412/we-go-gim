@@ -385,7 +385,7 @@ function equip() {
 // ---- data: backup / export -----------------------------------------------------------------------
 let undoMeta; // undefined: not read yet; null: none; else {at, what, n}
 function data() {
-  const backupHelp = 'One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone or an uninstall. It is not encrypted; keep it private. Progress photos are not included.';
+  const backupHelp = 'One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone, an uninstall or clearing app data. Clearing cache or uninstalling your browser does not erase Android workouts. The backup is not encrypted; keep it private. Progress photos are not included.';
   if (undoMeta === undefined) {
     undoMeta = null;
     db.getKv('undo').then(u => { if (u?.data) { undoMeta = { at: u.at, what: u.what, n: u.data.sessions?.length || 0 }; refresh(); } }).catch(() => {});
@@ -695,6 +695,7 @@ function settings() {
     </div>
     <section class="box pad about"><p class="lbl">About and legal</p>
       <p><b>Not medical advice.</b> Suggestions are general training guidance from your own logs. Stop and see a doctor for chest pain, fainting, unusual breathlessness, palpitations, numbness, or sharp or radiating pain.</p>
+      <p>${esc(T(globalThis.gimNative ? 'Your workouts are saved on this phone in the Android app, separate from browser storage. Clearing cache or uninstalling your browser keeps them safe.' : 'This website saves workouts in this browser on your device. The Android app saves them separately on the phone; use a JSON backup to move your history.'))}</p>
       <p><b>Privacy.</b> No accounts, analytics or trackers. Your workouts stay on this phone; nobody else can see them. Feedback you choose to send goes to the developer. The privacy page lists the few other times the app goes online.</p>
       <p><b>Credits.</b> Fonts: Barlow Condensed and DM Sans (SIL Open Font License). PDF import: pdf.js by Mozilla (Apache 2.0).</p>
       <p>3D view: three.js (MIT). 3D muscle model: Z-Anatomy, from BodyParts3D (© The Database Center for Life Science), adapted by the FitMitWith anatomy atlas, CC BY-SA 4.0. Details in anatomy/ATTRIBUTION.txt.</p>
@@ -733,8 +734,9 @@ const FAQ = [
   ['What are levels and XP?', 'XP means experience points. Every set you finish gives points to the muscles it works, and beating your best gives extra. More points take a muscle to a higher level. See them in Progress → Levels.'],
 ];
 function help() {
+  const faq = FAQ.map(([q, a]) => [q, q === 'Where is my data stored?' ? (globalThis.gimNative ? "On this phone in the Android app’s private storage, separate from browser data. Clearing cache, clearing browser data or uninstalling your browser does not erase workouts. Uninstalling we go gim, clearing its app data or resetting the phone does. Save a JSON backup for recovery or a new phone." : "This website keeps workouts in this browser on your device. Clearing website data or uninstalling the browser can erase them. The Android app has separate phone storage. Save a JSON backup to move your history or recover it.") : a]);
   let h = `<input class="inp" id="faqsearch" type="search" placeholder="Search help, e.g. superset, backup, kg" autocomplete="off" aria-label="Search help">
-    <div class="box faq" id="faqlist">${FAQ.map(([q, a]) => `<details data-q="${esc((q + ' ' + a).toLowerCase())}"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
+    <div class="box faq" id="faqlist">${faq.map(([q, a]) => `<details data-q="${esc((q + ' ' + a).toLowerCase())}"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
     <p class="fine" id="faqnone" hidden>Nothing matches. Try another word, or send feedback below.</p>
     <div class="row2"><button class="btn ghost" data-act="tour">Replay the tour</button><button class="btn ghost" data-act="feedback">Ask a question</button></div>`;
   return {

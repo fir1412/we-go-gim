@@ -2540,5 +2540,12 @@ export default {
 "Share my level": "レベルを共有",
 "Share my streak": "連続記録を共有",
 "Best streak yet": "これまでで最長"
-}
+},
+"Your workouts are saved on this phone in the Android app, separate from browser storage. Clearing cache or uninstalling your browser keeps them safe.": "記録はこのスマートフォンの Android アプリ内に保存され、ブラウザの保存領域とは別です。キャッシュの削除やブラウザのアンインストールでは消えません。",
+"This website saves workouts in this browser on your device. The Android app saves them separately on the phone; use a JSON backup to move your history.": "このウェブサイトは端末のブラウザに記録を保存します。Android アプリはスマートフォン内に別途保存します。履歴の移行には JSON バックアップを使ってください。",
+"Deleted by: uninstalling we go gim, clearing its app data in Android settings, or a phone reset. Clearing cache, clearing browser data or uninstalling your browser does not delete workouts.": "we go gim のアンインストール、Android 設定でのアプリデータ削除、端末の初期化で記録が消えます。キャッシュやブラウザデータの削除、ブラウザのアンインストールでは消えません。",
+"Deleted by: clearing this website’s browser data, uninstalling the browser, cleaner apps that erase website data, or a device reset.": "このサイトのブラウザデータの削除、ブラウザのアンインストール、サイトデータを消すクリーナーアプリ、端末の初期化で記録が消えます。",
+"One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone, an uninstall or clearing app data. Clearing cache or uninstalling your browser does not erase Android workouts. The backup is not encrypted; keep it private. Progress photos are not included.": "記録、プラン、設定を1つのバックアップファイルに保存します。紛失、アプリのアンインストール、アプリデータ削除に備え、アプリの外に保存してください。キャッシュ削除やブラウザのアンインストールでは Android の記録は消えません。バックアップは暗号化されていないので安全に保管してください。進捗写真は含まれません。",
+"On this phone in the Android app’s private storage, separate from browser data. Clearing cache, clearing browser data or uninstalling your browser does not erase workouts. Uninstalling we go gim, clearing its app data or resetting the phone does. Save a JSON backup for recovery or a new phone.": "このスマートフォンの Android アプリ専用領域に保存され、ブラウザデータとは別です。キャッシュやブラウザデータの削除、ブラウザのアンインストールでは記録は消えません。we go gim のアンインストール、アプリデータ削除、端末の初期化では消えます。復元や新しい端末への移行用に JSON バックアップを保存してください。",
+"This website keeps workouts in this browser on your device. Clearing website data or uninstalling the browser can erase them. The Android app has separate phone storage. Save a JSON backup to move your history or recover it.": "このウェブサイトは端末のブラウザに記録を保存します。サイトデータの削除やブラウザのアンインストールで消えることがあります。Android アプリは別の端末内保存領域を使います。履歴の移行や復元用に JSON バックアップを保存してください。"
 };

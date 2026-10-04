@@ -29,8 +29,9 @@ restrictions and Do Not Disturb may delay or silence them. Screen illumination d
 
 Moving from the website app? Save a JSON backup there, then restore it in the Android app.
 The website and Android app have separate local storage.
-Android workout data uses app-private storage, separate from browser data. Uninstalling the app
-or clearing its Android storage erases it; save exported backups for recovery.
+Android workouts are saved on the phone itself in the app's private storage, separate from browser
+data. Clearing cache, clearing browser data or uninstalling your browser does not erase them.
+Uninstalling we go gim or clearing its Android app data erases them; save exported backups for recovery.
 Training reminders schedule the next four weeks each time you open the app.
 
 Fitness tracking and training suggestions, not medical advice.

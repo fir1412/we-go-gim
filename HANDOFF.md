@@ -2,6 +2,19 @@
 
 ## Claude: resume here
 
+### Storage copy follow-up (4 October)
+
+User requested clearer phone storage wording. Welcome, Settings/About, storage sheet,
+Help and native backup copy now distinguish Android private phone storage from website browser
+storage in all five languages. Cache clearing, browser data clearing and browser uninstall do
+not erase Android workouts; app uninstall, Clear app data and phone reset do. Updated privacy,
+terms, welcome mockup, README and all five local Play listing drafts; website cache is v57.
+Syntax/language/native-storage checks: 56 passed. Existing trust browser E2E: 2 passed.
+Native asset build passed. These app-copy edits are for the next Android release: the already
+signed/uploaded 1.11.1 code 3 does not contain them. Local listing drafts likewise have not replaced
+the descriptions currently in Google review. Next upload requires a new version/code > 3.
+Phone tests remain paused for Tally.
+
 ### Latest checkpoint: 1.11.1 internal published, closed release in review
 
 **1.11.1 / code 3 is Active / Available to internal testers**, released 4 Oct 08:49 (Console).

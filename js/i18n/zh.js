@@ -2540,5 +2540,12 @@ export default {
 "Share my level": "分享我的等级",
 "Share my streak": "分享连续打卡",
 "Best streak yet": "目前最长纪录"
-}
+},
+"Your workouts are saved on this phone in the Android app, separate from browser storage. Clearing cache or uninstalling your browser keeps them safe.": "训练记录保存在这部手机的 Android 应用中，与浏览器存储分开。清除缓存或卸载浏览器不会删除记录。",
+"This website saves workouts in this browser on your device. The Android app saves them separately on the phone; use a JSON backup to move your history.": "此网站将训练记录保存在当前设备的浏览器中。Android 应用将记录单独保存在手机上；请使用 JSON 备份迁移历史记录。",
+"Deleted by: uninstalling we go gim, clearing its app data in Android settings, or a phone reset. Clearing cache, clearing browser data or uninstalling your browser does not delete workouts.": "卸载 we go gim、在 Android 设置中清除应用数据或重置手机会删除记录。清除缓存、清除浏览器数据或卸载浏览器不会删除训练记录。",
+"Deleted by: clearing this website’s browser data, uninstalling the browser, cleaner apps that erase website data, or a device reset.": "清除此网站的浏览器数据、卸载浏览器、使用会清除网站数据的清理应用或重置设备会删除记录。",
+"One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone, an uninstall or clearing app data. Clearing cache or uninstalling your browser does not erase Android workouts. The backup is not encrypted; keep it private. Progress photos are not included.": "一个备份文件保存训练、计划和设置。请保存在应用之外，以防手机丢失、卸载应用或清除应用数据。清除缓存或卸载浏览器不会删除 Android 训练记录。备份未加密，请妥善保管。进度照片不包含在内。",
+"On this phone in the Android app’s private storage, separate from browser data. Clearing cache, clearing browser data or uninstalling your browser does not erase workouts. Uninstalling we go gim, clearing its app data or resetting the phone does. Save a JSON backup for recovery or a new phone.": "保存在这部手机的 Android 应用专用存储中，与浏览器数据分开。清除缓存、清除浏览器数据或卸载浏览器不会删除训练记录。卸载 we go gim、清除其应用数据或重置手机会删除记录。请保存 JSON 备份，以便恢复或迁移到新手机。",
+"This website keeps workouts in this browser on your device. Clearing website data or uninstalling the browser can erase them. The Android app has separate phone storage. Save a JSON backup to move your history or recover it.": "此网站将训练记录保存在当前设备的浏览器中。清除网站数据或卸载浏览器可能删除记录。Android 应用使用独立的手机存储。请保存 JSON 备份，以便迁移或恢复历史记录。"
 };

@@ -2540,5 +2540,12 @@ export default {
 "Share my level": "分享我的等級",
 "Share my streak": "分享連續打卡",
 "Best streak yet": "目前最長紀錄"
-}
+},
+"Your workouts are saved on this phone in the Android app, separate from browser storage. Clearing cache or uninstalling your browser keeps them safe.": "訓練紀錄儲存在這部手機的 Android 應用程式中，與瀏覽器儲存空間分開。清除快取或解除安裝瀏覽器不會刪除紀錄。",
+"This website saves workouts in this browser on your device. The Android app saves them separately on the phone; use a JSON backup to move your history.": "此網站將訓練紀錄儲存在目前裝置的瀏覽器中。Android 應用程式將紀錄另行儲存在手機上；請使用 JSON 備份移轉歷史紀錄。",
+"Deleted by: uninstalling we go gim, clearing its app data in Android settings, or a phone reset. Clearing cache, clearing browser data or uninstalling your browser does not delete workouts.": "解除安裝 we go gim、在 Android 設定中清除應用程式資料或重設手機會刪除紀錄。清除快取、清除瀏覽器資料或解除安裝瀏覽器不會刪除訓練紀錄。",
+"Deleted by: clearing this website’s browser data, uninstalling the browser, cleaner apps that erase website data, or a device reset.": "清除此網站的瀏覽器資料、解除安裝瀏覽器、使用會清除網站資料的清理應用程式或重設裝置會刪除紀錄。",
+"One backup file for your workouts, plan and settings. Keep it outside this app for a lost phone, an uninstall or clearing app data. Clearing cache or uninstalling your browser does not erase Android workouts. The backup is not encrypted; keep it private. Progress photos are not included.": "一個備份檔案儲存訓練、計畫和設定。請儲存在應用程式之外，以防手機遺失、解除安裝應用程式或清除應用程式資料。清除快取或解除安裝瀏覽器不會刪除 Android 訓練紀錄。備份未加密，請妥善保管。不包含進度照片。",
+"On this phone in the Android app’s private storage, separate from browser data. Clearing cache, clearing browser data or uninstalling your browser does not erase workouts. Uninstalling we go gim, clearing its app data or resetting the phone does. Save a JSON backup for recovery or a new phone.": "儲存在這部手機的 Android 應用程式專用儲存空間中，與瀏覽器資料分開。清除快取、清除瀏覽器資料或解除安裝瀏覽器不會刪除訓練紀錄。解除安裝 we go gim、清除其應用程式資料或重設手機會刪除紀錄。請儲存 JSON 備份，以便復原或移轉到新手機。",
+"This website keeps workouts in this browser on your device. Clearing website data or uninstalling the browser can erase them. The Android app has separate phone storage. Save a JSON backup to move your history or recover it.": "此網站將訓練紀錄儲存在目前裝置的瀏覽器中。清除網站資料或解除安裝瀏覽器可能刪除紀錄。Android 應用程式使用獨立的手機儲存空間。請儲存 JSON 備份，以便移轉或復原歷史紀錄。"
 };
