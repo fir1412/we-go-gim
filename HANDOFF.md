@@ -2,7 +2,7 @@
 
 ## Claude: resume here
 
-### Latest checkpoint: 1.11.1 internal published, closed release saved
+### Latest checkpoint: 1.11.1 internal published, closed release in review
 
 **1.11.1 / code 3 is Active / Available to internal testers**, released 4 Oct 08:49 (Console).
 All five store languages are saved, each with six localized screenshots and a feature banner.
@@ -10,12 +10,11 @@ Only the five banners carry the owner-approved AI label; drawing/icon and screen
 Pages privacy changes verified HTTP 200 with native-storage and optional-contact text.
 Closed Alpha track **4698930157045016030** configured for **Malaysia only**, Beta Testers list
 (9 accounts), support email. Signed code 3 reused from artifact library; closed release 1 saved
-with five-language notes. Google review submission is the next action, not yet verified complete.
-Publishing overview queued 18 changes and initially blocked on the missing Advertising ID
-declaration. Verified source and merged manifest have no AD_ID; saved **No**. Quick checks
-are running (Console estimated up to 13 minutes). Submit only when enabled and no blocking issues.
+with five-language notes. All 18 changes have been submitted for Google review.
+The initial missing Advertising ID declaration was resolved: source and merged manifest have
+no AD_ID; saved **No**. Automatic quick checks have finished.
 
-**Update: clicked Send changes for review; automatic checks finished and Console now says
+**Rechecked after reloading Console on 4 October: Console still says
 “Your changes are now in review.”** Google review is pending. Managed publishing is off;
 approved closed rollout publishes after review approval. Production remains untouched.
 Pre-launch overview currently has no report (“Upload artifacts to generate pre-launch reports”);
@@ -30,7 +29,8 @@ Latest valid local AAB SHA256:
 APK SHA256: `c4dac25580027b370badd75cb7e87c8e1a1e32e8ba02e824a845bcff902f66d0`.
 APK apksigner passed. AAB jarsigner reports jar verified with normal self-signed upload-key
 warnings and JarInputStream ordering warnings. Build/lint passed. Next upload must use code > 3.
-GitHub main checkpoint 6384d6a. The paragraphs below preserve setup history; this status wins.
+GitHub main checkpoint before this cleanup: 91d6ad9. Use the latest Git log for the handoff-only
+follow-up commit. The paragraphs below preserve setup history; this status wins.
 
 **Phone testing paused by user to prioritize Tally. Do not use ADB or operate the phone until
 the user resumes these checks.** Connected device is now Samsung A32 SM-A325F / Android 13

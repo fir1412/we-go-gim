@@ -1,7 +1,7 @@
 # Closed testing: we go gim
 
 The first closed release is 1.11.1 (Android version code 3), initially available in Malaysia.
-Google review and automatic checks must finish before the closed-test link works.
+Automatic checks have finished; Google review is pending before the closed-test link works.
 
 Closed-test opt-in: https://play.google.com/apps/testing/io.github.fir1412.wegogim
 Android listing: https://play.google.com/store/apps/details?id=io.github.fir1412.wegogim
