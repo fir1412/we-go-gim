@@ -4,6 +4,14 @@
 
 ### Latest checkpoint: listing setup underway
 
+User specifically requested export E2E after Tally round-trip hiccups. Added
+tests/e2e/export.e2e.mjs: actual downloaded JSON/CSV files through UI, JSON picker replacement,
+reload, merge without duplicates, and CSV picker + review + save into a fresh app. All **3 passed**
+with mixed kg/lb display, levels, BW, kg/DB, warm-up, incomplete set, Unicode, multiline/quoted
+notes and heart rate. JSON preserves pound display; CSV intentionally stores canonical kg.
+Full existing browser suite **27 passed** too. Evidence output/export-roundtrip.log and
+output/export-e2e.log. These are isolated browser checks, not proof of Android SAF or Play install.
+
 User now approved Google review and closed testing, official Play installation with synthetic
 checks preserving existing data, AI labels on feature banners, IARC terms/questionnaire, and
 optional feedback contact disclosure as Email address/User IDs. Production/open testing and
