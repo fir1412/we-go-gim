@@ -2,6 +2,24 @@
 
 ## Claude: resume here
 
+### Session ended at the owner's request (4 October)
+
+Final implementation checkpoint: **f01bf12**, pushed to GitHub main from `fix-welcome`.
+Website deployment **37167380467 succeeded**; live privacy.html, terms.html,
+js/views/setup.js and sw.js all returned HTTP 200 with the new storage copy (v57).
+This final handoff-only commit follows that checkpoint; consult Git log for its hash.
+No ongoing monitoring is promised after session end. Resume by reading this section and
+CLAUDE.md, checking git status, then checking current Google review/pre-launch results.
+Do not treat the last observed review status as a fresh observation.
+
+Next release work: version bump and code > 3, package/sign the storage-copy changes,
+verify the new artifact, and upload within the existing internal/closed-testing approval.
+Update Play listing descriptions from release/listing-en.md and release/listings-localized.json
+when appropriate; those latest drafts are not yet saved in Console. Preserve the release
+currently under review unless there is a concrete reason to replace it.
+Recruiting testers remains with the owner; no invitations were sent. Public production needs
+separate approval. Phone/FitNotes testing remains paused for Tally until the owner resumes it.
+
 ### Storage copy follow-up (4 October)
 
 User requested clearer phone storage wording. Welcome, Settings/About, storage sheet,

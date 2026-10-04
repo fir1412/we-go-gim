@@ -4,6 +4,15 @@ Read [HANDOFF.md](HANDOFF.md), starting with **Claude: resume here**. It records
 publication status, user approvals, verified checks, evidence and remaining work in order.
 Older sections preserve historical checkpoints; the opening resume section takes precedence.
 
+- Owner ended this session on 4 October. Latest implementation commit is `f01bf12`; the final
+  documentation-only commit follows it. Website deployment succeeded and new storage text
+  was verified live. No review monitoring continues after session end.
+- Welcome, Help, Settings, backup copy and storage explanations were updated in all five
+  app languages; privacy, terms, mockup and local Play listing drafts were updated too.
+  56 syntax/language/native-storage checks and 2 browser trust checks passed; native build passed.
+- **The signed Play 1.11.1 / code 3 does not include the latest storage-copy edits.** Prepare
+  a new version/code > 3 for those edits. Latest listing drafts also await Console updates.
+
 - Capacitor Android **1.11.1 / versionCode 3** is active in Play internal testing.
 - GitHub main and Pages are published. Working branch is `fix-welcome`.
 - User authorised GitHub/Pages, internal testing, Google review and closed testing. Production

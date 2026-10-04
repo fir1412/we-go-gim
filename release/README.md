@@ -68,3 +68,11 @@ See HANDOFF.md for actual verified tests, approval scope and remaining public-re
 Closed Alpha release1 uses code3, Malaysia, and the same tester list. Automatic checks finished;
 changes are in Google review. Wait for approval before treating closed testing as available.
 See TESTER-GUIDE.md for opt-in and testing instructions. Phone checks are paused for Tally.
+# Final session checkpoint — 4 October
+
+Storage-copy implementation commit `f01bf12` is pushed; its website deployment succeeded.
+The Android source and five local listing drafts now explicitly distinguish private phone
+storage from website browser storage. These copy edits are **not** in the signed/uploaded
+1.11.1 / code 3 or the listing descriptions currently in review. Next Android release needs
+a version bump and code > 3. Read HANDOFF.md and CLAUDE.md before continuing; phone tests
+remain paused for Tally. Google review status must be checked again when work resumes.
