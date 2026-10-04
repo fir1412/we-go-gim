@@ -4,6 +4,17 @@
 
 ### Latest checkpoint: listing setup underway
 
+**Phone testing paused by user to prioritize Tally. Do not use ADB or operate the phone until
+the user resumes these checks.** Connected device is now Samsung A32 SM-A325F / Android 13
+(RR8RC0EBFQZ), not the earlier Samsung SM-S948B. User approved ADB UI testing and free official
+Play downloads, preserving existing data, stopping at credentials/payment/new terms.
+FitNotes com.github.jamesgay.fitnotes was newly installed from Google Play. Metric preferences
+chosen; Flat Barbell Bench Press has 40 kg and 8 reps entered, **not saved/exported yet**.
+No real-app interoperability pass has been established. Hevy/Strong not installed/tested yet.
+scripts/phone-ui.mjs is the owner-approved A32-only helper; local observation output/phone/ui.*.
+User wants authentic third-party exports imported in our app, native JSON/CSV round trips and
+real file-picker checks. Resume only after phone handoff; preserve all existing app data.
+
 User specifically requested export E2E after Tally round-trip hiccups. Added
 tests/e2e/export.e2e.mjs: actual downloaded JSON/CSV files through UI, JSON picker replacement,
 reload, merge without duplicates, and CSV picker + review + save into a fresh app. All **3 passed**
