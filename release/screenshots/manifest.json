@@ -1,42 +1,270 @@
 [
   {
     "file": "release/screenshots/en-today.png",
+    "lang": "en",
     "route": "today",
+    "palette": "default",
     "width": 1080,
     "height": 1920,
     "source": "Chromium DOM, synthetic sample data; not a device capture"
   },
   {
     "file": "release/screenshots/en-workout.png",
+    "lang": "en",
     "route": "workout",
+    "palette": "default",
     "width": 1080,
     "height": 1920,
     "source": "Chromium DOM, synthetic sample data; not a device capture"
   },
   {
     "file": "release/screenshots/en-insights.png",
+    "lang": "en",
     "route": "insights",
+    "palette": "default",
     "width": 1080,
     "height": 1920,
     "source": "Chromium DOM, synthetic sample data; not a device capture"
   },
   {
     "file": "release/screenshots/en-history.png",
+    "lang": "en",
     "route": "history",
+    "palette": "default",
     "width": 1080,
     "height": 1920,
     "source": "Chromium DOM, synthetic sample data; not a device capture"
   },
   {
     "file": "release/screenshots/en-levels.png",
+    "lang": "en",
     "route": "levels",
+    "palette": "forest",
     "width": 1080,
     "height": 1920,
     "source": "Chromium DOM, synthetic sample data; not a device capture"
   },
   {
-    "file": "release/screenshots/en-more.png",
-    "route": "more",
+    "file": "release/screenshots/en-settings.png",
+    "lang": "en",
+    "route": "settings",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ms-today.png",
+    "lang": "ms",
+    "route": "today",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ms-workout.png",
+    "lang": "ms",
+    "route": "workout",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ms-insights.png",
+    "lang": "ms",
+    "route": "insights",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ms-history.png",
+    "lang": "ms",
+    "route": "history",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ms-levels.png",
+    "lang": "ms",
+    "route": "levels",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ms-settings.png",
+    "lang": "ms",
+    "route": "settings",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-today.png",
+    "lang": "zh",
+    "route": "today",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-workout.png",
+    "lang": "zh",
+    "route": "workout",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-insights.png",
+    "lang": "zh",
+    "route": "insights",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-history.png",
+    "lang": "zh",
+    "route": "history",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-levels.png",
+    "lang": "zh",
+    "route": "levels",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-settings.png",
+    "lang": "zh",
+    "route": "settings",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-Hant-today.png",
+    "lang": "zh-Hant",
+    "route": "today",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-Hant-workout.png",
+    "lang": "zh-Hant",
+    "route": "workout",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-Hant-insights.png",
+    "lang": "zh-Hant",
+    "route": "insights",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-Hant-history.png",
+    "lang": "zh-Hant",
+    "route": "history",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-Hant-levels.png",
+    "lang": "zh-Hant",
+    "route": "levels",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/zh-Hant-settings.png",
+    "lang": "zh-Hant",
+    "route": "settings",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ja-today.png",
+    "lang": "ja",
+    "route": "today",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ja-workout.png",
+    "lang": "ja",
+    "route": "workout",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ja-insights.png",
+    "lang": "ja",
+    "route": "insights",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ja-history.png",
+    "lang": "ja",
+    "route": "history",
+    "palette": "default",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ja-levels.png",
+    "lang": "ja",
+    "route": "levels",
+    "palette": "forest",
+    "width": 1080,
+    "height": 1920,
+    "source": "Chromium DOM, synthetic sample data; not a device capture"
+  },
+  {
+    "file": "release/screenshots/ja-settings.png",
+    "lang": "ja",
+    "route": "settings",
+    "palette": "forest",
     "width": 1080,
     "height": 1920,
     "source": "Chromium DOM, synthetic sample data; not a device capture"

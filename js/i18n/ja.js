@@ -1033,6 +1033,7 @@ export default {
 "Middle trapezius": "僧帽筋中部",
 "Middle traps (middle trapezius)": "僧帽筋中部",
 "Midnight": "0:00",
+"palette:Midnight": "ミッドナイト",
 "Minutes": "分",
 "Minutes per week": "週あたりの分数",
 "Missed-workout reminders": "休んだトレーニングのお知らせ",

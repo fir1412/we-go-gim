@@ -1,5 +1,76 @@
 # Capacitor Android migration — 2026-10-04
 
+## Claude: resume here
+
+Android **1.11.0 / versionCode 2** is already published to Play **internal testing**.
+GitHub main, the updated privacy page and the startup mockup are published too.
+Local branch: `fix-welcome`. Code checkpoint: `579df86`; internal publication notes: `9df3300`.
+Subsequent handoff commits change documentation only. Read this section before the historical
+implementation checkpoints below, which contain earlier test counts and in-progress notes.
+
+### Approval scope and storage promise
+
+- User approved GitHub/Pages publication and Play internal testing only. They separately approved
+  Google's policy and US export declarations when creating the app. **Closed/open testing and
+  production submission are not authorised.** Do not modify Tally or send invitations/messages.
+- Android workouts use **app-private SQLite**, not browser persistent storage. Clearing browser
+  cache/data, uninstalling a browser, or clearing we go gim's **cache** does not erase workouts.
+  Uninstalling **we go gim**, Android **Clear storage/data**, a phone reset or device loss can.
+  Browser uninstallation itself was not performed; its data is separate by architecture.
+- Website/PWA/TWA data still uses separate browser storage. Export JSON there and restore it
+  in Android. Android cloud backup is disabled; exported backups omit progress photos.
+- Native SQLite migration retains original sources, commits its marker transactionally and
+  stops on errors. Never introduce a silent browser fallback or seed empty history after failure.
+
+### Where to continue, in order
+
+1. Verify installation through the internal tester link with an eligible Google account, then
+   check the Play-delivered app. Hardware evidence so far uses the separate development APK.
+   Never uninstall an existing app or clear its data to bypass a signing mismatch.
+2. Finish store listing and app-content **drafts**: official icon, prepared description/screenshots/
+   feature graphic, published privacy URL, Data safety, health declaration, content rating,
+   target audience, no ads and unrestricted app access. These are not submitted for public review.
+   Optional Google Forms feedback sends text, optional contact and basic app information;
+   do not declare blanket "no data collected." Use exact Console wording and source evidence.
+3. Check Play pre-launch reports when available and fix actual findings. Do not call a pending
+   report passed. Current verification: **560 unit tests, 27 browser tests, 900 active-workout
+   layout cases and 15 real Samsung smoke checks** passed; hardware coverage is one phone.
+4. Fixes need a **versionCode greater than 2**, appropriate tests, a new signed build and an
+   internal rollout. Do not upload changed bytes with code 2. Commit checkpoints and update this file.
+5. Obtain authority before closed/open testing or production. This account requires **12 closed
+   testers continuously opted in for 14 days**, then an application for production access and
+   Google review. The nine-account internal list does not meet or count toward that requirement.
+
+### Links, artifacts and practical pickup notes
+
+- Internal opt-in: https://play.google.com/apps/internaltest/4700623995534838864
+- Console: https://play.google.com/console/u/1/developers/8815481908048608009/app/4974756118756386209/tracks/4700623995534838864?tab=releases
+- Mockup: https://fir1412.github.io/we-go-gim/mockups/welcome.html
+- Privacy: https://fir1412.github.io/we-go-gim/privacy.html
+- Play visibly showed **Active / Available to internal testers**. Beta Testers (nine accounts)
+  was selected and saved; no invitations were sent. The unreviewed listing uses a temporary
+  package-name title. Play said installation can take up to an hour, occasionally longer.
+- Uploaded AAB: `output/release/we-go-gim-1.11.0.aab`, SHA256
+  `6be393dfb0d1f9473205471ef7b1cadfa2070dfaea7d83615783c4aa0e5a4cb1`.
+- APK: `output/release/we-go-gim-1.11.0.apk`, SHA256
+  `ffaa9d1e679f473ec575ed51cc5ed9707af6ca00dee33faf9a211adb8116611a`.
+- `output/` is gitignored and stays on this PC. Another checkout must rebuild artifacts and
+  regenerate evidence. Logs/results: `output/final-unit-tests.log`, `output/final-e2e.log`,
+  `output/compatibility/layout.json`, `output/phone/results.json`,
+  `output/phone/storage-results.json` and `output/phone/native-data.png`.
+- Build instructions: `release/README.md`. Signing keys/passwords remain outside the repo at
+  `C:/Users/user/wegogim-android-keys`; never print or commit them. Upload signing and Play app
+  signing can differ. The `.dev` package is for synthetic tests, not production-data experiments.
+- `mockups/welcome.html` is a design preview, not the live onboarding redesign. The live welcome
+  adds explicit website-to-Android backup restoration. Keep that distinction in release claims.
+- Training reminders renew only the next 28 days on app visits/changes. Screen-off rest delivery
+  was observed, but screen illumination was not verified or guaranteed. Preserve those limits.
+- The bank has 1,000 composed **English drafts**, not 1,000 translations. Other supported
+  languages use a localized short default or custom text. Review sources in `content/reminders/`.
+- Official artwork: `icons/official-source.jpg`; preserve the drawing and orientation.
+- Graphify's commit hook rebuilds the graph automatically. Ponytail guidance favours existing
+  helpers and Android's built-in APIs. Review actual data-loss paths before simplifying them.
+
 Current work is on `fix-welcome`. User requested Capacitor conversion, Play preparation,
 Tally lessons, bug/phone checks, frequent commits. Also asked about screen-off rest alerts.
 

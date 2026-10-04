@@ -643,7 +643,7 @@ function paletteRow(st) {
   const sw = (id, name, s) => `<button class="palsw" data-act="st-palette" data-v="${id}" aria-pressed="${cur === id}"><i aria-hidden="true" style="background:${s[0]}"><b style="background:${s[1]}"></b></i><span>${name}</span></button>`;
   const own = okMine(st.myPalette) ? paletteFor({ appPalette: 'mine', myPalette: st.myPalette }) : paletteFor(st);
   const pick = (i, label) => `<label class="rrow"><span>${label}</span><input type="color" data-input="st-mine" data-i="${i}" value="${st.myPalette[mode][i].toLowerCase()}"></label>`;
-  return `<div class="stack"><span class="lbl">Colours</span><div class="pals" role="group" aria-label="Colours">
+  return `<div class="stack"><span class="lbl">Colours</span><div class="pals" role="group" aria-label="Colours" data-ctx="palette">
     ${Object.entries(PALETTES).map(([id, p]) => sw(id, p.name, p[mode])).join('')}${sw('mine', 'Mine', own[mode])}</div>
     ${mine ? `${pick(0, 'Background')}${pick(1, 'Cards')}<p class="fine">${mode === 'dark' ? 'These are for the dark theme. Switch the theme to Light to set its colours too.' : 'These are for the light theme. Switch the theme to Dark to set its colours too.'} Text stays readable on whatever you pick.</p>` : ''}</div>`;
 }

@@ -10,12 +10,32 @@ try {
   await b.until(() => document.querySelector('[data-act="sample-end"]'));
   await b.run(() => document.querySelector('.scrim')?.click());
   await b.run(async () => { const { S, startWorkout } = await import('./js/state.js'); await startWorkout(S.program.days.find(d => d.slots.length)); });
-  for (const route of ['today', 'workout', 'insights', 'history', 'levels', 'more']) {
+  for (const lang of ['en', 'ms', 'zh', 'zh-Hant', 'ja']) {
+    await b.run(async lang => {
+      const { saveSettings, refresh } = await import('./js/state.js');
+      const { setLang } = await import('./js/i18n.js');
+      await setLang(lang); await saveSettings({ lang, theme: 'dark', appPalette: 'default', coachDone: true }); refresh();
+    }, lang);
+    await b.go('__blank'); await b.go('#/today');
+    await b.until(() => document.querySelector('#tabs a'));
+    await b.run(async () => {
+      const { S, startWorkout } = await import('./js/state.js');
+      if (!S.draft) await startWorkout(S.program.days.find(d => d.slots.length));
+    });
+  for (const route of ['today', 'workout', 'insights', 'history', 'levels', 'settings']) {
+    // Show the real palette controls once, and a restrained Forest surface in the final pair.
+    if (route === 'levels') await b.run(async () => {
+      const { saveSettings, refresh } = await import('./js/state.js');
+      const { applyPalette } = await import('./js/palette.js');
+      await saveSettings({ appPalette: 'forest' }); applyPalette({ appPalette: 'forest' }); refresh();
+    });
     await b.run(route => { location.hash = '#/' + route; }, route);
     await new Promise(r => setTimeout(r, 600));
     const { data } = await b.send('Page.captureScreenshot', { format: 'png' });
-    const file = `release/screenshots/en-${route}.png`; writeFileSync(file, Buffer.from(data, 'base64'));
-    captures.push({ file, route, width: 1080, height: 1920, source: 'Chromium DOM, synthetic sample data; not a device capture' });
+    const file = `release/screenshots/${lang}-${route}.png`; writeFileSync(file, Buffer.from(data, 'base64'));
+    captures.push({ file, lang, route, palette: ['levels', 'settings'].includes(route) ? 'forest' : 'default', width: 1080, height: 1920, source: 'Chromium DOM, synthetic sample data; not a device capture' });
+    console.log(file);
+  }
   }
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1024, height: 500, deviceScaleFactor: 1, mobile: false });
   await b.run(() => {
@@ -26,4 +46,4 @@ try {
   writeFileSync('release/feature-1024x500.png', Buffer.from(data, 'base64'));
   writeFileSync('release/screenshots/manifest.json', JSON.stringify(captures, null, 2));
 } finally { await b.close(); }
-console.log('Six phone-format browser screenshots and feature graphic generated.');
+console.log('Thirty localized phone-format browser screenshots and feature graphic generated.');

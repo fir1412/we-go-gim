@@ -22,22 +22,23 @@ Debug package `.dev` is for phone checks; never uninstall Play to sideload aroun
 
 ## Play Console preparation
 
-- Verify the highest uploaded versionCode before upload; use a larger value if2alreadyexists.
+- VersionCode 2 is already published internally. Every subsequent upload needs a larger code.
 - Verify the upload certificate matches the existing listing. Upload signing and Play app signing
   certificates normally differ. This native app needs no Digital Asset Links.
 - Upload the signed AAB to the intended test track. Check Play's supported device comparison:
   Android7minimum can reduce reach compared with the old TWA. Retain old bundle if needed.
 - Store icon: store-icon-512.png. Screenshots/feature graphic/listing text in this folder.
   Browser screenshots use synthetic sample data and are labeled as browser captures in evidence.
-- Privacy URL: https://fir1412.github.io/we-go-gim/privacy.html. Publish the updated native policy
-  before submitting. Local policy edits are not a website deployment.
+- Privacy URL: https://fir1412.github.io/we-go-gim/privacy.html. The native policy is published.
+  If changed later, publish and verify it before submitting related Play declarations.
 - Data safety: optional feedback collects feedback text, optional email/contact, and app information
   (version, phone/browser type, language, current screen) through Google Forms. No workout/body
   data collection, no ads/analytics. Do not answer "no data collected" while feedback exists.
 - Health declaration: fitness/activity tracking; no medical diagnosis or treatment claims.
 - Ads: no. App access: all accessible without login. Category: Health & Fitness. Support:
   fir1412dev@gmail.com. Audience13+asstatedinterms; answer forms after reviewing their exact wording.
-- New personal accounts may need12testerscontinuously14days; confirm Console's requirement.
+- This account's Console confirms 12 closed testers continuously opted in for 14 days.
+  Internal testing does not satisfy that production-access requirement.
 - Notification/alarm access is optional; no restricted USE_EXACT_ALARM or full-screen-intent permission.
 - PDF import downloads its reader from cdnjs on first use; core workout flows are packaged/offline.
 
