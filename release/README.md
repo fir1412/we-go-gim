@@ -59,9 +59,12 @@ plan/time/custom message renews that window; no indefinite closed-app scheduling
 1,000 English copy drafts are in content/reminders/drafts.md; the composer supports editing and
 sharing. Notification delivery/screen illumination remain subject to Android/DND/battery settings.
 
-Internal release1(versionCode2) is published and Active. Existing Beta Testers list has9accounts.
+Internal release2(versionCode3) is published and Active. Existing Beta Testers list has9accounts.
 Join:https://play.google.com/apps/internaltest/4700623995534838864
 Installation may take up to an hour to propagate; the unreviewed listing has a temporary package
 name. No production submission is authorised. This account needs12closed testers for14continuous
 days before requesting production access; internal testing does not count for that requirement.
 See HANDOFF.md for actual verified tests, approval scope and remaining public-release steps.
+Closed Alpha release1 uses code3, Malaysia, and the same tester list. Automatic checks finished;
+changes are in Google review. Wait for approval before treating closed testing as available.
+See TESTER-GUIDE.md for opt-in and testing instructions. Phone checks are paused for Tally.

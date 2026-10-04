@@ -14,6 +14,14 @@ with five-language notes. Google review submission is the next action, not yet v
 Publishing overview queued 18 changes and initially blocked on the missing Advertising ID
 declaration. Verified source and merged manifest have no AD_ID; saved **No**. Quick checks
 are running (Console estimated up to 13 minutes). Submit only when enabled and no blocking issues.
+
+**Update: clicked Send changes for review; automatic checks finished and Console now says
+“Your changes are now in review.”** Google review is pending. Managed publishing is off;
+approved closed rollout publishes after review approval. Production remains untouched.
+Pre-launch overview currently has no report (“Upload artifacts to generate pre-launch reports”);
+do not claim a pre-launch pass. Check again after the closed release is reviewed/processed.
+Closed opt-in after approval: https://play.google.com/apps/testing/io.github.fir1412.wegogim
+Tester instructions: release/TESTER-GUIDE.md. No invitations sent; actual tester opt-ins unverified.
 Play validation: no errors; missing deobfuscation mapping warning only (minifyEnabled false).
 Code 3 loses zero supported devices: 12,320 phones / 6,749 tablets unchanged from code 2.
 
@@ -43,6 +51,12 @@ notes and heart rate. JSON preserves pound display; CSV intentionally stores can
 Full existing browser suite **27 passed** too. Evidence output/export-roundtrip.log and
 output/export-e2e.log. These are isolated browser checks, not proof of Android SAF or Play install.
 
+Final available next steps: monitor Google review and pre-launch findings; after approval verify
+the closed link and recruit enough actual opted-in testers. Phone testing remains paused for
+Tally. No credentials, existing data, public production release or invitations were changed.
+
+### Historical setup notes (superseded by the latest status above)
+
 User now approved Google review and closed testing, official Play installation with synthetic
 checks preserving existing data, AI labels on feature banners, IARC terms/questionnaire, and
 optional feedback contact disclosure as Email address/User IDs. Production/open testing and
@@ -53,6 +67,7 @@ keys, version-aware artifact filenames, and clearer privacy text separating Andr
 website storage and optional feedback diagnostics from automatic analytics. Build/lint passed;
 560 unit tests and the palette browser test passed. Artifacts are in output/release/artifacts.json.
 The local old 1.11.0 filenames were overwritten during preparation and MUST NOT be re-uploaded;
+they have now been renamed to output/release/obsolete-preprivacy-code3.aab and .apk.
 the historical code-2 hashes below describe the already-uploaded Play bundle only.
 
 Play setup saved: privacy, unrestricted access, no ads, government/financial declarations,
